@@ -306,3 +306,4 @@ npm run build
 - **Build with `npm run build`**, output goes to `dist/`
 - **GitHub Pages base path** is set to `/egg-monitoring/` in `vite.config.js`
 # Last updated: Sat May 30 12:19:22 CST 2026
+# Last deployment trigger: Sat May 30 12:28:06 CST 2026
