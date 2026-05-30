@@ -24,18 +24,32 @@ import {
 } from 'lucide-react';
 import { fetchSalesBySize, fetchSalesByHour, fetchSalesTrend, EGG_SIZES } from '../lib/api';
 import { toast } from './Toast';
-import { fetchInventory } from '../lib/api';
 
 const COLORS = [
   '#8B4513', '#A0522D', '#D4A574', '#F5DEB3',
   '#CD853F', '#DEB887', '#8B7355',
 ];
 
+function CustomTooltip({ active, payload, label }) {
+  if (active && payload && payload.length) {
+    return (
+      <div className="chart-tooltip">
+        <p className="chart-tooltip-label">{label}</p>
+        {payload.map((entry, i) => (
+          <p key={i} style={{ color: entry.color, fontWeight: 600 }}>
+            {entry.name}: {entry.value.toLocaleString()} eggs
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return null;
+}
+
 export default function Analytics() {
   const [bySize, setBySize] = useState([]);
   const [byHour, setByHour] = useState([]);
   const [trend, setTrend] = useState([]);
-  const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(30);
   const [chartTab, setChartTab] = useState('size');
@@ -51,11 +65,10 @@ export default function Analytics() {
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
 
-      const [sizeData, hourData, trendData, invData] = await Promise.all([
+      const [sizeData, hourData, trendData] = await Promise.all([
         fetchSalesBySize(startDate.toISOString().split('T')[0], endDate),
         fetchSalesByHour(),
         fetchSalesTrend(days),
-        fetchInventory(),
       ]);
 
       // Process sales by size
@@ -118,7 +131,6 @@ export default function Analytics() {
         }));
 
       setTrend(sortedTrend);
-      setInventory(invData || []);
     } catch (err) {
       console.error('Analytics load error:', err);
       toast('Failed to load analytics', 'error');
@@ -148,22 +160,6 @@ export default function Analytics() {
     (best, curr) => (curr.eggs > (best?.eggs || 0) ? curr : best),
     null
   );
-
-  const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="chart-tooltip">
-          <p className="chart-tooltip-label">{label}</p>
-          {payload.map((entry, i) => (
-            <p key={i} style={{ color: entry.color, fontWeight: 600 }}>
-              {entry.name}: {entry.value.toLocaleString()} eggs
-            </p>
-          ))}
-        </div>
-      );
-    }
-    return null;
-  };
 
   return (
     <div className="fade-in">

@@ -41,19 +41,6 @@ export async function updateInventory(eggSizeId, quantity) {
   return data;
 }
 
-export async function adjustInventory(eggSizeId, delta) {
-  // Fetch current
-  const { data: current, error: fetchError } = await supabase
-    .from('inventory')
-    .select('quantity_on_hand')
-    .eq('egg_size_id', eggSizeId)
-    .single();
-  if (fetchError) throw fetchError;
-
-  const newQty = Math.max(0, current.quantity_on_hand + delta);
-  return updateInventory(eggSizeId, newQty);
-}
-
 // ===== Sales =====
 export async function recordSale({ eggSizeId, quantity, unit, traySize }) {
   const today = new Date();
@@ -130,4 +117,12 @@ export async function fetchSalesTrend(days = 30) {
     .order('sale_date', { ascending: true });
   if (error) throw error;
   return data;
+}
+
+// ===== Utilities =====
+
+/** Convert a sale record to total egg count */
+export function getEggCount(sale) {
+  if (sale.unit === 'tray') return sale.quantity * (sale.tray_size || 30);
+  return sale.quantity;
 }

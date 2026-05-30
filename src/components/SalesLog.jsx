@@ -7,7 +7,7 @@ import {
   ChevronDown,
   Filter,
 } from 'lucide-react';
-import { fetchSales, recordSale, fetchInventory, EGG_SIZES } from '../lib/api';
+import { fetchSales, recordSale, fetchInventory, getEggCount, EGG_SIZES } from '../lib/api';
 import { toast } from './Toast';
 
 export default function SalesLog() {
@@ -86,11 +86,6 @@ export default function SalesLog() {
       : filter === 'recent'
       ? sales.slice(0, 20)
       : sales;
-
-  function getEggCount(sale) {
-    if (sale.unit === 'tray') return sale.quantity * (sale.tray_size || 30);
-    return sale.quantity;
-  }
 
   const todayTotal = sales
     .filter(s => s.sale_date === today)

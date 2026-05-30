@@ -8,7 +8,7 @@ import {
   ArrowRight,
   Egg,
 } from 'lucide-react';
-import { fetchInventory, fetchTodaySales } from '../lib/api';
+import { fetchInventory, fetchTodaySales, getEggCount, EGG_SIZES } from '../lib/api';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -36,12 +36,6 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }
-
-  // Calculate egg counts from sales
-  function getEggCount(sale) {
-    if (sale.unit === 'tray') return sale.quantity * (sale.tray_size || 30);
-    return sale.quantity;
   }
 
   const totalEggsSoldToday = todaySales.reduce(
@@ -91,7 +85,7 @@ export default function Dashboard() {
     },
     {
       label: 'Egg Sizes',
-      value: EGG_SIZE_NAMES.length,
+      value: EGG_SIZES.length,
       sub: 'from Peewee to Jumbo',
       icon: Egg,
       color: '#8B4513',
@@ -404,12 +398,3 @@ export default function Dashboard() {
   );
 }
 
-const EGG_SIZE_NAMES = [
-  'Peewee',
-  'Pullet',
-  'Small',
-  'Medium',
-  'Large',
-  'Extra Large',
-  'Jumbo',
-];
