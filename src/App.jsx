@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import Inventory from './components/Inventory';
+import PriceSettings from './components/PriceSettings';
 import SalesLog from './components/SalesLog';
 import Analytics from './components/Analytics';
 import { ToastContainer } from './components/Toast';
@@ -18,6 +19,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/inventory" element={<Inventory />} />
+          <Route path="/prices" element={<PriceSettings />} />
           <Route path="/sales" element={<SalesLog />} />
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/setup" element={<SetupGuide />} />

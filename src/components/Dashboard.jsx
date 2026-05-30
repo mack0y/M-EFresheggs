@@ -7,8 +7,9 @@ import {
   TrendingUp,
   ArrowRight,
   Egg,
+  DollarSign,
 } from 'lucide-react';
-import { fetchInventory, fetchTodaySales, getEggCount, EGG_SIZES } from '../lib/api';
+import { fetchInventory, fetchTodaySales, getEggCount, formatInventory, formatPeso, EGG_SIZES } from '../lib/api';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -40,6 +41,11 @@ export default function Dashboard() {
 
   const totalEggsSoldToday = todaySales.reduce(
     (sum, s) => sum + getEggCount(s),
+    0
+  );
+
+  const todayRevenue = todaySales.reduce(
+    (sum, s) => sum + parseFloat(s.total_amount || 0),
     0
   );
 
@@ -82,6 +88,14 @@ export default function Dashboard() {
       icon: AlertTriangle,
       color: lowStockItems.length > 0 ? '#F57C00' : '#2E7D32',
       bg: lowStockItems.length > 0 ? '#FFF3E0' : '#E8F5E9',
+    },
+    {
+      label: 'Revenue Today',
+      value: formatPeso(todayRevenue),
+      sub: `${totalEggsSoldToday.toLocaleString()} eggs sold`,
+      icon: DollarSign,
+      color: '#2E7D32',
+      bg: '#E8F5E9',
     },
     {
       label: 'Egg Sizes',
@@ -172,7 +186,9 @@ export default function Dashboard() {
                         {item.egg_sizes?.name || `Size ${i + 1}`}
                       </span>
                       <div className="stock-right">
-                        <span className="stock-qty">{qty.toLocaleString()}</span>
+                        <span className="stock-breakdown">
+                          {formatInventory(qty)}
+                        </span>
                         <span className={`badge ${badgeClass}`}>{label}</span>
                       </div>
                     </div>
@@ -364,6 +380,14 @@ export default function Dashboard() {
           font-size: 0.8125rem;
           color: var(--color-text-muted);
           font-variant-numeric: tabular-nums;
+        }
+
+        .stock-breakdown {
+          font-size: 0.9375rem;
+          color: var(--color-text);
+          font-weight: 600;
+          font-variant-numeric: tabular-nums;
+          white-space: nowrap;
         }
 
         .empty-state {

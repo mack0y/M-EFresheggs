@@ -7,12 +7,13 @@ import {
   TrendingUp,
   Menu,
   X,
-  Egg,
+  DollarSign,
 } from 'lucide-react';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/inventory', icon: Package, label: 'Inventory' },
+  { to: '/prices', icon: DollarSign, label: 'Pricing' },
   { to: '/sales', icon: ShoppingCart, label: 'Sales Log' },
   { to: '/analytics', icon: TrendingUp, label: 'Analytics' },
 ];
@@ -32,8 +33,8 @@ export default function Layout({ children }) {
           <Menu size={24} />
         </button>
         <div className="logo">
-          <Egg size={22} />
-          <span>Egg Monitor</span>
+          <span className="logo-icon">🥚</span>
+          <span>M&E Fresh Eggs</span>
         </div>
         <div style={{ width: 40 }} />
       </header>
@@ -47,8 +48,8 @@ export default function Layout({ children }) {
       <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
           <div className="logo">
-            <Egg size={24} />
-            <span>Egg Monitor</span>
+            <span className="logo-icon">🥚</span>
+            <span>M&E Fresh Eggs</span>
           </div>
           <button
             className="close-btn"
@@ -123,9 +124,14 @@ export default function Layout({ children }) {
           display: flex;
           align-items: center;
           gap: 0.5rem;
-          font-weight: 600;
+          font-weight: 700;
           font-size: 1.125rem;
           color: var(--color-primary);
+        }
+
+        .logo-icon {
+          font-size: 1.5rem;
+          line-height: 1;
         }
 
         /* Overlay */

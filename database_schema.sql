@@ -33,19 +33,33 @@ CREATE TABLE inventory (
 INSERT INTO inventory (egg_size_id, quantity_on_hand)
 SELECT id, 0 FROM egg_sizes;
 
--- 3. Sales table
+-- 3. Price Settings table (each egg size has its own per-piece and per-tray price)
+CREATE TABLE price_settings (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  egg_size_id BIGINT UNIQUE NOT NULL REFERENCES egg_sizes(id) ON DELETE CASCADE,
+  price_per_piece NUMERIC(10, 2) NOT NULL DEFAULT 0 CHECK (price_per_piece >= 0),
+  price_per_tray NUMERIC(10, 2) NOT NULL DEFAULT 0 CHECK (price_per_tray >= 0),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Insert default price records for all sizes (set to 0 initially)
+INSERT INTO price_settings (egg_size_id, price_per_piece, price_per_tray)
+SELECT id, 0, 0 FROM egg_sizes;
+
+-- 4. Sales table (now includes total_amount for monetary tracking)
 CREATE TABLE sales (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   egg_size_id BIGINT NOT NULL REFERENCES egg_sizes(id) ON DELETE CASCADE,
   quantity INTEGER NOT NULL CHECK (quantity > 0),
   unit TEXT NOT NULL DEFAULT 'piece' CHECK (unit IN ('piece', 'tray')),
   tray_size INTEGER CHECK (tray_size IN (12, 30)),
+  total_amount NUMERIC(10, 2) NOT NULL DEFAULT 0 CHECK (total_amount >= 0),
   sale_date DATE NOT NULL DEFAULT CURRENT_DATE,
   sale_time TIME NOT NULL DEFAULT CURRENT_TIME,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 4. Auto-update inventory when a sale is recorded
+-- 5. Auto-update inventory when a sale is recorded
 CREATE OR REPLACE FUNCTION update_inventory_on_sale()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -73,9 +87,10 @@ CREATE TRIGGER after_sale_insert
   FOR EACH ROW
   EXECUTE FUNCTION update_inventory_on_sale();
 
--- 5. Enable Row Level Security (for single-user app, allow all operations)
+-- 6. Enable Row Level Security (for single-user app, allow all operations)
 ALTER TABLE egg_sizes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inventory ENABLE ROW LEVEL SECURITY;
+ALTER TABLE price_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sales ENABLE ROW LEVEL SECURITY;
 
 -- Allow all operations for authenticated and anonymous users
@@ -85,11 +100,15 @@ CREATE POLICY "Allow all on egg_sizes" ON egg_sizes
 CREATE POLICY "Allow all on inventory" ON inventory
   FOR ALL USING (true) WITH CHECK (true);
 
+CREATE POLICY "Allow all on price_settings" ON price_settings
+  FOR ALL USING (true) WITH CHECK (true);
+
 CREATE POLICY "Allow all on sales" ON sales
   FOR ALL USING (true) WITH CHECK (true);
 
--- 6. Create indexes for faster queries
+-- 7. Create indexes for faster queries
 CREATE INDEX idx_sales_date ON sales(sale_date);
 CREATE INDEX idx_sales_time ON sales(sale_time);
 CREATE INDEX idx_sales_egg_size ON sales(egg_size_id);
 CREATE INDEX idx_inventory_egg_size ON inventory(egg_size_id);
+CREATE INDEX idx_price_settings_egg_size ON price_settings(egg_size_id);

@@ -3,11 +3,9 @@ import {
   ShoppingCart,
   Plus,
   Clock,
-  Calendar,
-  ChevronDown,
-  Filter,
+  DollarSign,
 } from 'lucide-react';
-import { fetchSales, recordSale, fetchInventory, getEggCount, EGG_SIZES } from '../lib/api';
+import { fetchSales, recordSale, fetchInventory, getEggCount, formatPeso, EGG_SIZES } from '../lib/api';
 import { toast } from './Toast';
 
 export default function SalesLog() {
@@ -91,6 +89,21 @@ export default function SalesLog() {
     .filter(s => s.sale_date === today)
     .reduce((sum, s) => sum + getEggCount(s), 0);
 
+  const todayRevenue = sales
+    .filter(s => s.sale_date === today)
+    .reduce((sum, s) => sum + parseFloat(s.total_amount || 0), 0);
+
+  function formatShortDate(dateStr) {
+    const d = new Date(dateStr + 'T00:00:00');
+    const todayDate = new Date();
+    const yesterday = new Date(todayDate);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (dateStr === today) return 'Today';
+    if (dateStr === yesterday.toISOString().split('T')[0]) return 'Yesterday';
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
   return (
     <div className="fade-in">
       <div className="page-header-row">
@@ -119,10 +132,10 @@ export default function SalesLog() {
           </div>
         </div>
         <div className="sales-stat-card">
-          <Calendar size={18} />
+          <DollarSign size={18} />
           <div>
-            <span className="sales-stat-value">{new Date().toLocaleDateString('en-US', { weekday: 'long' })}</span>
-            <span className="sales-stat-label">{today}</span>
+            <span className="sales-stat-value">{formatPeso(todayRevenue)}</span>
+            <span className="sales-stat-label">revenue today</span>
           </div>
         </div>
       </div>
@@ -253,8 +266,8 @@ export default function SalesLog() {
         <div className="sales-table-header">
           <span>Size</span>
           <span>Qty</span>
-          <span>Date</span>
-          <span>Time</span>
+          <span>Amount</span>
+          <span>When</span>
         </div>
         {loading ? (
           <div className="loading-list">
@@ -287,10 +300,10 @@ export default function SalesLog() {
                     : `egg${sale.quantity > 1 ? 's' : ''}`}
                 </span>
               </span>
-              <span className="sale-date-text">{sale.sale_date}</span>
-              <span className="sale-time-text">
-                <Clock size={12} />
-                {sale.sale_time?.slice(0, 5)}
+              <span className="sale-amount">{formatPeso(sale.total_amount)}</span>
+              <span className="sale-when">
+                <span className="sale-when-date">{formatShortDate(sale.sale_date)}</span>
+                <span className="sale-when-time">{sale.sale_time?.slice(0, 5)}</span>
               </span>
             </div>
           ))
@@ -469,17 +482,29 @@ export default function SalesLog() {
           color: var(--color-text-muted);
         }
 
-        .sale-date-text {
-          color: var(--color-text-secondary);
-          font-size: 0.875rem;
+        .sale-amount {
+          font-weight: 600;
+          font-variant-numeric: tabular-nums;
+          color: var(--color-primary);
         }
 
-        .sale-time-text {
+        .sale-when {
           display: flex;
-          align-items: center;
-          gap: 0.25rem;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 0.1rem;
+          line-height: 1.2;
+        }
+
+        .sale-when-date {
+          font-size: 0.8125rem;
+          font-weight: 500;
+          color: var(--color-text-secondary);
+        }
+
+        .sale-when-time {
+          font-size: 0.75rem;
           color: var(--color-text-muted);
-          font-size: 0.875rem;
           font-variant-numeric: tabular-nums;
         }
 

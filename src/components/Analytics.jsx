@@ -19,10 +19,10 @@ import {
   Clock,
   BarChart3,
   PieChart as PieChartIcon,
-  Download,
   Calendar,
+  DollarSign,
 } from 'lucide-react';
-import { fetchSalesBySize, fetchSalesByHour, fetchSalesTrend, EGG_SIZES } from '../lib/api';
+import { fetchSalesBySize, fetchSalesByHour, fetchSalesTrend, formatPeso, EGG_SIZES } from '../lib/api';
 import { toast } from './Toast';
 
 const COLORS = [
@@ -30,16 +30,21 @@ const COLORS = [
   '#CD853F', '#DEB887', '#8B7355',
 ];
 
-function CustomTooltip({ active, payload, label }) {
+function CustomTooltip({ active, payload, label, formatType }) {
   if (active && payload && payload.length) {
     return (
       <div className="chart-tooltip">
         <p className="chart-tooltip-label">{label}</p>
-        {payload.map((entry, i) => (
-          <p key={i} style={{ color: entry.color, fontWeight: 600 }}>
-            {entry.name}: {entry.value.toLocaleString()} eggs
-          </p>
-        ))}
+        {payload.map((entry, i) => {
+          const val = formatType === 'peso'
+            ? formatPeso(entry.value)
+            : `${entry.value.toLocaleString()} eggs`;
+          return (
+            <p key={i} style={{ color: entry.color, fontWeight: 600 }}>
+              {entry.name}: {val}
+            </p>
+          );
+        })}
       </div>
     );
   }
@@ -50,6 +55,7 @@ export default function Analytics() {
   const [bySize, setBySize] = useState([]);
   const [byHour, setByHour] = useState([]);
   const [trend, setTrend] = useState([]);
+  const [revenueBySize, setRevenueBySize] = useState([]);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(30);
   const [chartTab, setChartTab] = useState('size');
@@ -89,6 +95,21 @@ export default function Analytics() {
       }));
 
       setBySize(sortedBySize);
+
+      // Process revenue by size
+      const revenueMap = {};
+      (sizeData || []).forEach(sale => {
+        const name = sale.egg_sizes?.name || 'Unknown';
+        if (!revenueMap[name]) revenueMap[name] = 0;
+        revenueMap[name] += parseFloat(sale.total_amount || 0);
+      });
+
+      const sortedRevenue = EGG_SIZES.map(name => ({
+        name,
+        revenue: revenueMap[name] || 0,
+      }));
+
+      setRevenueBySize(sortedRevenue);
 
       // Process sales by hour
       const hourMap = {};
@@ -152,6 +173,7 @@ export default function Analytics() {
   }
 
   const totalEggsSold = bySize.reduce((sum, s) => sum + s.eggs, 0);
+  const totalRevenue = revenueBySize.reduce((sum, s) => sum + s.revenue, 0);
   const bestSize = bySize.reduce(
     (best, curr) => (curr.eggs > (best?.eggs || 0) ? curr : best),
     null
@@ -185,6 +207,15 @@ export default function Analytics() {
 
       {/* Summary stats */}
       <div className="analytics-stats">
+        <div className="analytics-stat-card">
+          <DollarSign size={20} />
+          <div>
+            <span className="analytics-stat-value">
+              {formatPeso(totalRevenue)}
+            </span>
+            <span className="analytics-stat-label">total revenue</span>
+          </div>
+        </div>
         <div className="analytics-stat-card">
           <TrendingUp size={20} />
           <div>
@@ -243,6 +274,13 @@ export default function Analytics() {
         >
           <PieChartIcon size={16} />
           Distribution
+        </button>
+        <button
+          className={`chart-tab ${chartTab === 'revenue' ? 'active' : ''}`}
+          onClick={() => setChartTab('revenue')}
+        >
+          <DollarSign size={16} />
+          Revenue
         </button>
       </div>
 
@@ -314,6 +352,31 @@ export default function Analytics() {
               ) : (
                 <div className="empty-state" style={{ height: 300 }}>
                   <p>Not enough data to show trends yet</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {chartTab === 'revenue' && (
+            <div>
+              <h3 style={{ marginBottom: '1rem' }}>Revenue by Egg Size</h3>
+              {revenueBySize.some(r => r.revenue > 0) ? (
+                <ResponsiveContainer width="100%" height={350}>
+                  <BarChart data={revenueBySize} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E8DDD0" />
+                    <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                    <YAxis tick={{ fontSize: 12 }} />
+                    <Tooltip content={<CustomTooltip formatType="peso" />} />
+                    <Bar dataKey="revenue" name="Revenue" radius={[4, 4, 0, 0]} fill="#2E7D32">
+                      {revenueBySize.map((_, i) => (
+                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="empty-state" style={{ height: 300 }}>
+                  <p>No revenue data yet. Set prices and record sales to see revenue breakdown.</p>
                 </div>
               )}
             </div>

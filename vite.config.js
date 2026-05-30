@@ -4,8 +4,8 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  // Base path for GitHub Pages - update this to your repo name
-  base: '/egg-monitoring/',
+  // Base path for GitHub Pages - matches repo name
+  base: '/M-EFresheggs/',
   build: {
     outDir: 'dist',
     sourcemap: false,

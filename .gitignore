@@ -12,6 +12,12 @@ dist
 dist-ssr
 *.local
 
+# Environment variables (contains secrets)
+.env
+
+# Sensitive files
+supabase key.txt
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
