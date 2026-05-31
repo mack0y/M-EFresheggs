@@ -69,7 +69,26 @@ CREATE TABLE expenses (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 6. Auto-update inventory when a sale is recorded
+-- 6. Spoilage table (egg wastage tracking)
+CREATE TABLE spoilage (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  egg_size_id BIGINT NOT NULL REFERENCES egg_sizes(id) ON DELETE CASCADE,
+  quantity INTEGER NOT NULL CHECK (quantity > 0),
+  reason TEXT NOT NULL DEFAULT 'Unknown',
+  spoilage_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 7. Customers table
+CREATE TABLE customers (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  name TEXT NOT NULL,
+  phone TEXT,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 8. Auto-update inventory when a sale is recorded
 CREATE OR REPLACE FUNCTION update_inventory_on_sale()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -103,6 +122,8 @@ ALTER TABLE inventory ENABLE ROW LEVEL SECURITY;
 ALTER TABLE price_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sales ENABLE ROW LEVEL SECURITY;
 ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE spoilage ENABLE ROW LEVEL SECURITY;
+ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
 
 -- Allow all operations for authenticated and anonymous users
 CREATE POLICY "Allow all on egg_sizes" ON egg_sizes
@@ -120,9 +141,18 @@ CREATE POLICY "Allow all on sales" ON sales
 CREATE POLICY "Allow all on expenses" ON expenses
   FOR ALL USING (true) WITH CHECK (true);
 
+CREATE POLICY "Allow all on spoilage" ON spoilage
+  FOR ALL USING (true) WITH CHECK (true);
+
+CREATE POLICY "Allow all on customers" ON customers
+  FOR ALL USING (true) WITH CHECK (true);
+
 -- 7. Create indexes for faster queries
 CREATE INDEX idx_sales_date ON sales(sale_date);
 CREATE INDEX idx_sales_time ON sales(sale_time);
 CREATE INDEX idx_sales_egg_size ON sales(egg_size_id);
 CREATE INDEX idx_inventory_egg_size ON inventory(egg_size_id);
 CREATE INDEX idx_price_settings_egg_size ON price_settings(egg_size_id);
+CREATE INDEX idx_spoilage_date ON spoilage(spoilage_date);
+CREATE INDEX idx_spoilage_egg_size ON spoilage(egg_size_id);
+CREATE INDEX idx_customers_name ON customers(name);

@@ -9,6 +9,8 @@ import { ToastContainer } from './components/Toast';
 import Reports from './components/Reports';
 import ErrorBoundary from './components/ErrorBoundary';
 import Expenses from './components/Expenses';
+import Spoilage from './components/Spoilage';
+import Customers from './components/Customers';
 
 export default function App() {
   return (
@@ -21,6 +23,8 @@ export default function App() {
           <Route path="/sales" element={<ErrorBoundary><SalesLog /></ErrorBoundary>} />
           <Route path="/analytics" element={<ErrorBoundary><Analytics /></ErrorBoundary>} />
           <Route path="/expenses" element={<ErrorBoundary><Expenses /></ErrorBoundary>} />
+          <Route path="/spoilage" element={<ErrorBoundary><Spoilage /></ErrorBoundary>} />
+          <Route path="/customers" element={<ErrorBoundary><Customers /></ErrorBoundary>} />
           <Route path="/reports" element={<ErrorBoundary><Reports /></ErrorBoundary>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

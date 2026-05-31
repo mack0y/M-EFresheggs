@@ -322,4 +322,37 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 | **Analytics** | Chart tabs wrap naturally, pie chart outerRadius shrinks to 80 on mobile |
 | **Reports** | 2-column controls grid, shift tabs wrap, table has horizontal scroll |
 
+## New Features (Added)
+
+### Spoilage Tracking (`/spoilage`)
+- Record egg wastage by size, quantity, reason (Cracked/Broken/Expired/Damaged/Other)
+- Stats: total spoiled eggs, spoiled today
+- Reason breakdown with color-coded badges
+- Date picker for recording past spoilage
+- Mobile-responsive card layout
+
+### Customer Directory (`/customers`)
+- Manage customer contacts: name, phone, notes
+- Add and remove customers
+- Empty state with quick-add button
+- Mobile-responsive layout
+
+### Dark Mode
+- Toggle button in sidebar footer
+- Persists preference via `localStorage`
+- Respects system `prefers-color-scheme` on first visit
+- Full dark theme: adjusted colors for all elements (buttons, cards, tables, skeleton loaders, scrollbars)
+- Applied via `data-theme` attribute on `<html>`
+
+### Revenue vs Expenses (Reports)
+- When generating a report, expenses for the same date range are fetched automatically
+- Three summary cards: Total Revenue, Total Expenses, Net Profit
+- Net profit is color-coded (green for positive, red for negative)
+- Expense breakdown by category below
+
+### Database
+- `spoilage` table: tracks egg wastage by size, quantity, reason, date
+- `customers` table: customer directory with name, phone, notes
+- RLS policies and indexes for both new tables
+
 # Last updated: Mon Jun  1 15:00:00 CST 2026

@@ -26,6 +26,77 @@
   --font-mono: 'SF Mono', 'Fira Code', monospace;
 }
 
+/* ===== Dark Mode ===== */
+[data-theme="dark"] {
+  --color-primary: #66BB6A;
+  --color-primary-hover: #4CAF50;
+  --color-primary-light: #1B3A1B;
+  --color-bg: #121212;
+  --color-card: #1E1E1E;
+  --color-text: #E0E0E0;
+  --color-text-secondary: #A0A0A0;
+  --color-text-muted: #707070;
+  --color-border: #333333;
+  --color-success: #66BB6A;
+  --color-success-bg: #1B3A1B;
+  --color-warning: #FFB74D;
+  --color-warning-bg: #3E2723;
+  --color-danger: #EF5350;
+  --color-danger-bg: #3B1A1A;
+  --color-accent: #FFD54F;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="dark"] .skeleton {
+  background: linear-gradient(90deg, #2a2a2a 25%, #333 50%, #2a2a2a 75%);
+  background-size: 200% 100%;
+}
+
+[data-theme="dark"] .btn-secondary {
+  background: #2a2a2a;
+  color: var(--color-primary);
+}
+
+[data-theme="dark"] .btn-secondary:hover {
+  background: #333;
+}
+
+[data-theme="dark"] .btn-danger {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+[data-theme="dark"] .report-output {
+  background: var(--color-card);
+}
+
+[data-theme="dark"] .report-table th {
+  background: var(--color-bg);
+}
+
+[data-theme="dark"] .report-table tbody tr:hover {
+  background: var(--color-bg);
+}
+
+[data-theme="dark"] .total-row td {
+  background: var(--color-primary-light);
+}
+
+[data-theme="dark"] .react-datepicker {
+  background: var(--color-card);
+  border-color: var(--color-border);
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: #444;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
 /* ===== Reset & Base ===== */
 *, *::before, *::after {
   box-sizing: border-box;

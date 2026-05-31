@@ -7,8 +7,10 @@ import {
   RefreshCw,
   Printer,
   Download,
+  TrendingUp,
+  TrendingDown,
 } from 'lucide-react';
-import { fetchSalesReport, formatPeso, EGG_SIZES, TRAY_SIZE } from '../lib/api';
+import { fetchSalesReport, fetchExpenses, formatPeso, EGG_SIZES, TRAY_SIZE } from '../lib/api';
 import { getUserFriendlyError } from '../lib/errors';
 
 const SHIFTS = [
@@ -31,6 +33,7 @@ export default function Reports() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [report, setReport] = useState(null);
+  const [reportExpenses, setReportExpenses] = useState([]);
   function selectShift(index) {
     setActiveShift(index);
     const shift = SHIFTS[index];
@@ -48,13 +51,12 @@ export default function Reports() {
     try {
       setLoading(true);
       setError(null);
-      const data = await fetchSalesReport({
-        startDate,
-        endDate,
-        startTime,
-        endTime,
-      });
-      setReport(data || []);
+      const [salesData, expensesData] = await Promise.all([
+        fetchSalesReport({ startDate, endDate, startTime, endTime }),
+        fetchExpenses({ startDate, endDate }),
+      ]);
+      setReport(salesData || []);
+      setReportExpenses(expensesData || []);
     } catch (err) {
       console.error('Report load error:', err);
       setError(err);
@@ -170,6 +172,17 @@ export default function Reports() {
     return `${h12}:${m} ${ampm}`;
   }
 
+  const totalExpenses = reportExpenses.reduce(
+    (sum, e) => sum + parseFloat(e.amount || 0),
+    0
+  );
+  const netProfit = processed ? processed.totals.revenue - totalExpenses : 0;
+
+  const expenseByCategory = {};
+  reportExpenses.forEach(e => {
+    const cat = e.category;
+    expenseByCategory[cat] = (expenseByCategory[cat] || 0) + parseFloat(e.amount || 0);
+  });
   const processed = processReport();
 
   return (
@@ -375,6 +388,53 @@ export default function Reports() {
                   </tr>
                 </tfoot>
               </table>
+            </div>
+          )}
+
+          {/* Expense vs Revenue */}
+          {reportExpenses.length > 0 && (
+            <div className="report-profit-section">
+              <h3 className="report-profit-title">Revenue vs Expenses</h3>
+              <div className="report-profit-grid">
+                <div className="report-profit-card report-profit-revenue">
+                  <TrendingUp size={20} />
+                  <div>
+                    <span className="report-profit-value">{formatPeso(processed.totals.revenue)}</span>
+                    <span className="report-profit-label">Total Revenue</span>
+                  </div>
+                </div>
+                <div className="report-profit-card report-profit-expense">
+                  <TrendingDown size={20} />
+                  <div>
+                    <span className="report-profit-value">{formatPeso(totalExpenses)}</span>
+                    <span className="report-profit-label">Total Expenses</span>
+                  </div>
+                </div>
+                <div className="report-profit-card report-profit-net">
+                  <span className="report-profit-icon">{netProfit >= 0 ? '📈' : '📉'}</span>
+                  <div>
+                    <span className="report-profit-value" style={{ color: netProfit >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                      {formatPeso(netProfit)}
+                    </span>
+                    <span className="report-profit-label">Net Profit</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Expense breakdown */}
+              {expenseByCategory.length > 0 && (
+                <div className="report-expense-breakdown">
+                  <h4 style={{ fontSize: '0.875rem', marginBottom: '0.5rem', color: 'var(--color-text-secondary)' }}>Expense Breakdown</h4>
+                  <div className="report-expense-grid">
+                    {expenseByCategory.map(([cat, total]) => (
+                      <div key={cat} className="report-expense-item">
+                        <span className="report-expense-cat">{cat}</span>
+                        <span className="report-expense-amount">{formatPeso(total)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -612,6 +672,89 @@ export default function Reports() {
           color: var(--color-text-muted);
           padding-top: 1rem;
           border-top: 1px solid var(--color-border);
+        }
+
+        /* Revenue vs Expenses */
+        .report-profit-section {
+          margin-top: 1.5rem;
+          padding-top: 1.5rem;
+          border-top: 2px solid var(--color-border);
+        }
+
+        .report-profit-title {
+          font-size: 1.0625rem;
+          font-weight: 700;
+          color: var(--color-text);
+          margin-bottom: 0.75rem;
+        }
+
+        .report-profit-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+          gap: 0.75rem;
+          margin-bottom: 1rem;
+        }
+
+        .report-profit-card {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          padding: 0.875rem 1rem;
+          background: var(--color-card);
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-sm);
+        }
+
+        .report-profit-card svg { flex-shrink: 0; }
+        .report-profit-revenue svg { color: var(--color-success); }
+        .report-profit-expense svg { color: var(--color-danger); }
+        .report-profit-icon { font-size: 1.25rem; }
+
+        .report-profit-value {
+          display: block;
+          font-weight: 700;
+          font-size: 1.0625rem;
+        }
+
+        .report-profit-label {
+          display: block;
+          font-size: 0.6875rem;
+          color: var(--color-text-muted);
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+        }
+
+        .report-expense-breakdown {
+          background: var(--color-bg);
+          border-radius: var(--radius-sm);
+          padding: 1rem;
+        }
+
+        .report-expense-grid {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+        }
+
+        .report-expense-item {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.4rem 0.75rem;
+          background: var(--color-card);
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-sm);
+          font-size: 0.8125rem;
+        }
+
+        .report-expense-cat {
+          font-weight: 500;
+          color: var(--color-text-secondary);
+        }
+
+        .report-expense-amount {
+          font-weight: 700;
+          color: var(--color-danger);
         }
 
         /* Print styles */

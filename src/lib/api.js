@@ -233,6 +233,75 @@ export async function recordExpense({ category, description, amount }) {
   return data;
 }
 
+// ===== Spoilage =====
+
+export const SPOILAGE_REASONS = [
+  'Cracked',
+  'Broken',
+  'Expired',
+  'Damaged',
+  'Other',
+];
+
+export async function fetchSpoilage({ startDate, endDate, limit = 100 } = {}) {
+  let query = supabase
+    .from('spoilage')
+    .select('*, egg_sizes(name, sort_order)')
+    .order('spoilage_date', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  if (startDate) query = query.gte('spoilage_date', startDate);
+  if (endDate) query = query.lte('spoilage_date', endDate);
+
+  const { data, error } = await query.limit(limit);
+  if (error) throw error;
+  return data;
+}
+
+export async function recordSpoilage({ eggSizeId, quantity, reason, spoilageDate }) {
+  const { data, error } = await supabase
+    .from('spoilage')
+    .insert({
+      egg_size_id: eggSizeId,
+      quantity,
+      reason,
+      spoilage_date: spoilageDate,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+// ===== Customers =====
+
+export async function fetchCustomers() {
+  const { data, error } = await supabase
+    .from('customers')
+    .select('*')
+    .order('name', { ascending: true });
+  if (error) throw error;
+  return data;
+}
+
+export async function addCustomer({ name, phone, notes }) {
+  const { data, error } = await supabase
+    .from('customers')
+    .insert({ name, phone, notes })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteCustomer(id) {
+  const { error } = await supabase
+    .from('customers')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
+
 // ===== Utilities =====
 
 export const TRAY_SIZE = 30;

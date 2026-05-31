@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -10,6 +10,10 @@ import {
   DollarSign,
   FileText,
   TrendingDown,
+  Users,
+  AlertTriangle,
+  Moon,
+  Sun,
 } from 'lucide-react';
 
 const navItems = [
@@ -17,6 +21,8 @@ const navItems = [
   { to: '/inventory', icon: Package, label: 'Inventory' },
   { to: '/prices', icon: DollarSign, label: 'Pricing' },
   { to: '/sales', icon: ShoppingCart, label: 'Sales Log' },
+  { to: '/spoilage', icon: AlertTriangle, label: 'Spoilage' },
+  { to: '/customers', icon: Users, label: 'Customers' },
   { to: '/expenses', icon: TrendingDown, label: 'Expenses' },
   { to: '/analytics', icon: TrendingUp, label: 'Analytics' },
   { to: '/reports', icon: FileText, label: 'Reports' },
@@ -24,6 +30,16 @@ const navItems = [
 
 export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => {
+    const stored = localStorage.getItem('theme');
+    if (stored) return stored === 'dark';
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
+    localStorage.setItem('theme', darkMode ? 'dark' : 'light');
+  }, [darkMode]);
 
   return (
     <div className="layout">
@@ -79,6 +95,18 @@ export default function Layout({ children }) {
             </NavLink>
           ))}
         </nav>
+
+        {/* Dark mode toggle */}
+        <div className="sidebar-footer">
+          <button
+            className="dark-mode-toggle"
+            onClick={() => setDarkMode(prev => !prev)}
+            aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+            <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
+          </button>
+        </div>
       </aside>
 
       {/* Main content */}
@@ -181,6 +209,33 @@ export default function Layout({ children }) {
           display: flex;
           flex-direction: column;
           gap: 0.25rem;
+          overflow-y: auto;
+        }
+
+        .sidebar-footer {
+          padding: 0.75rem;
+          border-top: 1px solid var(--color-border);
+        }
+
+        .dark-mode-toggle {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          width: 100%;
+          padding: 0.75rem 1rem;
+          border: none;
+          border-radius: var(--radius-sm);
+          background: transparent;
+          color: var(--color-text-secondary);
+          font-size: 0.9375rem;
+          font-weight: 500;
+          transition: all 0.2s;
+          cursor: pointer;
+        }
+
+        .dark-mode-toggle:hover {
+          background: var(--color-primary-light);
+          color: var(--color-primary);
         }
 
         .nav-link {
