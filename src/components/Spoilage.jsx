@@ -5,8 +5,9 @@ import {
   RefreshCw,
   Egg,
   Calendar,
+  DollarSign,
 } from 'lucide-react';
-import { fetchSpoilage, recordSpoilage, fetchInventory, SPOILAGE_REASONS } from '../lib/api';
+import { fetchSpoilageWithCost, recordSpoilage, fetchInventory, SPOILAGE_REASONS, formatPeso } from '../lib/api';
 import { toast } from './Toast';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
@@ -38,7 +39,7 @@ export default function Spoilage() {
       setLoading(true);
       setError(null);
       const [spoilageData, invData] = await Promise.all([
-        fetchSpoilage({ limit: 200 }),
+        fetchSpoilageWithCost({ limit: 200 }),
         fetchInventory(),
       ]);
       setSpoilage(spoilageData || []);
@@ -91,9 +92,18 @@ export default function Spoilage() {
     .filter(s => s.spoilage_date === today)
     .reduce((sum, s) => sum + s.quantity, 0);
 
+  const totalSpoilageCost = spoilage.reduce((sum, s) => sum + parseFloat(s.cost || 0), 0);
+  const todaySpoilageCost = spoilage
+    .filter(s => s.spoilage_date === today)
+    .reduce((sum, s) => sum + parseFloat(s.cost || 0), 0);
+
   const reasonBreakdown = {};
   spoilage.forEach(s => {
-    reasonBreakdown[s.reason] = (reasonBreakdown[s.reason] || 0) + s.quantity;
+    if (!reasonBreakdown[s.reason]) {
+      reasonBreakdown[s.reason] = { eggs: 0, cost: 0 };
+    }
+    reasonBreakdown[s.reason].eggs += s.quantity;
+    reasonBreakdown[s.reason].cost += parseFloat(s.cost || 0);
   });
 
   function formatDate(dateStr) {
@@ -137,17 +147,32 @@ export default function Spoilage() {
             <span className="spoilage-stat-label">spoiled today</span>
           </div>
         </div>
+        <div className="spoilage-stat-card spoilage-stat-cost">
+          <DollarSign size={18} />
+          <div>
+            <span className="spoilage-stat-value">{formatPeso(totalSpoilageCost)}</span>
+            <span className="spoilage-stat-label">total cost lost</span>
+          </div>
+        </div>
+        <div className="spoilage-stat-card spoilage-stat-cost-today">
+          <DollarSign size={18} />
+          <div>
+            <span className="spoilage-stat-value">{formatPeso(todaySpoilageCost)}</span>
+            <span className="spoilage-stat-label">cost lost today</span>
+          </div>
+        </div>
       </div>
 
       {/* Reason breakdown */}
       {Object.keys(reasonBreakdown).length > 0 && (
         <div className="spoilage-breakdown">
           {Object.entries(reasonBreakdown)
-            .sort((a, b) => b[1] - a[1])
-            .map(([reason, total]) => (
+            .sort((a, b) => b[1].eggs - a[1].eggs)
+            .map(([reason, data]) => (
               <div key={reason} className="spoilage-breakdown-item">
                 <span className="spoilage-breakdown-reason">{reason}</span>
-                <span className="spoilage-breakdown-qty">{total.toLocaleString()} eggs</span>
+                <span className="spoilage-breakdown-qty">{data.eggs.toLocaleString()} eggs</span>
+                <span className="spoilage-breakdown-cost">({formatPeso(data.cost)})</span>
               </div>
             ))}
         </div>
@@ -331,6 +356,8 @@ export default function Spoilage() {
         .spoilage-stat-card svg { flex-shrink: 0; }
         .spoilage-stat-total svg { color: var(--color-warning); }
         .spoilage-stat-today svg { color: var(--color-danger); }
+        .spoilage-stat-cost svg { color: var(--color-accent); }
+        .spoilage-stat-cost-today svg { color: var(--color-danger); }
 
         .spoilage-stat-value {
           display: block;
@@ -370,6 +397,12 @@ export default function Spoilage() {
         .spoilage-breakdown-qty {
           font-weight: 700;
           color: var(--color-warning);
+        }
+
+        .spoilage-breakdown-cost {
+          font-weight: 600;
+          color: var(--color-danger);
+          font-size: 0.75rem;
         }
 
         .spoilage-form-card {
@@ -480,6 +513,14 @@ export default function Spoilage() {
             grid-column: 1 / -1; grid-row: 3;
           }
           .spoilage-stats { grid-template-columns: 1fr; }
+        }
+
+        @media (min-width: 640px) {
+          .spoilage-stats { grid-template-columns: 1fr 1fr; }
+        }
+
+        @media (min-width: 900px) {
+          .spoilage-stats { grid-template-columns: 1fr 1fr 1fr 1fr; }
         }
       `}</style>
     </div>

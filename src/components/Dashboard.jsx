@@ -9,7 +9,7 @@ import {
   DollarSign,
   RefreshCw,
 } from 'lucide-react';
-import { fetchInventory, fetchTodaySales, fetchTodayExpenses, getEggCount, formatInventory, formatPeso } from '../lib/api';
+import { fetchInventory, fetchTodaySales, fetchTodayExpenses, fetchInventoryValue, getEggCount, formatInventory, formatPeso } from '../lib/api';
 import { getUserFriendlyError } from '../lib/errors';
 
 export default function Dashboard() {
@@ -17,6 +17,7 @@ export default function Dashboard() {
   const [inventory, setInventory] = useState([]);
   const [todaySales, setTodaySales] = useState([]);
   const [todayExpenses, setTodayExpenses] = useState([]);
+  const [inventoryValue, setInventoryValue] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -24,14 +25,16 @@ export default function Dashboard() {
     try {
       setLoading(true);
       setError(null);
-      const [inv, sales, expenses] = await Promise.all([
+      const [inv, sales, expenses, invValue] = await Promise.all([
         fetchInventory(),
         fetchTodaySales(),
         fetchTodayExpenses(),
+        fetchInventoryValue(),
       ]);
       setInventory(inv || []);
       setTodaySales(sales || []);
       setTodayExpenses(expenses || []);
+      setInventoryValue(invValue);
     } catch (err) {
       console.error('Dashboard load error:', err);
       setError(err);
@@ -76,6 +79,14 @@ export default function Dashboard() {
   );
 
   const statCards = [
+    {
+      label: 'Stock Value',
+      value: formatPeso(inventoryValue),
+      sub: `${totalStock.toLocaleString()} total eggs`,
+      icon: DollarSign,
+      color: '#1565C0',
+      bg: '#E3F2FD',
+    },
     {
       label: 'Total Stock',
       value: totalStock.toLocaleString(),

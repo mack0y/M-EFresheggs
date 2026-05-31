@@ -10,7 +10,7 @@ import {
   TrendingUp,
   TrendingDown,
 } from 'lucide-react';
-import { fetchSalesReport, fetchExpenses, formatPeso, EGG_SIZES, TRAY_SIZE } from '../lib/api';
+import { fetchSalesReport, fetchExpenses, fetchSpoilageWithCost, fetchCustomers, formatPeso, EGG_SIZES, TRAY_SIZE } from '../lib/api';
 import { getUserFriendlyError } from '../lib/errors';
 
 const SHIFTS = [
@@ -131,7 +131,7 @@ export default function Reports() {
     };
   }
 
-  function handleExportCSV() {
+  async function handleExportCSV() {
     if (!processed || !processed.rows.length) return;
 
     const rows = [
@@ -147,6 +147,40 @@ export default function Reports() {
       [],
       ['Total', processed.totals.trays, processed.totals.pieces, processed.totals.totalEggs, `₱${processed.totals.revenue.toFixed(2)}`, processed.totals.salesCount],
     ];
+
+    // Add spoilage section
+    try {
+      const spoilageData = await fetchSpoilageWithCost({ startDate, endDate, limit: 500 });
+      if (spoilageData && spoilageData.length > 0) {
+        rows.push([], ['=== SPOILAGE ==='], ['Date', 'Size', 'Quantity', 'Reason', 'Cost']);
+        spoilageData.forEach(s => {
+          rows.push([
+            s.spoilage_date,
+            s.egg_sizes?.name || 'Unknown',
+            s.quantity,
+            s.reason,
+            `₱${parseFloat(s.cost || 0).toFixed(2)}`,
+          ]);
+        });
+        const totalCost = spoilageData.reduce((sum, s) => sum + parseFloat(s.cost || 0), 0);
+        rows.push(['Total', '', '', '', `₱${totalCost.toFixed(2)}`]);
+      }
+    } catch (e) {
+      // skip spoilage data if fetch fails
+    }
+
+    // Add customers section
+    try {
+      const customersData = await fetchCustomers();
+      if (customersData && customersData.length > 0) {
+        rows.push([], ['=== CUSTOMERS ==='], ['Name', 'Phone', 'Notes']);
+        customersData.forEach(c => {
+          rows.push([c.name, c.phone || '', (c.notes || '').replace(/,/g, ';')]);
+        });
+      }
+    } catch (e) {
+      // skip customers data if fetch fails
+    }
 
     const csvContent = rows.map(row => row.join(',')).join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -423,11 +457,11 @@ export default function Reports() {
               </div>
 
               {/* Expense breakdown */}
-              {expenseByCategory.length > 0 && (
+              {Object.keys(expenseByCategory).length > 0 && (
                 <div className="report-expense-breakdown">
                   <h4 style={{ fontSize: '0.875rem', marginBottom: '0.5rem', color: 'var(--color-text-secondary)' }}>Expense Breakdown</h4>
                   <div className="report-expense-grid">
-                    {expenseByCategory.map(([cat, total]) => (
+                    {Object.entries(expenseByCategory).map(([cat, total]) => (
                       <div key={cat} className="report-expense-item">
                         <span className="report-expense-cat">{cat}</span>
                         <span className="report-expense-amount">{formatPeso(total)}</span>

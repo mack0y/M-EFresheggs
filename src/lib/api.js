@@ -306,6 +306,60 @@ export async function deleteCustomer(id) {
 
 export const TRAY_SIZE = 30;
 
+/** Calculate total inventory monetary value */
+export async function fetchInventoryValue() {
+  const [inv, prices] = await Promise.all([
+    fetchInventory(),
+    fetchPriceSettings(),
+  ]);
+
+  const priceMap = {};
+  (prices || []).forEach(p => {
+    priceMap[p.egg_size_id] = parseFloat(p.price_per_piece || 0);
+  });
+
+  let totalValue = 0;
+  (inv || []).forEach(item => {
+    const qty = item.quantity_on_hand || 0;
+    const pp = priceMap[item.egg_size_id] || 0;
+    totalValue += qty * pp;
+  });
+
+  return totalValue;
+}
+
+/** Calculate cost of spoilage data */
+export async function fetchSpoilageWithCost({ startDate, endDate, limit = 200 } = {}) {
+  let query = supabase
+    .from('spoilage')
+    .select('*, egg_sizes(name, sort_order)')
+    .order('spoilage_date', { ascending: false });
+
+  if (startDate) query = query.gte('spoilage_date', startDate);
+  if (endDate) query = query.lte('spoilage_date', endDate);
+
+  const { data: spoilageData, error } = await query.limit(limit);
+  if (error) throw error;
+
+  // Fetch prices to calculate cost
+  const { data: priceData } = await supabase
+    .from('price_settings')
+    .select('egg_size_id, price_per_piece');
+
+  const priceMap = {};
+  (priceData || []).forEach(p => {
+    priceMap[p.egg_size_id] = parseFloat(p.price_per_piece || 0);
+  });
+
+  // Add cost to each spoilage entry
+  const withCost = (spoilageData || []).map(s => ({
+    ...s,
+    cost: s.quantity * (priceMap[s.egg_size_id] || 0),
+  }));
+
+  return withCost;
+}
+
 /** Convert a sale record to total egg count */
 export function getEggCount(sale) {
   if (sale.unit === 'tray') return sale.quantity * (sale.tray_size || 30);

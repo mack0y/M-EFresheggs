@@ -116,6 +116,23 @@ CREATE TRIGGER after_sale_insert
   FOR EACH ROW
   EXECUTE FUNCTION update_inventory_on_sale();
 
+-- 9. Auto-update inventory when spoilage is recorded
+CREATE OR REPLACE FUNCTION update_inventory_on_spoilage()
+RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE inventory
+  SET quantity_on_hand = quantity_on_hand - NEW.quantity,
+      updated_at = NOW()
+  WHERE egg_size_id = NEW.egg_size_id;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER after_spoilage_insert
+  AFTER INSERT ON spoilage
+  FOR EACH ROW
+  EXECUTE FUNCTION update_inventory_on_spoilage();
+
 -- 7. Enable Row Level Security (for single-user app, allow all operations)
 ALTER TABLE egg_sizes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inventory ENABLE ROW LEVEL SECURITY;
