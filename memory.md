@@ -2,9 +2,8 @@
 
 ## Project Overview
 
-A mobile-first web application for tracking egg inventory, recording sales, managing pricing, and viewing sales analytics. Built for **M&E Fresh Eggs**, an egg retail business.
+A mobile-first web application for tracking egg inventory, recording sales, managing pricing, viewing sales analytics, generating shift-based reports, and tracking expenses. Built for **M&E Fresh Eggs**, an egg retail business.
 
-**Live URL:** http://localhost:5173 (dev)
 **Supabase Project:** https://supabase.com/dashboard/project/npohyeqnaltpqzmmlmej
 
 ---
@@ -20,41 +19,43 @@ A mobile-first web application for tracking egg inventory, recording sales, mana
 | Icons | Lucide React |
 | Database | PostgreSQL (via Supabase) |
 | Client | @supabase/supabase-js |
-| Build | npm run build → `dist/` |
-| Deployment target | GitHub Pages (base: `/egg-monitoring/`) |
+| Build | `npm run build` → `dist/` |
 
 ---
 
 ## Project Structure
 
 ```
-egg-monitoring/
+M-EFresheggs/
 ├── .env                    # Supabase credentials (gitignored)
-├── .env.example            # Template for .env
 ├── package.json
-├── vite.config.js          # Vite + React, base: /egg-monitoring/
-├── database_schema.sql     # Full schema (run once on new project)
-├── migration_pricing.sql   # Migration to add pricing tables
+├── vite.config.js
+├── database_schema.sql     # Full schema including expenses table
+├── migration_pricing.sql   # Migration for pricing tables
 ├── memory.md               # This file
-├── me.png                  # Original logo image (not used in UI)
-├── public/
-│   └── logo.png            # Logo image (copied from me.png, not currently used)
+├── eslint.config.js
+├── .github/workflows/deploy.yml
+├── README.md
 └── src/
     ├── main.jsx            # Entry point
     ├── App.jsx             # Router + Layout wrapper
     ├── index.css           # Design system (CSS variables, utilities)
     ├── lib/
     │   ├── supabaseClient.js   # Supabase connection
-    │   └── api.js              # All data operations + utilities
+    │   ├── api.js              # All data operations + utilities
+    │   └── errors.js           # User-friendly error messages
     └── components/
         ├── Layout.jsx          # Sidebar nav, mobile-responsive
-        ├── Dashboard.jsx       # Overview stats & stock levels
-        ├── Inventory.jsx       # Manage stock per egg size
-        ├── SalesLog.jsx        # Record & filter sales
-        ├── Analytics.jsx       # 5 chart views (size, time, trend, pie, revenue)
+        ├── Dashboard.jsx       # Overview stats, stock levels, net profit
+        ├── Inventory.jsx       # Add/remove stock by trays or pieces
+        ├── SalesLog.jsx        # Record & filter sales by date range
         ├── PriceSettings.jsx   # Set per-piece & per-tray prices
-        ├── Toast.jsx           # Notification system
-        └── SetupGuide.jsx      # Supabase setup guide
+        ├── Analytics.jsx       # Charts (size, time, trend, revenue, distribution)
+        ├── Reports.jsx         # Shift-based sales reports with CSV export
+        ├── Expenses.jsx        # Expense tracking by category
+        ├── Toast.jsx           # Global notification system
+        ├── ConfirmDialog.jsx   # Reusable confirmation modal
+        └── ErrorBoundary.jsx   # Error boundary wrapper
 ```
 
 ---
@@ -79,7 +80,7 @@ egg-monitoring/
 | quantity_on_hand | INTEGER | ≥ 0, default 0 |
 | updated_at | TIMESTAMPTZ | Auto |
 
-#### `price_settings` — Pricing per egg size (added via migration)
+#### `price_settings` — Pricing per egg size
 | Column | Type | Notes |
 |--------|------|-------|
 | id | BIGINT PK | Auto-generated |
@@ -101,6 +102,16 @@ egg-monitoring/
 | sale_time | TIME | Default current time |
 | created_at | TIMESTAMPTZ | Auto |
 
+#### `expenses` — Expense tracking
+| Column | Type | Notes |
+|--------|------|-------|
+| id | BIGINT PK | Auto-generated |
+| category | TEXT | Feed, Labor, Utilities, Transport, Packaging, Maintenance, Misc |
+| description | TEXT | Optional note |
+| amount | NUMERIC(10,2) | ≥ 0 |
+| expense_date | DATE | Default today |
+| created_at | TIMESTAMPTZ | Auto |
+
 ### Trigger
 - **`after_sale_insert`** — Automatically deducts inventory when a sale is recorded. Converts trays to egg count (qty × tray_size) before deducting.
 
@@ -109,10 +120,72 @@ All tables use permissive policies (`ALL USING true`) since this is a single-use
 
 ---
 
+## Pages & Routes
+
+| Route | Component | Description |
+|-------|-----------|-------------|
+| `/` | Dashboard | Overview: stock levels, today's sales, revenue, expenses, net profit |
+| `/inventory` | Inventory | Add/remove stock by trays or pieces per egg size |
+| `/prices` | PriceSettings | Set per-piece and per-tray selling prices |
+| `/sales` | SalesLog | Record sales, filter by date range (Today/This Week/Custom) |
+| `/expenses` | Expenses | Record expenses by category, filter & view breakdown |
+| `/analytics` | Analytics | 5 chart views (by size, by hour, trend, revenue, distribution) |
+| `/reports` | Reports | Shift-based sales reports (Morning/Afternoon/Whole Day/Custom) with CSV export |
+
+---
+
+## Key Features
+
+### Inventory Management
+- Each egg size card shows total stock in trays + pieces format (e.g., "2 trays + 15 pcs")
+- **Add row:** Tray count input + piece count input with plus buttons
+- **Remove row:** Piece count input + tray count input with minus buttons
+- Confirmation dialog before any removal
+- Quick stock status badges: In Stock (green), Low Stock ≤50 (yellow), Out of Stock (red)
+
+### Sales Recording
+- Select egg size, unit (piece/tray), and quantity
+- Tray size selector (30 eggs)
+- Auto-calculates total amount from current price settings
+- Confirmation dialog before recording
+- Date range filter (Today / This Week / Custom Range)
+- Each sale shows eggs breakdown column (e.g., "2 trays + 5 pcs")
+- Supabase trigger auto-deducts from inventory
+
+### Expense Tracking
+- Record expenses by category: Feed, Labor, Utilities, Transport, Packaging, Maintenance, Misc
+- Optional description field
+- Category summary breakdown with color-coded badges
+- Filter expenses by category
+- Today's total and total entries count
+
+### Dashboard
+- Stat cards: Total Stock, Sold Today, Low Stock Items, Revenue Today, Expenses Today, Net Profit Today
+- Stock levels list with trays/pieces breakdown per size
+- Today's sales feed (latest 10)
+- Error banners with retry button
+- Loading skeletons
+
+### Reports
+- Date range pickers (From / To)
+- Shift selector: Morning (6AM–2PM), Afternoon (2PM–10PM), Whole Day, Custom
+- Report table: Egg Size, Trays, Pieces, Total Eggs, Revenue, Transactions
+- Total row with properly converted trays (pieces always < 30)
+- Summary cards: Total Eggs Sold, Revenue, Transactions, Trays Sold, Pieces Sold
+- **CSV Export** button to download report as `.csv`
+- Print-friendly layout
+
+### Analytics
+- 5 chart tabs using Recharts: By Size, By Time, Trend, Revenue, Distribution
+- Date range selector: 7/30/90 days
+- Summary stats: total revenue, total eggs sold, best-selling size, peak hour
+
+---
+
 ## API Layer (`src/lib/api.js`)
 
 ### Inventory
-- `fetchInventory()` — Gets all inventory with egg size names (sorted)
+- `fetchInventory()` — Gets all inventory with egg size names
 - `updateInventory(eggSizeId, quantity)` — Sets exact quantity_on_hand
 
 ### Pricing
@@ -120,88 +193,55 @@ All tables use permissive policies (`ALL USING true`) since this is a single-use
 - `updatePriceSetting(eggSizeId, pricePerPiece, pricePerTray)` — Upserts by egg_size_id
 
 ### Sales
-- `recordSale({ eggSizeId, quantity, unit, traySize })` — Records sale AND calculates total_amount from current price_settings. Also triggers automatic inventory deduction via Supabase trigger.
-- `fetchSales({ limit, offset })` — Recent sales with egg size names
+- `recordSale({ eggSizeId, quantity, unit, traySize })` — Records sale, calculates total, triggers inventory deduction
+- `fetchSales({ limit, offset, startDate, endDate })` — Sales with date range + egg size names
 - `fetchTodaySales()` — Today's sales only
+- `fetchSalesReport({ startDate, endDate, startTime, endTime })` — Shift-based report data with egg size info
 
 ### Analytics
-- `fetchSalesBySize(startDate, endDate)` — Sales in date range, used for size/revenue breakdown
-- `fetchSalesByHour()` — All sale times, used for hourly distribution
-- `fetchSalesTrend(days)` — Sales grouped by date for trend line
+- `fetchSalesBySize(startDate, endDate)` — Sales in date range for size/revenue breakdown
+- `fetchSalesByHour(startDate, endDate)` — Sale times filtered by date range
+- `fetchSalesTrend(days)` — Daily sales for trend line
+
+### Expenses
+- `fetchExpenses({ startDate, endDate, limit })` — Filtered expense list
+- `fetchTodayExpenses()` — Today's expenses
+- `recordExpense({ category, description, amount })` — Record a new expense
 
 ### Utilities
-- `EGG_SIZES` — Constant array: ['Peewee', 'Pullet', 'Small', 'Medium', 'Large', 'Extra Large', 'Jumbo']
+- `EGG_SIZES` — ['Peewee', 'Pullet', 'Small', 'Medium', 'Large', 'Extra Large', 'Jumbo']
+- `EXPENSE_CATEGORIES` — ['Feed', 'Labor', 'Utilities', 'Transport', 'Packaging', 'Maintenance', 'Misc']
 - `TRAY_SIZE` — 30 (eggs per tray)
-- `getEggCount(sale)` — Converts a sale record to total egg count (handles trays vs pieces)
+- `getEggCount(sale)` — Converts sale record to total egg count
 - `toTraysAndPieces(totalEggs)` — Returns `{ trays, pieces }` object
 - `formatInventory(totalEggs)` — Returns string like "2 trays + 22 pcs" or "15 pcs"
 - `formatPeso(amount)` — Returns string like "₱1,234.50"
 
 ---
 
-## Components
-
-### Layout (`Layout.jsx`)
-- Responsive sidebar navigation
-- Mobile: hamburger menu with overlay, fixed header
-- Desktop: fixed sidebar (260px), sticky
-- Branding: 🥚 **M&E Fresh Eggs** in header and sidebar
-- Nav items: Dashboard, Inventory, Pricing, Sales Log, Analytics
-
-### Dashboard (`Dashboard.jsx`)
-- Stat cards: Total Stock, Sold Today, Low Stock Items, Revenue Today, Egg Sizes
-- Stock levels list (shows trays + pieces via `formatInventory`)
-- Today's sales feed (latest 10)
-- Quick links to Inventory and Sales pages
-- Handles loading (skeleton) and error states
-
-### Inventory (`Inventory.jsx`)
-- Lists all egg sizes with current stock
-- Shows total count bold + breakdown below (e.g., "2 trays + 22 pcs")
-- Actions per row:
-  - **+Tray** — Quick add 30 eggs
-  - **[input] [+] —** Type any number of pieces, press Enter or tap +
-  - **[-] [input]** — Type any number to remove, press Enter or tap -
-  - **-Tray** — Quick remove 30 eggs (disabled if stock < 30)
-- Mobile-optimized with larger fonts and touch targets
-- Stock status badges: In Stock (green), Low Stock ≤50 (yellow), Out of Stock (red)
-
-### SalesLog (`SalesLog.jsx`)
-- Record new sales with form: egg size, unit (piece/tray), quantity
-- Tray size selector (30 eggs — the standard)
-- Sales list with 4 columns: Size | Qty | Amount | When
-- "When" column shows relative dates (Today, Yesterday, Apr 5) + time
-- Filter tabs: All Sales, Today, Recent 20
-- Stats bar: eggs sold today + revenue today
-- Amount column auto-calculated from pricing at time of sale
-
-### Analytics (`Analytics.jsx`)
-- 5 chart tabs using Recharts:
-  - **By Size** — Bar chart of eggs sold per size
-  - **By Time** — Bar chart of sales volume by hour (5 AM–8 PM)
-  - **Trend** — Line chart of daily sales over selected period
-  - **Revenue** — Bar chart of revenue by egg size (shows ₱)
-  - **Distribution** — Donut/pie chart of sales by size
-- Summary stats: total revenue, total eggs sold, best-selling size, peak hour
-- Date range selector: 7/30/90 days
-
-### PriceSettings (`PriceSettings.jsx`)
-- Lists all egg sizes with current prices as badges
-- Per-piece and per-tray price inputs per size
-- Save button per row (upserts to Supabase)
-- Current prices displayed as badge: "Current: ₱8.00 / pc • ₱220.00 / tray"
-- Helpful info card explaining how pricing works
+## Shared Components
 
 ### Toast (`Toast.jsx`)
-- Global notification system via `toast()` function
+- Global notification system via `toast(message, type)` function
 - Auto-dismiss after 3 seconds
 - Types: success (green), error (red)
+
+### ConfirmDialog (`ConfirmDialog.jsx`)
+- Reusable modal for confirming destructive or important actions
+- Props: `open`, `title`, `message`, `confirmLabel`, `variant`, `icon`, `onConfirm`, `onCancel`
+
+### ErrorBoundary (`ErrorBoundary.jsx`)
+- Catches React rendering errors and shows a friendly fallback UI
+- Wraps all routes in App.jsx
+
+### Errors (`src/lib/errors.js`)
+- `getUserFriendlyError(error)` — Converts Supabase/network errors to human-readable messages
 
 ---
 
 ## Color Scheme
 
-**Brand colors:** Yellow & Green (updated from original brown theme)
+**Brand colors:** Green & Yellow
 
 | Role | Color | Hex |
 |------|-------|-----|
@@ -226,84 +266,60 @@ All tables use permissive policies (`ALL USING true`) since this is a single-use
 ### 1. Database Setup
 1. Create a Supabase project at https://supabase.com
 2. Open **SQL Editor** → New Query
-3. For a fresh project, run the entire `database_schema.sql`
-4. For existing projects, run `migration_pricing.sql` to add pricing tables
+3. Run the entire `database_schema.sql` to create all tables, triggers, and seed data
 
 ### 2. Environment Variables
-Create `.env` file (see `.env.example`):
+Create `.env` file:
 ```
 VITE_SUPABASE_URL=https://npohyeqnaltpqzmmlmej.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key-here
+VITE_SUPABASE_ANON_KEY=sb_publishable_QlM4RGEizMrdybxn75T2gA_CYIx7kGi
 ```
 
 ### 3. Run Locally
 ```bash
-cd "C:/Egg Monitoring"
+cd "C:/M-EFresheggs"
 npm install
 npm run dev
-# Opens at http://localhost:5173
 ```
 
 ### 4. Build for Production
 ```bash
 npm run build
 # Output in dist/
+npm run preview  # Preview the production build
 ```
-
----
-
-## Key User Flows
-
-### Recording a Sale
-1. Go to **Sales Log** → Tap **New Sale**
-2. Select egg size, unit (piece/tray), quantity
-3. Tap **Record Sale**
-4. App auto-calculates total from current price_settings
-5. Supabase trigger auto-deducts from inventory
-
-### Managing Inventory
-1. Go to **Inventory**
-2. Use **+Tray** / **-Tray** for ±30 eggs
-3. Or type any number in the input fields and press Enter or tap +/- button
-4. Stock updates instantly in Supabase
-
-### Setting Prices
-1. Go to **Pricing**
-2. Enter per-piece and per-tray prices for each size
-3. Tap **Save** per row
-4. Prices persist and are used for future sale calculations
-
-### Viewing Analytics
-1. Go to **Analytics**
-2. Select date range (7/30/90 days)
-3. Switch between chart tabs: By Size, By Time, Trend, Revenue, Distribution
-4. Revenue chart shows which sizes earn the most
-
----
-
-## Dependencies (`package.json`)
-
-| Package | Version | Purpose |
-|---------|---------|---------|
-| react | ^19.2.6 | UI framework |
-| react-dom | ^19.2.6 | DOM rendering |
-| react-router-dom | ^7.16.0 | Client-side routing |
-| @supabase/supabase-js | ^2.106.2 | Database client |
-| lucide-react | ^1.17.0 | Icons |
-| recharts | ^3.8.1 | Charts |
-| vite | ^8.0.12 | Build tool |
-| @vitejs/plugin-react | ^6.0.1 | React plugin for Vite |
 
 ---
 
 ## Development Notes
 
-- **Tray size is fixed at 30 eggs** (only size used by the business)
+- **Tray size is fixed at 30 eggs**
 - **No authentication** — Single-user app with permissive RLS policies
-- **Mobile-first design** — Larger fonts, touch-friendly buttons, responsive grid
+- **Mobile-first design** — Larger fonts, touch-friendly buttons, responsive grid, optimized for 375px+ screens
 - **CSS uses inline `<style>` blocks** within each component (no CSS modules)
 - **Design system** lives in `src/index.css` with CSS custom properties
 - **Build with `npm run build`**, output goes to `dist/`
-- **GitHub Pages base path** is set to `/egg-monitoring/` in `vite.config.js`
-# Last updated: Sat May 30 12:19:22 CST 2026
-# Last deployment trigger: Sat May 30 12:28:06 CST 2026
+- **Supabase URL must be passed explicitly during build** if parent shell has stale env vars:
+
+```bash
+unset VITE_SUPABASE_URL
+unset VITE_SUPABASE_ANON_KEY
+VITE_SUPABASE_URL="https://npohyeqnaltpqzmmlmej.supabase.co" VITE_SUPABASE_ANON_KEY="sb_publishable_QlM4RGEizMrdybxn75T2gA_CYIx7kGi" npx vite build
+```
+
+## Mobile Responsiveness
+
+All pages are optimized for mobile viewing (375px+). Desktop layouts use responsive grid breakpoints at 640px and 900px.
+
+| Page | Mobile Layout Strategy |
+|------|----------------------|
+| **Layout** | Hamburger menu with slide-out sidebar, fixed top header |
+| **Dashboard** | Stat cards stack to single column, compact padding + smaller icons |
+| **Inventory** | Input fields tighten to 60px min-width, action labels shrink, card padding reduced |
+| **Pricing** | Save button goes full-width under inputs, price badges truncate with ellipsis |
+| **Sales Log** | 5-column grid → 2-column card layout (size+amount top, qty+eggs bottom), stacked filter bar |
+| **Expenses** | 4-column grid → 2-column card layout (date+category left, amount right, desc full-width), stats stack |
+| **Analytics** | Chart tabs wrap naturally, pie chart outerRadius shrinks to 80 on mobile |
+| **Reports** | 2-column controls grid, shift tabs wrap, table has horizontal scroll |
+
+# Last updated: Mon Jun  1 15:00:00 CST 2026

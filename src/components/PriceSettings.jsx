@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { DollarSign, Save, RefreshCw } from 'lucide-react';
+import { DollarSign, Save, RefreshCw, AlertTriangle } from 'lucide-react';
 import { fetchPriceSettings, updatePriceSetting, formatPeso, EGG_SIZES } from '../lib/api';
 import { toast } from './Toast';
+import { getUserFriendlyError } from '../lib/errors';
 
 export default function PriceSettings() {
   const [prices, setPrices] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [saving, setSaving] = useState(null);
   const [pieceInputs, setPieceInputs] = useState({});
   const [trayInputs, setTrayInputs] = useState({});
@@ -17,6 +19,7 @@ export default function PriceSettings() {
   async function loadPrices() {
     try {
       setLoading(true);
+      setError(null);
       const data = await fetchPriceSettings();
       setPrices(data || []);
       // Initialize input fields
@@ -30,7 +33,7 @@ export default function PriceSettings() {
       setTrayInputs(trays);
     } catch (err) {
       console.error('Price load error:', err);
-      toast('Failed to load prices', 'error');
+      setError(err);
     } finally {
       setLoading(false);
     }
@@ -54,7 +57,7 @@ export default function PriceSettings() {
       await updatePriceSetting(item.egg_size_id, pieceVal, trayVal);
       toast(`${item.egg_sizes?.name} prices saved!`);
       loadPrices();
-    } catch (err) {
+    } catch {
       toast('Failed to save prices', 'error');
     } finally {
       setSaving(null);
@@ -78,6 +81,21 @@ export default function PriceSettings() {
         </button>
       </div>
 
+      {error && !loading && (
+        <div className="error-banner">
+          <AlertTriangle size={20} />
+          <div className="error-banner-content">
+            <strong>Failed to load prices</strong>
+            <p>{getUserFriendlyError(error)}</p>
+          </div>
+          <button className="btn btn-sm btn-secondary" onClick={loadPrices}>
+            <RefreshCw size={14} />
+            Retry
+          </button>
+        </div>
+      )}
+
+      {!error && (
       <div className="price-list">
         {loading
           ? Array.from({ length: 7 }).map((_, i) => (
@@ -158,6 +176,7 @@ export default function PriceSettings() {
               );
             })}
       </div>
+      )}
 
       {!loading && sortedPrices.length > 0 && (
         <div className="price-summary-card">
@@ -224,12 +243,16 @@ export default function PriceSettings() {
         }
 
         .price-current-badge {
+          display: inline-block;
           font-size: 0.75rem;
           color: var(--color-text-muted);
           background: var(--color-bg);
           padding: 0.2rem 0.5rem;
           border-radius: var(--radius-sm);
           white-space: nowrap;
+          max-width: 100%;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
         .price-card-inputs {

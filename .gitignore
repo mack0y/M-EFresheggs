@@ -17,6 +17,7 @@ dist-ssr
 
 # Sensitive files
 supabase key.txt
+supabase.txt
 
 # Editor directories and files
 .vscode/*

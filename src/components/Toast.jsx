@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
 // Toast context for global notifications
+/* eslint-disable react-refresh/only-export-components */
 let addToastFn = null;
 
 export function toast(message, type = 'success') {

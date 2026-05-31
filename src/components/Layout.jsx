@@ -8,6 +8,8 @@ import {
   Menu,
   X,
   DollarSign,
+  FileText,
+  TrendingDown,
 } from 'lucide-react';
 
 const navItems = [
@@ -15,7 +17,9 @@ const navItems = [
   { to: '/inventory', icon: Package, label: 'Inventory' },
   { to: '/prices', icon: DollarSign, label: 'Pricing' },
   { to: '/sales', icon: ShoppingCart, label: 'Sales Log' },
+  { to: '/expenses', icon: TrendingDown, label: 'Expenses' },
   { to: '/analytics', icon: TrendingUp, label: 'Analytics' },
+  { to: '/reports', icon: FileText, label: 'Reports' },
 ];
 
 export default function Layout({ children }) {

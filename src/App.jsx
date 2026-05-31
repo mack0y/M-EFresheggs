@@ -6,23 +6,22 @@ import PriceSettings from './components/PriceSettings';
 import SalesLog from './components/SalesLog';
 import Analytics from './components/Analytics';
 import { ToastContainer } from './components/Toast';
-import SetupGuide from './components/SetupGuide';
+import Reports from './components/Reports';
+import ErrorBoundary from './components/ErrorBoundary';
+import Expenses from './components/Expenses';
 
 export default function App() {
-  // Check if Supabase is configured
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const isConfigured = !!supabaseUrl;
-
   return (
     <BrowserRouter>
       <Layout>
         <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/inventory" element={<Inventory />} />
-          <Route path="/prices" element={<PriceSettings />} />
-          <Route path="/sales" element={<SalesLog />} />
-          <Route path="/analytics" element={<Analytics />} />
-          <Route path="/setup" element={<SetupGuide />} />
+          <Route path="/" element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />
+          <Route path="/inventory" element={<ErrorBoundary><Inventory /></ErrorBoundary>} />
+          <Route path="/prices" element={<ErrorBoundary><PriceSettings /></ErrorBoundary>} />
+          <Route path="/sales" element={<ErrorBoundary><SalesLog /></ErrorBoundary>} />
+          <Route path="/analytics" element={<ErrorBoundary><Analytics /></ErrorBoundary>} />
+          <Route path="/expenses" element={<ErrorBoundary><Expenses /></ErrorBoundary>} />
+          <Route path="/reports" element={<ErrorBoundary><Reports /></ErrorBoundary>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         <ToastContainer />

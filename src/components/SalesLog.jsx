@@ -2,19 +2,28 @@ import { useState, useEffect } from 'react';
 import {
   ShoppingCart,
   Plus,
-  Clock,
   DollarSign,
+  AlertTriangle,
+  RefreshCw,
+  ClipboardCheck,
 } from 'lucide-react';
-import { fetchSales, recordSale, fetchInventory, getEggCount, formatPeso, EGG_SIZES } from '../lib/api';
+import { fetchSales, recordSale, fetchInventory, getEggCount, formatPeso, formatInventory } from '../lib/api';
 import { toast } from './Toast';
+import { getUserFriendlyError } from '../lib/errors';
+import ConfirmDialog from './ConfirmDialog';
 
 export default function SalesLog() {
   const [sales, setSales] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [filter, setFilter] = useState('all');
+  const today = new Date().toISOString().split('T')[0];
+
+  const [filter, setFilter] = useState('today');
+  const [startDate, setStartDate] = useState(today);
+  const [endDate, setEndDate] = useState(today);
 
   const [form, setForm] = useState({
     eggSizeId: '',
@@ -22,25 +31,28 @@ export default function SalesLog() {
     unit: 'piece',
     traySize: 30,
   });
-
-  const today = new Date().toISOString().split('T')[0];
+  const [confirmSale, setConfirmSale] = useState(null);
 
   useEffect(() => {
     loadData();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startDate, endDate, filter]);
 
   async function loadData() {
     try {
       setLoading(true);
+      setError(null);
+      const offset = 0;
+      const limit = filter === 'today' || (startDate && endDate) ? 500 : 100;
       const [salesData, invData] = await Promise.all([
-        fetchSales({ limit: 100 }),
+        fetchSales({ limit, offset, startDate, endDate }),
         fetchInventory(),
       ]);
       setSales(salesData || []);
       setInventory(invData || []);
     } catch (err) {
       console.error('Sales load error:', err);
-      toast('Failed to load sales data', 'error');
+      setError(err);
     } finally {
       setLoading(false);
     }
@@ -58,14 +70,19 @@ export default function SalesLog() {
       return;
     }
 
+    // Show confirmation dialog instead of submitting directly
+    setConfirmSale({
+      eggSizeId: parseInt(form.eggSizeId, 10),
+      quantity: qty,
+      unit: form.unit,
+      traySize: form.unit === 'tray' ? parseInt(form.traySize, 10) : null,
+    });
+  }
+
+  async function executeSale(saleData) {
     setSubmitting(true);
     try {
-      const sale = await recordSale({
-        eggSizeId: parseInt(form.eggSizeId, 10),
-        quantity: qty,
-        unit: form.unit,
-        traySize: form.unit === 'tray' ? parseInt(form.traySize, 10) : null,
-      });
+      await recordSale(saleData);
       toast('Sale recorded successfully!');
       setForm({ eggSizeId: '', quantity: '', unit: 'piece', traySize: 30 });
       setShowForm(false);
@@ -78,20 +95,10 @@ export default function SalesLog() {
     }
   }
 
-  const filteredSales =
-    filter === 'today'
-      ? sales.filter(s => s.sale_date === today)
-      : filter === 'recent'
-      ? sales.slice(0, 20)
-      : sales;
+  const filteredSales = sales;
 
-  const todayTotal = sales
-    .filter(s => s.sale_date === today)
-    .reduce((sum, s) => sum + getEggCount(s), 0);
-
-  const todayRevenue = sales
-    .filter(s => s.sale_date === today)
-    .reduce((sum, s) => sum + parseFloat(s.total_amount || 0), 0);
+  const periodTotalEggs = filteredSales.reduce((sum, s) => sum + getEggCount(s), 0);
+  const periodRevenue = filteredSales.reduce((sum, s) => sum + parseFloat(s.total_amount || 0), 0);
 
   function formatShortDate(dateStr) {
     const d = new Date(dateStr + 'T00:00:00');
@@ -122,20 +129,24 @@ export default function SalesLog() {
         </button>
       </div>
 
-      {/* Today's quick stats */}
+      {/* Period quick stats */}
       <div className="sales-stats">
         <div className="sales-stat-card">
           <ShoppingCart size={18} />
           <div>
-            <span className="sales-stat-value">{todayTotal.toLocaleString()}</span>
-            <span className="sales-stat-label">eggs sold today</span>
+            <span className="sales-stat-value">{periodTotalEggs.toLocaleString()}</span>
+            <span className="sales-stat-label">
+              {filter === 'today' ? 'eggs sold today' : 'eggs in period'}
+            </span>
           </div>
         </div>
         <div className="sales-stat-card">
           <DollarSign size={18} />
           <div>
-            <span className="sales-stat-value">{formatPeso(todayRevenue)}</span>
-            <span className="sales-stat-label">revenue today</span>
+            <span className="sales-stat-value">{formatPeso(periodRevenue)}</span>
+            <span className="sales-stat-label">
+              {filter === 'today' ? 'revenue today' : 'revenue in period'}
+            </span>
           </div>
         </div>
       </div>
@@ -233,32 +244,71 @@ export default function SalesLog() {
               style={{ marginTop: '1rem' }}
               disabled={submitting}
             >
-              {submitting ? 'Recording...' : 'Record Sale'}
+              {submitting ? 'Recording...' : 'Review & Record'}
             </button>
           </form>
         </div>
       )}
 
-      {/* Filter tabs */}
-      <div className="filter-tabs">
-        <button
-          className={`filter-tab ${filter === 'all' ? 'active' : ''}`}
-          onClick={() => setFilter('all')}
-        >
-          All Sales
-        </button>
-        <button
-          className={`filter-tab ${filter === 'today' ? 'active' : ''}`}
-          onClick={() => setFilter('today')}
-        >
-          Today
-        </button>
-        <button
-          className={`filter-tab ${filter === 'recent' ? 'active' : ''}`}
-          onClick={() => setFilter('recent')}
-        >
-          Recent 20
-        </button>
+      {error && !loading && (
+        <div className="error-banner" style={{ marginBottom: '1rem' }}>
+          <AlertTriangle size={20} />
+          <div className="error-banner-content">
+            <strong>Failed to load sales data</strong>
+            <p>{getUserFriendlyError(error)}</p>
+          </div>
+          <button className="btn btn-sm btn-secondary" onClick={loadData}>
+            <RefreshCw size={14} />
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* Date range & Filter controls */}
+      <div className="filter-bar">
+        <div className="filter-tabs">
+          <button
+            className={`filter-tab ${filter === 'today' ? 'active' : ''}`}
+            onClick={() => { setFilter('today'); setStartDate(today); setEndDate(today); }}
+          >
+            Today
+          </button>
+          <button
+            className={`filter-tab ${filter === 'week' ? 'active' : ''}`}
+            onClick={() => {
+              setFilter('week');
+              const d = new Date();
+              d.setDate(d.getDate() - 7);
+              setStartDate(d.toISOString().split('T')[0]);
+              setEndDate(today);
+            }}
+          >
+            This Week
+          </button>
+          <button
+            className={`filter-tab ${filter === 'custom' ? 'active' : ''}`}
+            onClick={() => setFilter('custom')}
+          >
+            Custom Range
+          </button>
+        </div>
+        {filter === 'custom' && (
+          <div className="filter-date-inputs">
+            <input
+              type="date"
+              className="input input-sm"
+              value={startDate}
+              onChange={e => setStartDate(e.target.value)}
+            />
+            <span>→</span>
+            <input
+              type="date"
+              className="input input-sm"
+              value={endDate}
+              onChange={e => setEndDate(e.target.value)}
+            />
+          </div>
+        )}
       </div>
 
       {/* Sales list */}
@@ -266,6 +316,7 @@ export default function SalesLog() {
         <div className="sales-table-header">
           <span>Size</span>
           <span>Qty</span>
+          <span>Eggs</span>
           <span>Amount</span>
           <span>When</span>
         </div>
@@ -300,6 +351,7 @@ export default function SalesLog() {
                     : `egg${sale.quantity > 1 ? 's' : ''}`}
                 </span>
               </span>
+              <span className="sale-eggs">{formatInventory(getEggCount(sale))}</span>
               <span className="sale-amount">{formatPeso(sale.total_amount)}</span>
               <span className="sale-when">
                 <span className="sale-when-date">{formatShortDate(sale.sale_date)}</span>
@@ -309,6 +361,27 @@ export default function SalesLog() {
           ))
         )}
       </div>
+
+      <ConfirmDialog
+        open={!!confirmSale}
+        title="Record this sale?"
+        message={confirmSale ? (() => {
+          const sizeName = inventory.find(i => i.egg_size_id === confirmSale.eggSizeId)?.egg_sizes?.name || 'Unknown';
+          const qtyLabel = confirmSale.unit === 'tray'
+            ? `${confirmSale.quantity} tray${confirmSale.quantity > 1 ? 's' : ''} (${confirmSale.quantity * confirmSale.traySize} eggs)`
+            : `${confirmSale.quantity} egg${confirmSale.quantity > 1 ? 's' : ''}`;
+          return `Record sale of ${qtyLabel} of ${sizeName}? This will deduct the stock automatically.`;
+        })() : ''}
+        confirmLabel="Record Sale"
+        variant="primary"
+        icon={ClipboardCheck}
+        onConfirm={() => {
+          const data = confirmSale;
+          setConfirmSale(null);
+          executeSale(data);
+        }}
+        onCancel={() => setConfirmSale(null)}
+      />
 
       <style>{`
         .page-header-row {
@@ -435,9 +508,30 @@ export default function SalesLog() {
           color: white;
         }
 
+        .filter-bar {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+          margin-bottom: 1rem;
+          flex-wrap: wrap;
+        }
+
+        .filter-date-inputs {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .input-sm {
+          width: auto;
+          min-width: 140px;
+          padding: 0.4rem 0.625rem;
+          font-size: 0.8125rem;
+        }
+
         .sales-table-header {
           display: grid;
-          grid-template-columns: 1fr 1fr 1fr 1fr;
+          grid-template-columns: 1fr 80px 100px 1fr 70px;
           padding: 0.625rem 1rem;
           font-size: 0.75rem;
           font-weight: 600;
@@ -450,7 +544,7 @@ export default function SalesLog() {
 
         .sales-row {
           display: grid;
-          grid-template-columns: 1fr 1fr 1fr 1fr;
+          grid-template-columns: 1fr 80px 100px 1fr 70px;
           align-items: center;
           padding: 0.75rem 1rem;
           border-bottom: 1px solid var(--color-border);
@@ -480,6 +574,12 @@ export default function SalesLog() {
           font-weight: 400;
           font-size: 0.8125rem;
           color: var(--color-text-muted);
+        }
+
+        .sale-eggs {
+          font-size: 0.8125rem;
+          color: var(--color-text-secondary);
+          font-variant-numeric: tabular-nums;
         }
 
         .sale-amount {
@@ -516,6 +616,71 @@ export default function SalesLog() {
           padding: 2.5rem;
           color: var(--color-text-muted);
           text-align: center;
+        }
+
+        /* Mobile: compact card-style rows */
+        @media (max-width: 640px) {
+          .sales-table-header {
+            display: none;
+          }
+          .sales-row {
+            grid-template-columns: 1fr auto;
+            gap: 0.1rem 0.625rem;
+            padding: 0.625rem 0.75rem;
+          }
+          .sale-size {
+            grid-column: 1;
+            grid-row: 1;
+            font-weight: 600;
+            font-size: 0.9375rem;
+          }
+          .sale-amount {
+            grid-column: 2;
+            grid-row: 1;
+            text-align: right;
+            align-self: center;
+            font-size: 0.9375rem;
+          }
+          .sale-qty {
+            grid-column: 1;
+            grid-row: 2;
+            font-size: 0.8125rem;
+            color: var(--color-text-secondary);
+          }
+          .sale-eggs {
+            grid-column: 2;
+            grid-row: 2;
+            text-align: right;
+            font-size: 0.75rem;
+            color: var(--color-text-muted);
+            align-self: center;
+          }
+          .sale-when {
+            grid-column: 1 / -1;
+            grid-row: 3;
+            flex-direction: row;
+            gap: 0.375rem;
+            align-items: center;
+          }
+          .sale-when-date {
+            font-size: 0.6875rem;
+            color: var(--color-text-muted);
+          }
+          .sale-when-time {
+            font-size: 0.6875rem;
+            color: var(--color-text-muted);
+          }
+          .filter-bar {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          .filter-date-inputs {
+            flex-wrap: wrap;
+          }
+          .filter-date-inputs .input-sm {
+            min-width: 120px;
+            flex: 1;
+          }
         }
       `}</style>
     </div>

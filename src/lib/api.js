@@ -24,8 +24,7 @@ export async function fetchEggSizes() {
 export async function fetchInventory() {
   const { data, error } = await supabase
     .from('inventory')
-    .select('*, egg_sizes(name, sort_order)')
-    .order('egg_size_id');
+    .select('*, egg_sizes(name, sort_order)');
   if (error) throw error;
   return data;
 }
@@ -46,8 +45,7 @@ export async function updateInventory(eggSizeId, quantity) {
 export async function fetchPriceSettings() {
   const { data, error } = await supabase
     .from('price_settings')
-    .select('*, egg_sizes(name, sort_order)')
-    .order('egg_size_id');
+    .select('*, egg_sizes(name, sort_order)');
   if (error) throw error;
   return data;
 }
@@ -106,12 +104,16 @@ export async function recordSale({ eggSizeId, quantity, unit, traySize }) {
   return data;
 }
 
-export async function fetchSales({ limit = 50, offset = 0 } = {}) {
-  const { data, error } = await supabase
+export async function fetchSales({ limit = 50, offset = 0, startDate, endDate } = {}) {
+  let query = supabase
     .from('sales')
     .select('*, egg_sizes(name)')
-    .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1);
+    .order('created_at', { ascending: false });
+
+  if (startDate) query = query.gte('sale_date', startDate);
+  if (endDate) query = query.lte('sale_date', endDate);
+
+  const { data, error } = await query.range(offset, offset + limit - 1);
   if (error) throw error;
   return data;
 }
@@ -141,10 +143,15 @@ export async function fetchSalesBySize(startDate, endDate) {
   return data;
 }
 
-export async function fetchSalesByHour() {
-  const { data, error } = await supabase
+export async function fetchSalesByHour(startDate, endDate) {
+  let query = supabase
     .from('sales')
-    .select('sale_time, quantity, unit, tray_size, egg_sizes(name)');
+    .select('sale_time, quantity, unit, tray_size');
+
+  if (startDate) query = query.gte('sale_date', startDate);
+  if (endDate) query = query.lte('sale_date', endDate);
+
+  const { data, error } = await query;
   if (error) throw error;
   return data;
 }
@@ -158,6 +165,70 @@ export async function fetchSalesTrend(days = 30) {
     .select('sale_date, quantity, unit, tray_size')
     .gte('sale_date', startDate.toISOString().split('T')[0])
     .order('sale_date', { ascending: true });
+  if (error) throw error;
+  return data;
+}
+
+// ===== Reports =====
+
+/**
+ * Fetch sales within a date and time range, joined with egg size info.
+ * Used for generating shift-based reports.
+ */
+export async function fetchSalesReport({ startDate, endDate, startTime, endTime }) {
+  let query = supabase
+    .from('sales')
+    .select('*, egg_sizes(name, sort_order)')
+    .gte('sale_date', startDate)
+    .lte('sale_date', endDate);
+
+  if (startTime) query = query.gte('sale_time', startTime);
+  if (endTime) query = query.lte('sale_time', endTime);
+
+  const { data, error } = await query.order('sale_time', { ascending: true });
+  if (error) throw error;
+  return data;
+}
+
+// ===== Expenses =====
+
+export const EXPENSE_CATEGORIES = [
+  'Feed',
+  'Labor',
+  'Utilities',
+  'Transport',
+  'Packaging',
+  'Maintenance',
+  'Misc',
+];
+
+export async function fetchExpenses({ startDate, endDate, limit = 100 } = {}) {
+  let query = supabase
+    .from('expenses')
+    .select('*')
+    .order('expense_date', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  if (startDate) query = query.gte('expense_date', startDate);
+  if (endDate) query = query.lte('expense_date', endDate);
+
+  const { data, error } = await query.limit(limit);
+  if (error) throw error;
+  return data;
+}
+
+export async function fetchTodayExpenses() {
+  const today = new Date().toISOString().split('T')[0];
+  return fetchExpenses({ startDate: today, endDate: today });
+}
+
+export async function recordExpense({ category, description, amount }) {
+  const today = new Date().toISOString().split('T')[0];
+  const { data, error } = await supabase
+    .from('expenses')
+    .insert({ category, description, amount, expense_date: today })
+    .select()
+    .single();
   if (error) throw error;
   return data;
 }

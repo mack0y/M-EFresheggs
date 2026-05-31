@@ -12,7 +12,6 @@ import {
   PieChart,
   Pie,
   Cell,
-  Legend,
 } from 'recharts';
 import {
   TrendingUp,
@@ -21,9 +20,11 @@ import {
   PieChart as PieChartIcon,
   Calendar,
   DollarSign,
+  AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
 import { fetchSalesBySize, fetchSalesByHour, fetchSalesTrend, formatPeso, EGG_SIZES } from '../lib/api';
-import { toast } from './Toast';
+import { getUserFriendlyError } from '../lib/errors';
 
 const COLORS = [
   '#8B4513', '#A0522D', '#D4A574', '#F5DEB3',
@@ -57,23 +58,34 @@ export default function Analytics() {
   const [trend, setTrend] = useState([]);
   const [revenueBySize, setRevenueBySize] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [days, setDays] = useState(30);
   const [chartTab, setChartTab] = useState('size');
 
-  useEffect(() => {
-    loadAnalytics();
-  }, [days]);
+  function formatDate(dateStr) {
+    const d = new Date(dateStr + 'T00:00:00');
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
+  function formatHour(h) {
+    if (h === 12) return '12 PM';
+    if (h === 0) return '12 AM';
+    if (h < 12) return `${h} AM`;
+    return `${h - 12} PM`;
+  }
 
   async function loadAnalytics() {
     try {
       setLoading(true);
+      setError(null);
       const endDate = new Date().toISOString().split('T')[0];
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
 
+      const startDateStr = startDate.toISOString().split('T')[0];
       const [sizeData, hourData, trendData] = await Promise.all([
-        fetchSalesBySize(startDate.toISOString().split('T')[0], endDate),
-        fetchSalesByHour(),
+        fetchSalesBySize(startDateStr, endDate),
+        fetchSalesByHour(startDateStr, endDate),
         fetchSalesTrend(days),
       ]);
 
@@ -154,23 +166,17 @@ export default function Analytics() {
       setTrend(sortedTrend);
     } catch (err) {
       console.error('Analytics load error:', err);
-      toast('Failed to load analytics', 'error');
+      setError(err);
     } finally {
       setLoading(false);
     }
   }
 
-  function formatDate(dateStr) {
-    const d = new Date(dateStr + 'T00:00:00');
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  }
-
-  function formatHour(h) {
-    if (h === 12) return '12 PM';
-    if (h === 0) return '12 AM';
-    if (h < 12) return `${h} AM`;
-    return `${h - 12} PM`;
-  }
+  useEffect(() => {
+    // Defer to microtask to avoid cascading render warning from loadAnalytics setState calls
+    Promise.resolve().then(() => loadAnalytics());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [days]);
 
   const totalEggsSold = bySize.reduce((sum, s) => sum + s.eggs, 0);
   const totalRevenue = revenueBySize.reduce((sum, s) => sum + s.revenue, 0);
@@ -204,6 +210,20 @@ export default function Analytics() {
           </select>
         </div>
       </div>
+
+      {error && !loading && (
+        <div className="error-banner" style={{ marginBottom: '1rem' }}>
+          <AlertTriangle size={20} />
+          <div className="error-banner-content">
+            <strong>Failed to load analytics</strong>
+            <p>{getUserFriendlyError(error)}</p>
+          </div>
+          <button className="btn btn-sm btn-secondary" onClick={loadAnalytics}>
+            <RefreshCw size={14} />
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Summary stats */}
       <div className="analytics-stats">
@@ -395,8 +415,8 @@ export default function Analytics() {
                     label={({ name, percent }) =>
                       `${name} (${(percent * 100).toFixed(0)}%)`
                     }
-                    outerRadius={120}
-                    innerRadius={50}
+                    outerRadius={window.innerWidth < 640 ? 80 : 120}
+                    innerRadius={window.innerWidth < 640 ? 30 : 50}
                     dataKey="eggs"
                   >
                     {bySize

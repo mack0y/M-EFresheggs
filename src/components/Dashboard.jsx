@@ -4,40 +4,46 @@ import {
   Package,
   ShoppingCart,
   AlertTriangle,
-  TrendingUp,
   ArrowRight,
   Egg,
   DollarSign,
+  RefreshCw,
 } from 'lucide-react';
-import { fetchInventory, fetchTodaySales, getEggCount, formatInventory, formatPeso, EGG_SIZES } from '../lib/api';
+import { fetchInventory, fetchTodaySales, fetchTodayExpenses, getEggCount, formatInventory, formatPeso } from '../lib/api';
+import { getUserFriendlyError } from '../lib/errors';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const [inventory, setInventory] = useState([]);
   const [todaySales, setTodaySales] = useState([]);
+  const [todayExpenses, setTodayExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  useEffect(() => {
-    loadData();
-  }, []);
 
   async function loadData() {
     try {
       setLoading(true);
-      const [inv, sales] = await Promise.all([
+      setError(null);
+      const [inv, sales, expenses] = await Promise.all([
         fetchInventory(),
         fetchTodaySales(),
+        fetchTodayExpenses(),
       ]);
       setInventory(inv || []);
       setTodaySales(sales || []);
+      setTodayExpenses(expenses || []);
     } catch (err) {
       console.error('Dashboard load error:', err);
-      setError(err.message);
+      setError(err);
     } finally {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    // Defer to microtask to avoid cascading render warning from loadData setState calls
+    Promise.resolve().then(() => loadData());
+  }, []);
 
   const totalEggsSoldToday = todaySales.reduce(
     (sum, s) => sum + getEggCount(s),
@@ -48,6 +54,13 @@ export default function Dashboard() {
     (sum, s) => sum + parseFloat(s.total_amount || 0),
     0
   );
+
+  const todayExpenseTotal = todayExpenses.reduce(
+    (sum, e) => sum + parseFloat(e.amount || 0),
+    0
+  );
+
+  const netProfit = todayRevenue - todayExpenseTotal;
 
   const totalStock = inventory.reduce(
     (sum, item) => sum + (item.quantity_on_hand || 0),
@@ -98,12 +111,20 @@ export default function Dashboard() {
       bg: '#E8F5E9',
     },
     {
-      label: 'Egg Sizes',
-      value: EGG_SIZES.length,
-      sub: 'from Peewee to Jumbo',
+      label: 'Expenses Today',
+      value: formatPeso(todayExpenseTotal),
+      sub: todayExpenseTotal > 0 ? `${todayExpenses.length} entries recorded` : 'no expenses yet',
       icon: Egg,
-      color: '#8B4513',
-      bg: '#F5E6D3',
+      color: '#C62828',
+      bg: '#FFEBEE',
+    },
+    {
+      label: 'Net Profit Today',
+      value: formatPeso(netProfit),
+      sub: netProfit >= 0 ? 'positive cash flow' : 'operating at a loss',
+      icon: DollarSign,
+      color: netProfit >= 0 ? '#2E7D32' : '#C62828',
+      bg: netProfit >= 0 ? '#E8F5E9' : '#FFEBEE',
     },
   ];
 
@@ -115,12 +136,16 @@ export default function Dashboard() {
       </div>
 
       {error && (
-        <div className="setup-banner">
+        <div className="error-banner">
           <AlertTriangle size={20} />
-          <div>
-            <strong>Database connection issue</strong>
-            <p>Please make sure you've set up your Supabase credentials in the .env file.</p>
+          <div className="error-banner-content">
+            <strong>Failed to load dashboard</strong>
+            <p>{getUserFriendlyError(error)}</p>
           </div>
+          <button className="btn btn-sm btn-secondary" onClick={loadData}>
+            <RefreshCw size={14} />
+            Retry
+          </button>
         </div>
       )}
 
@@ -400,22 +425,51 @@ export default function Dashboard() {
           text-align: center;
         }
 
-        .setup-banner {
+        .error-banner {
           display: flex;
           align-items: flex-start;
           gap: 0.75rem;
           padding: 1rem;
-          background: var(--color-warning-bg);
-          border: 1px solid #FFB74D;
+          background: var(--color-danger-bg);
+          border: 1px solid var(--color-danger);
           border-radius: var(--radius-md);
           margin-bottom: 1.5rem;
-          color: var(--color-warning);
+          color: var(--color-danger);
+          align-items: center;
         }
 
-        .setup-banner p {
+        .error-banner {
+          background: var(--color-danger-bg);
+          border-color: var(--color-danger);
+          color: var(--color-danger);
+          align-items: center;
+        }
+
+        .error-banner-content {
+          flex: 1;
+        }
+
+        .error-banner-content p {
           font-size: 0.8125rem;
           margin-top: 0.25rem;
           color: var(--color-text-secondary);
+        }
+
+        @media (max-width: 640px) {
+          .stat-card {
+            padding: 0.875rem;
+          }
+          .stat-icon {
+            width: 40px;
+            height: 40px;
+          }
+          .stat-icon svg {
+            width: 18px;
+            height: 18px;
+          }
+          .stat-value {
+            font-size: 1.25rem;
+          }
         }
       `}</style>
     </div>
