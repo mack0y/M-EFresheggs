@@ -53,7 +53,7 @@ export default function Layout({ children }) {
           <Menu size={24} />
         </button>
         <div className="logo">
-          <span className="logo-icon">🥚</span>
+          <img src={`${import.meta.env.BASE_URL}logo.png`} alt="" className="logo-img" />
           <span>M&E Fresh Eggs</span>
         </div>
         <div style={{ width: 40 }} />
@@ -68,7 +68,7 @@ export default function Layout({ children }) {
       <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
           <div className="logo">
-            <span className="logo-icon">🥚</span>
+            <img src={`${import.meta.env.BASE_URL}logo.png`} alt="" className="logo-img" />
             <span>M&E Fresh Eggs</span>
           </div>
           <button
@@ -161,9 +161,10 @@ export default function Layout({ children }) {
           color: var(--color-primary);
         }
 
-        .logo-icon {
-          font-size: 1.5rem;
-          line-height: 1;
+        .logo-img {
+          width: 1.75rem;
+          height: 1.75rem;
+          object-fit: contain;
         }
 
         /* Overlay */
