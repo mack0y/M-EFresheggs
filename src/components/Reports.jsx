@@ -172,6 +172,8 @@ export default function Reports() {
     return `${h12}:${m} ${ampm}`;
   }
 
+  const processed = processReport();
+
   const totalExpenses = reportExpenses.reduce(
     (sum, e) => sum + parseFloat(e.amount || 0),
     0
@@ -183,7 +185,6 @@ export default function Reports() {
     const cat = e.category;
     expenseByCategory[cat] = (expenseByCategory[cat] || 0) + parseFloat(e.amount || 0);
   });
-  const processed = processReport();
 
   return (
     <div className="fade-in">
