@@ -197,6 +197,8 @@ export default function Inventory() {
                         {/* Add trays */}
                         <div className="inv-num-input">
                           <input
+                            id={`inv-tray-add-${item.egg_size_id}`}
+                            name={`trayAdd_${item.egg_size_id}`}
                             type="number"
                             min="1"
                             step="1"
@@ -227,6 +229,8 @@ export default function Inventory() {
                         {/* Add pieces */}
                         <div className="inv-num-input">
                           <input
+                            id={`inv-piece-add-${item.egg_size_id}`}
+                            name={`pieceAdd_${item.egg_size_id}`}
                             type="number"
                             min="1"
                             step="1"
@@ -276,6 +280,8 @@ export default function Inventory() {
                             <Minus size={15} />
                           </button>
                           <input
+                            id={`inv-tray-remove-${item.egg_size_id}`}
+                            name={`trayRemove_${item.egg_size_id}`}
                             type="number"
                             min="1"
                             step="1"
@@ -306,6 +312,8 @@ export default function Inventory() {
                             <Minus size={15} />
                           </button>
                           <input
+                            id={`inv-piece-remove-${item.egg_size_id}`}
+                            name={`pieceRemove_${item.egg_size_id}`}
                             type="number"
                             min="1"
                             step="1"

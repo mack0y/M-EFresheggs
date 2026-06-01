@@ -160,6 +160,8 @@ export default function SalesLog() {
               <div className="input-group">
                 <label>Egg Size</label>
                 <select
+                  id="sale-egg-size"
+                  name="eggSizeId"
                   className="select"
                   value={form.eggSizeId}
                   onChange={e =>
@@ -205,6 +207,8 @@ export default function SalesLog() {
               <div className="input-group">
                 <label>Quantity</label>
                 <input
+                  id="sale-quantity"
+                  name="quantity"
                   type="number"
                   className="input"
                   min="1"
@@ -295,6 +299,8 @@ export default function SalesLog() {
         {filter === 'custom' && (
           <div className="filter-date-inputs">
             <input
+              id="sale-filter-start"
+              name="startDate"
               type="date"
               className="input input-sm"
               value={startDate}
@@ -302,6 +308,8 @@ export default function SalesLog() {
             />
             <span>→</span>
             <input
+              id="sale-filter-end"
+              name="endDate"
               type="date"
               className="input input-sm"
               value={endDate}

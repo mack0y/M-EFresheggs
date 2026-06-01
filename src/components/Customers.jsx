@@ -121,6 +121,8 @@ export default function Customers() {
               <div className="input-group">
                 <label>Name *</label>
                 <input
+                  id="customer-name"
+                  name="name"
                   type="text"
                   className="input"
                   placeholder="e.g. Juan Dela Cruz"
@@ -133,6 +135,8 @@ export default function Customers() {
               <div className="input-group">
                 <label>Phone</label>
                 <input
+                  id="customer-phone"
+                  name="phone"
                   type="tel"
                   className="input"
                   placeholder="e.g. 0917-123-4567"
@@ -143,9 +147,11 @@ export default function Customers() {
               <div className="input-group" style={{ gridColumn: '1 / -1' }}>
                 <label>Notes</label>
                 <input
+                  id="customer-notes"
+                  name="notes"
                   type="text"
                   className="input"
-                  placeholder="e.g. Regular bulk buyer, preferred owwwww size"
+                  placeholder="e.g. Regular bulk buyer, preferred size"
                   value={form.notes}
                   onChange={e => setForm({ ...form, notes: e.target.value })}
                 />

@@ -187,6 +187,8 @@ export default function Spoilage() {
               <div className="input-group">
                 <label>Egg Size</label>
                 <select
+                  id="spoilage-egg-size"
+                  name="eggSizeId"
                   className="select"
                   value={form.eggSizeId}
                   onChange={e => setForm({ ...form, eggSizeId: e.target.value })}
@@ -205,6 +207,8 @@ export default function Spoilage() {
               <div className="input-group">
                 <label>Quantity</label>
                 <input
+                  id="spoilage-quantity"
+                  name="quantity"
                   type="number"
                   className="input"
                   min="1"
@@ -217,6 +221,8 @@ export default function Spoilage() {
               <div className="input-group">
                 <label>Reason</label>
                 <select
+                  id="spoilage-reason"
+                  name="reason"
                   className="select"
                   value={form.reason}
                   onChange={e => setForm({ ...form, reason: e.target.value })}
@@ -229,6 +235,8 @@ export default function Spoilage() {
               <div className="input-group">
                 <label>Date</label>
                 <input
+                  id="spoilage-date"
+                  name="date"
                   type="date"
                   className="input"
                   value={form.date}

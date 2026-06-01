@@ -127,8 +127,10 @@ export default function PriceSettings() {
 
                   <div className="price-card-inputs">
                     <div className="price-field">
-                      <label className="price-label">Per Piece (₱)</label>
+                      <label className="price-label" htmlFor={`price-piece-${item.egg_size_id}`}>Per Piece (₱)</label>
                       <input
+                        id={`price-piece-${item.egg_size_id}`}
+                        name={`price_piece_${item.egg_size_id}`}
                         type="number"
                         step="0.25"
                         min="0"
@@ -145,8 +147,10 @@ export default function PriceSettings() {
                     </div>
 
                     <div className="price-field">
-                      <label className="price-label">Per Tray (₱)</label>
+                      <label className="price-label" htmlFor={`price-tray-${item.egg_size_id}`}>Per Tray (₱)</label>
                       <input
+                        id={`price-tray-${item.egg_size_id}`}
+                        name={`price_tray_${item.egg_size_id}`}
                         type="number"
                         step="0.25"
                         min="0"

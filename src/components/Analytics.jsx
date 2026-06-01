@@ -199,6 +199,8 @@ export default function Analytics() {
         <div className="days-selector">
           <Calendar size={16} />
           <select
+            id="analytics-days"
+            name="days"
             className="select"
             style={{ width: 'auto', padding: '0.375rem 0.75rem' }}
             value={days}

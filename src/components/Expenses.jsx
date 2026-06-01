@@ -147,6 +147,8 @@ export default function Expenses() {
               <div className="input-group">
                 <label>Category</label>
                 <select
+                  id="expense-category"
+                  name="category"
                   className="select"
                   value={form.category}
                   onChange={e => setForm({ ...form, category: e.target.value })}
@@ -161,6 +163,8 @@ export default function Expenses() {
               <div className="input-group">
                 <label>Amount (₱)</label>
                 <input
+                  id="expense-amount"
+                  name="amount"
                   type="number"
                   className="input"
                   min="0.01"
@@ -174,6 +178,8 @@ export default function Expenses() {
               <div className="input-group" style={{ gridColumn: '1 / -1' }}>
                 <label>Description (optional)</label>
                 <input
+                  id="expense-description"
+                  name="description"
                   type="text"
                   className="input"
                   placeholder="e.g. 10 bags of layer feed"

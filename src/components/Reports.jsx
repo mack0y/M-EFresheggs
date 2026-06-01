@@ -257,6 +257,8 @@ export default function Reports() {
               From
             </label>
             <input
+              id="report-start-date"
+              name="startDate"
               type="date"
               className="input"
               value={startDate}
@@ -269,6 +271,8 @@ export default function Reports() {
               To
             </label>
             <input
+              id="report-end-date"
+              name="endDate"
               type="date"
               className="input"
               value={endDate}
@@ -302,6 +306,8 @@ export default function Reports() {
               <div className="input-group">
                 <label>Start Time</label>
                 <input
+                  id="report-start-time"
+                  name="startTime"
                   type="time"
                   className="input"
                   value={startTime}
@@ -311,6 +317,8 @@ export default function Reports() {
               <div className="input-group">
                 <label>End Time</label>
                 <input
+                  id="report-end-time"
+                  name="endTime"
                   type="time"
                   className="input"
                   value={endTime}
