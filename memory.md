@@ -4,6 +4,7 @@
 
 A mobile-first web application for tracking egg inventory, recording sales, managing pricing, viewing sales analytics, generating shift-based reports, and tracking expenses. Built for **M&E Fresh Eggs**, an egg retail business.
 
+**Live:** https://mack0y.github.io/M-EFresheggs/
 **Supabase Project:** https://supabase.com/dashboard/project/npohyeqnaltpqzmmlmej
 
 ---
@@ -19,6 +20,7 @@ A mobile-first web application for tracking egg inventory, recording sales, mana
 | Icons | Lucide React |
 | Database | PostgreSQL (via Supabase) |
 | Client | @supabase/supabase-js |
+| Hosting | GitHub Pages (auto-deploy via GitHub Actions) |
 | Build | `npm run build` → `dist/` |
 
 ---
@@ -30,7 +32,7 @@ M-EFresheggs/
 ├── .env                    # Supabase credentials (gitignored)
 ├── package.json
 ├── vite.config.js
-├── database_schema.sql     # Full schema including expenses table
+├── database_schema.sql     # Full schema including expenses, spoilage, customers
 ├── migration_pricing.sql   # Migration for pricing tables
 ├── memory.md               # This file
 ├── eslint.config.js
@@ -39,22 +41,24 @@ M-EFresheggs/
 └── src/
     ├── main.jsx            # Entry point
     ├── App.jsx             # Router + Layout wrapper
-    ├── index.css           # Design system (CSS variables, utilities)
+    ├── index.css           # Design system v2 (CSS variables, utilities, animations)
     ├── lib/
     │   ├── supabaseClient.js   # Supabase connection
     │   ├── api.js              # All data operations + utilities
     │   └── errors.js           # User-friendly error messages
     └── components/
-        ├── Layout.jsx          # Sidebar nav, mobile-responsive
-        ├── Dashboard.jsx       # Overview stats, stock levels, net profit
+        ├── Layout.jsx          # Sidebar nav + mobile bottom nav bar
+        ├── Dashboard.jsx       # Welcome greeting, stat cards, stock levels, alerts
         ├── Inventory.jsx       # Add/remove stock by trays or pieces
         ├── SalesLog.jsx        # Record & filter sales by date range
         ├── PriceSettings.jsx   # Set per-piece & per-tray prices
         ├── Analytics.jsx       # Charts (size, time, trend, revenue, distribution)
         ├── Reports.jsx         # Shift-based sales reports with CSV export
         ├── Expenses.jsx        # Expense tracking by category
-        ├── Toast.jsx           # Global notification system
-        ├── ConfirmDialog.jsx   # Reusable confirmation modal
+        ├── Spoilage.jsx        # Egg wastage tracking
+        ├── Customers.jsx       # Customer directory
+        ├── Toast.jsx           # Global notification system (with SVG icons)
+        ├── ConfirmDialog.jsx   # Reusable confirmation modal (with backdrop blur)
         └── ErrorBoundary.jsx   # Error boundary wrapper
 ```
 
@@ -112,8 +116,28 @@ M-EFresheggs/
 | expense_date | DATE | Default today |
 | created_at | TIMESTAMPTZ | Auto |
 
-### Trigger
+#### `spoilage` — Egg wastage tracking
+| Column | Type | Notes |
+|--------|------|-------|
+| id | BIGINT PK | Auto-generated |
+| egg_size_id | BIGINT FK → egg_sizes | |
+| quantity | INTEGER | > 0 |
+| reason | TEXT | Cracked, Broken, Expired, Damaged, Other |
+| spoilage_date | DATE | Default today |
+| created_at | TIMESTAMPTZ | Auto |
+
+#### `customers` — Customer directory
+| Column | Type | Notes |
+|--------|------|-------|
+| id | BIGINT PK | Auto-generated |
+| name | TEXT | NOT NULL |
+| phone | TEXT | Optional |
+| notes | TEXT | Optional |
+| created_at | TIMESTAMPTZ | Auto |
+
+### Triggers
 - **`after_sale_insert`** — Automatically deducts inventory when a sale is recorded. Converts trays to egg count (qty × tray_size) before deducting.
+- **`after_spoilage_insert`** — Automatically deducts inventory when spoilage is recorded.
 
 ### RLS Policies
 All tables use permissive policies (`ALL USING true`) since this is a single-user app. Row Level Security is enabled but allows all operations.
@@ -124,29 +148,91 @@ All tables use permissive policies (`ALL USING true`) since this is a single-use
 
 | Route | Component | Description |
 |-------|-----------|-------------|
-| `/` | Dashboard | Overview: stock levels, today's sales, revenue, expenses, net profit |
+| `/` | Dashboard | Welcome greeting, revenue/profit stats, stock levels, today's sales |
 | `/inventory` | Inventory | Add/remove stock by trays or pieces per egg size |
 | `/prices` | PriceSettings | Set per-piece and per-tray selling prices |
 | `/sales` | SalesLog | Record sales, filter by date range (Today/This Week/Custom) |
+| `/spoilage` | Spoilage | Track egg wastage by size, reason, with cost estimation |
+| `/customers` | Customers | Customer directory (name, phone, notes) |
 | `/expenses` | Expenses | Record expenses by category, filter & view breakdown |
 | `/analytics` | Analytics | 5 chart views (by size, by hour, trend, revenue, distribution) |
-| `/reports` | Reports | Shift-based sales reports (Morning/Afternoon/Whole Day/Custom) with CSV export |
+| `/reports` | Reports | Shift-based sales reports with CSV export + revenue vs expenses |
+
+---
+
+## Design System (v2)
+
+The design system lives in `src/index.css` with CSS custom properties.
+
+### Color Scheme
+**Brand colors:** Green & Yellow (cream background)
+
+| Role | Light | Dark |
+|------|-------|------|
+| Primary | `#2E7D32` | `#66BB6A` |
+| Background | `#F5F7F0` | `#0F1210` |
+| Card | `#FFFFFF` | `#1A2019` |
+| Text | `#1A2E1A` | `#E4E8E4` |
+| Border | `#D4E4D4` | `#2A352A` |
+| Warning | `#E65100` | `#FFB74D` |
+| Danger | `#C62828` | `#EF5350` |
+
+### Key CSS Variables
+- `--shadow-xs` through `--shadow-xl` — Layered shadows
+- `--radius-xs` through `--radius-full` — Border radii
+- `--transition-fast`, `--transition-base`, `--transition-spring` — Animation timing
+- `--space-xs` through `--space-2xl` — Spacing tokens
+- `--color-primary-50/100/200` — Primary color opacity variants
+- Dark mode via `[data-theme="dark"]` selector
+
+### Animations
+- `fadeIn` — Standard entrance animation (0.35s)
+- `slideUp` — Toast/sheet entrance (0.35s with spring)
+- `scaleIn` — Dialog entrance (0.2s with spring)
+- `shimmer` — Loading skeleton pulse
+
+---
+
+## Layout & Navigation
+
+### Desktop (≥768px)
+- Fixed sidebar (260px) with logo, 9 nav items, and dark mode toggle
+- Main content area fills remaining width
+
+### Mobile (<768px)
+- **Fixed top header** with hamburger menu, logo, and dark mode toggle button
+- **Bottom navigation bar** with 5 quick-access tabs (Home, Stock, Sales, Costs, Stats) + More button
+- Slide-out sidebar triggered by hamburger or More button
+- Backdrop blur overlay on sidebar open
+- Frosted glass effect on header and bottom nav (`backdrop-filter: blur(12px)`)
+- Safe area inset support for iPhone notch (`env(safe-area-inset-bottom)`)
 
 ---
 
 ## Key Features
+
+### Dashboard
+- **Welcome greeting** with time-of-day emoji (🌅/☀️/🌙) and date
+- **Primary stat cards** — Today's Revenue, Net Profit (green/red based on positive/negative)
+- **Secondary stat grid** — Total Stock, Stock Value, Eggs Sold, Expenses
+- **Low stock alert card** — Shows out-of-stock sizes count with "Restock immediately" message
+- **Stock levels list** with trays/pieces breakdown and status badges
+- **Today's sales feed** with amounts and times
+- Loading skeletons for all data
 
 ### Inventory Management
 - Each egg size card shows total stock in trays + pieces format (e.g., "2 trays + 15 pcs")
 - **Add row:** Tray count input + piece count input with plus buttons
 - **Remove row:** Piece count input + tray count input with minus buttons
 - Confirmation dialog before any removal
+- Clear partial removal toast: "Could only remove X — all remaining stock cleared"
 - Quick stock status badges: In Stock (green), Low Stock ≤50 (yellow), Out of Stock (red)
 
 ### Sales Recording
 - Select egg size, unit (piece/tray), and quantity
 - Tray size selector (30 eggs)
 - Auto-calculates total amount from current price settings
+- **Client-side inventory validation** — shows "Not enough stock" error before DB failure
 - Confirmation dialog before recording
 - Date range filter (Today / This Week / Custom Range)
 - Each sale shows eggs breakdown column (e.g., "2 trays + 5 pcs")
@@ -159,12 +245,19 @@ All tables use permissive policies (`ALL USING true`) since this is a single-use
 - Filter expenses by category
 - Today's total and total entries count
 
-### Dashboard
-- Stat cards: Total Stock, Sold Today, Low Stock Items, Revenue Today, Expenses Today, Net Profit Today
-- Stock levels list with trays/pieces breakdown per size
-- Today's sales feed (latest 10)
-- Error banners with retry button
-- Loading skeletons
+### Spoilage Tracking (`/spoilage`)
+- Record egg wastage by size, quantity, reason (Cracked/Broken/Expired/Damaged/Other)
+- **Client-side inventory validation** — prevents recording more than available stock
+- Stats: total spoiled eggs, spoiled today, total cost lost, cost lost today
+- Reason breakdown with color-coded badges
+- Date picker for recording past spoilage
+- Mobile-responsive card layout
+
+### Customer Directory (`/customers`)
+- Manage customer contacts: name, phone, notes
+- Add and remove customers with confirmation
+- Empty state with quick-add button
+- Mobile-responsive layout
 
 ### Reports
 - Date range pickers (From / To)
@@ -172,13 +265,36 @@ All tables use permissive policies (`ALL USING true`) since this is a single-use
 - Report table: Egg Size, Trays, Pieces, Total Eggs, Revenue, Transactions
 - Total row with properly converted trays (pieces always < 30)
 - Summary cards: Total Eggs Sold, Revenue, Transactions, Trays Sold, Pieces Sold
-- **CSV Export** button to download report as `.csv`
+- **Revenue vs Expenses** — net profit calculation with expense breakdown by category
+- **CSV Export** button with sales, spoilage, and customer data
 - Print-friendly layout
 
 ### Analytics
-- 5 chart tabs using Recharts: By Size, By Time, Trend, Revenue, Distribution
+- 5 chart tabs using Recharts: By Size, By Time, Trend, Revenue, Distribution (Pie)
+- **Responsive PieChart** using percentage-based radii (70%/35%)
 - Date range selector: 7/30/90 days
 - Summary stats: total revenue, total eggs sold, best-selling size, peak hour
+
+### Dark Mode
+- Toggle button in sidebar footer and mobile header
+- Persists preference via `localStorage`
+- Respects system `prefers-color-scheme` on first visit
+- Full dark theme with `[data-theme="dark"]` selector
+- Frosted glass effects preserved in dark mode
+
+---
+
+## Accessibility
+
+All form fields across 8 components have proper `id` and `name` attributes:
+- **Inventory.jsx** — Dynamic IDs per egg size (e.g., `inv-tray-add-{id}`)
+- **SalesLog.jsx** — `sale-egg-size`, `sale-quantity`, `sale-filter-start/end`
+- **Expenses.jsx** — `expense-category`, `expense-amount`, `expense-description`
+- **Spoilage.jsx** — `spoilage-egg-size`, `spoilage-quantity`, `spoilage-reason`, `spoilage-date`
+- **Customers.jsx** — `customer-name`, `customer-phone`, `customer-notes`
+- **PriceSettings.jsx** — Dynamic IDs with `htmlFor` on labels (e.g., `price-piece-{id}`)
+- **Reports.jsx** — `report-start-date`, `report-end-date`, `report-start-time`, `report-end-time`
+- **Analytics.jsx** — `analytics-days`
 
 ---
 
@@ -187,6 +303,7 @@ All tables use permissive policies (`ALL USING true`) since this is a single-use
 ### Inventory
 - `fetchInventory()` — Gets all inventory with egg size names
 - `updateInventory(eggSizeId, quantity)` — Sets exact quantity_on_hand
+- `fetchInventoryValue()` — Calculates total inventory monetary value
 
 ### Pricing
 - `fetchPriceSettings()` — Gets all prices with egg size names
@@ -208,9 +325,20 @@ All tables use permissive policies (`ALL USING true`) since this is a single-use
 - `fetchTodayExpenses()` — Today's expenses
 - `recordExpense({ category, description, amount })` — Record a new expense
 
+### Spoilage
+- `fetchSpoilage({ startDate, endDate, limit })` — Filtered spoilage list
+- `recordSpoilage({ eggSizeId, quantity, reason, spoilageDate })` — Record spoilage
+- `fetchSpoilageWithCost({ startDate, endDate, limit })` — Spoilage with cost estimation
+
+### Customers
+- `fetchCustomers()` — Get all customers sorted by name
+- `addCustomer({ name, phone, notes })` — Add a customer
+- `deleteCustomer(id)` — Remove a customer
+
 ### Utilities
 - `EGG_SIZES` — ['Peewee', 'Pullet', 'Small', 'Medium', 'Large', 'Extra Large', 'Jumbo']
 - `EXPENSE_CATEGORIES` — ['Feed', 'Labor', 'Utilities', 'Transport', 'Packaging', 'Maintenance', 'Misc']
+- `SPOILAGE_REASONS` — ['Cracked', 'Broken', 'Expired', 'Damaged', 'Other']
 - `TRAY_SIZE` — 30 (eggs per tray)
 - `getEggCount(sale)` — Converts sale record to total egg count
 - `toTraysAndPieces(totalEggs)` — Returns `{ trays, pieces }` object
@@ -224,11 +352,17 @@ All tables use permissive policies (`ALL USING true`) since this is a single-use
 ### Toast (`Toast.jsx`)
 - Global notification system via `toast(message, type)` function
 - Auto-dismiss after 3 seconds
-- Types: success (green), error (red)
+- Types: success (green with checkmark), error (red with X)
+- SVG icons for visual clarity
+- Spring animation entrance (`slideUp`)
+- Positioned above bottom nav on mobile (`bottom: 5rem`)
 
 ### ConfirmDialog (`ConfirmDialog.jsx`)
 - Reusable modal for confirming destructive or important actions
 - Props: `open`, `title`, `message`, `confirmLabel`, `variant`, `icon`, `onConfirm`, `onCancel`
+- Backdrop blur overlay
+- Scale-in animation with spring easing
+- Click outside to dismiss
 
 ### ErrorBoundary (`ErrorBoundary.jsx`)
 - Catches React rendering errors and shows a friendly fallback UI
@@ -236,28 +370,32 @@ All tables use permissive policies (`ALL USING true`) since this is a single-use
 
 ### Errors (`src/lib/errors.js`)
 - `getUserFriendlyError(error)` — Converts Supabase/network errors to human-readable messages
+- `withRetry(fn, options)` — Retry wrapper with exponential backoff for network errors
 
 ---
 
-## Color Scheme
+## Deployment
 
-**Brand colors:** Green & Yellow
+### GitHub Pages
+- Auto-deploys on push to `main` via GitHub Actions
+- Workflow: `.github/workflows/deploy.yml`
+- SPA routing handled by copying `index.html` to `404.html`
+- Supabase secrets injected as GitHub Secrets at build time
+- Base path: `/M-EFresheggs/` in vite config
 
-| Role | Color | Hex |
-|------|-------|-----|
-| Primary | Green | `#2E7D32` |
-| Primary hover | Darker green | `#1B5E20` |
-| Primary light | Light green | `#E8F5E9` |
-| Background | Cream yellow | `#FFFDE7` |
-| Cards | White | `#FFFFFF` |
-| Text | Dark green | `#1B2E1B` |
-| Text secondary | Muted green | `#5A6B5A` |
-| Text muted | Gray-green | `#8A9B8A` |
-| Border | Light green | `#C8E6C9` |
-| Accent | Golden yellow | `#F9A825` |
-| Success | Green | `#2E7D32` |
-| Warning | Deep yellow | `#F57F17` |
-| Danger | Red | `#C62828` |
+### Build
+```bash
+npm run build
+# Output in dist/
+npm run preview  # Preview the production build
+```
+
+### Manual Build with Stale Env Vars
+```bash
+unset VITE_SUPABASE_URL
+unset VITE_SUPABASE_ANON_KEY
+VITE_SUPABASE_URL="https://npohyeqnaltpqzmmlmej.supabase.co" VITE_SUPABASE_ANON_KEY="sb_publishable_QlM4RGEizMrdybxn75T2gA_CYIx7kGi" npx vite build
+```
 
 ---
 
@@ -282,13 +420,6 @@ npm install
 npm run dev
 ```
 
-### 4. Build for Production
-```bash
-npm run build
-# Output in dist/
-npm run preview  # Preview the production build
-```
-
 ---
 
 ## Development Notes
@@ -297,15 +428,12 @@ npm run preview  # Preview the production build
 - **No authentication** — Single-user app with permissive RLS policies
 - **Mobile-first design** — Larger fonts, touch-friendly buttons, responsive grid, optimized for 375px+ screens
 - **CSS uses inline `<style>` blocks** within each component (no CSS modules)
-- **Design system** lives in `src/index.css` with CSS custom properties
-- **Build with `npm run build`**, output goes to `dist/`
-- **Supabase URL must be passed explicitly during build** if parent shell has stale env vars:
+- **Design system v2** lives in `src/index.css` with CSS custom properties
+- **All form fields have `id` and `name` attributes** for accessibility
+- **Client-side inventory validation** before sales and spoilage recording
+- **ESLint clean** — 0 errors, 0 warnings
 
-```bash
-unset VITE_SUPABASE_URL
-unset VITE_SUPABASE_ANON_KEY
-VITE_SUPABASE_URL="https://npohyeqnaltpqzmmlmej.supabase.co" VITE_SUPABASE_ANON_KEY="sb_publishable_QlM4RGEizMrdybxn75T2gA_CYIx7kGi" npx vite build
-```
+---
 
 ## Mobile Responsiveness
 
@@ -313,46 +441,58 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 
 | Page | Mobile Layout Strategy |
 |------|----------------------|
-| **Layout** | Hamburger menu with slide-out sidebar, fixed top header |
-| **Dashboard** | Stat cards stack to single column, compact padding + smaller icons |
+| **Layout** | Fixed top header + bottom nav bar with 5 tabs + More button, slide-out sidebar |
+| **Dashboard** | Primary stats stack to single column, secondary grid 2-col, compact padding |
 | **Inventory** | Input fields tighten to 60px min-width, action labels shrink, card padding reduced |
 | **Pricing** | Save button goes full-width under inputs, price badges truncate with ellipsis |
 | **Sales Log** | 5-column grid → 2-column card layout (size+amount top, qty+eggs bottom), stacked filter bar |
 | **Expenses** | 4-column grid → 2-column card layout (date+category left, amount right, desc full-width), stats stack |
-| **Analytics** | Chart tabs wrap naturally, pie chart outerRadius shrinks to 80 on mobile |
+| **Spoilage** | 4-column grid → card layout, stats stack |
+| **Customers** | 4-column grid → card layout |
+| **Analytics** | Chart tabs wrap naturally, PieChart uses responsive percentages |
 | **Reports** | 2-column controls grid, shift tabs wrap, table has horizontal scroll |
 
-## New Features (Added)
+---
 
-### Spoilage Tracking (`/spoilage`)
-- Record egg wastage by size, quantity, reason (Cracked/Broken/Expired/Damaged/Other)
-- Stats: total spoiled eggs, spoiled today
-- Reason breakdown with color-coded badges
-- Date picker for recording past spoilage
-- Mobile-responsive card layout
+## Bug Fixes Applied
 
-### Customer Directory (`/customers`)
-- Manage customer contacts: name, phone, notes
-- Add and remove customers
-- Empty state with quick-add button
-- Mobile-responsive layout
+### Critical/High
+- **Inventory validation before sales/spoilage** — Client-side check prevents cryptic DB errors when stock is insufficient. Shows friendly "Not enough stock — only X eggs available" message.
+- **Partial removal toast clarity** — Changed from "Removed 600 from Medium (stock was only 10)" to "Could only remove 10 from Medium — all remaining stock cleared (was 10)"
 
-### Dark Mode
-- Toggle button in sidebar footer
-- Persists preference via `localStorage`
-- Respects system `prefers-color-scheme` on first visit
-- Full dark theme: adjusted colors for all elements (buttons, cards, tables, skeleton loaders, scrollbars)
-- Applied via `data-theme` attribute on `<html>`
+### Medium
+- **Reports.jsx ESLint errors** — Fixed 2 unused `e` variables in catch blocks
+- **Dashboard alert text** — Fixed misleading "Also 0 sizes low on stock" when only out-of-stock items exist; now shows "Restock immediately"
+- **Analytics PieChart** — Changed from static `window.innerWidth` to responsive percentage-based radii (70%/35%)
+- **PriceSettings error logging** — Added `console.error` in catch block instead of silent swallow
 
-### Revenue vs Expenses (Reports)
-- When generating a report, expenses for the same date range are fetched automatically
-- Three summary cards: Total Revenue, Total Expenses, Net Profit
-- Net profit is color-coded (green for positive, red for negative)
-- Expense breakdown by category below
+### Low
+- **Reports.jsx processReport()** — Called on every render (acceptable at current scale)
+- **Analytics/Dashboard** — `Promise.resolve().then()` workaround for setState-in-effect lint rule
 
-### Database
-- `spoilage` table: tracks egg wastage by size, quantity, reason, date
-- `customers` table: customer directory with name, phone, notes
-- RLS policies and indexes for both new tables
+---
 
-# Last updated: Mon Jun  1 15:00:00 CST 2026
+## Recent Changes (Session Log)
+
+### UI/UX Overhaul
+- Complete design system v2 with new CSS variables, shadows, transitions, radii
+- Mobile bottom navigation bar with 5 quick tabs + More button
+- Frosted glass effects on header and bottom nav
+- Redesigned Dashboard with welcome greeting, primary/secondary stat cards, alert card
+- Toast component: SVG icons, spring animations
+- ConfirmDialog: backdrop blur, scale-in animation
+- ErrorBoundary: updated to design system variables
+
+### Accessibility Fixes
+- Added `id` and `name` attributes to all 28 form fields across 8 components
+- Added `htmlFor` on labels in PriceSettings
+
+### Bug Fixes
+- Inventory validation before sales/spoilage recording
+- Improved partial removal toast messages
+- Fixed Reports.jsx ESLint errors
+- Fixed Dashboard alert subtitle text
+- Responsive PieChart sizing
+- PriceSettings error logging
+
+# Last updated: Sat Jun  7 12:00:00 CST 2026
