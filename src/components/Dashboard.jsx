@@ -211,9 +211,11 @@ export default function Dashboard() {
               }
             </span>
             <span className="alert-subtitle">
-              {outOfStockItems.length > 0
+              {outOfStockItems.length > 0 && lowStockItems.length > 0
                 ? `Also ${lowStockItems.length} size${lowStockItems.length > 1 ? 's' : ''} low on stock`
-                : 'Consider restocking soon'
+                : outOfStockItems.length > 0
+                  ? 'Restock immediately'
+                  : 'Consider restocking soon'
               }
             </span>
           </div>

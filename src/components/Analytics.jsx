@@ -417,8 +417,8 @@ export default function Analytics() {
                     label={({ name, percent }) =>
                       `${name} (${(percent * 100).toFixed(0)}%)`
                     }
-                    outerRadius={window.innerWidth < 640 ? 80 : 120}
-                    innerRadius={window.innerWidth < 640 ? 30 : 50}
+                    outerRadius="70%"
+                    innerRadius="35%"
                     dataKey="eggs"
                   >
                     {bySize

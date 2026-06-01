@@ -165,7 +165,7 @@ export default function Reports() {
         const totalCost = spoilageData.reduce((sum, s) => sum + parseFloat(s.cost || 0), 0);
         rows.push(['Total', '', '', '', `₱${totalCost.toFixed(2)}`]);
       }
-    } catch (e) {
+    } catch {
       // skip spoilage data if fetch fails
     }
 
@@ -178,7 +178,7 @@ export default function Reports() {
           rows.push([c.name, c.phone || '', (c.notes || '').replace(/,/g, ';')]);
         });
       }
-    } catch (e) {
+    } catch {
       // skip customers data if fetch fails
     }
 

@@ -70,9 +70,20 @@ export default function SalesLog() {
       return;
     }
 
+    // Client-side inventory check
+    const eggSizeId = parseInt(form.eggSizeId, 10);
+    const traySize = form.unit === 'tray' ? parseInt(form.traySize, 10) : 1;
+    const totalEggs = form.unit === 'tray' ? qty * traySize : qty;
+    const invItem = inventory.find(i => i.egg_size_id === eggSizeId);
+    const stock = invItem?.quantity_on_hand || 0;
+    if (totalEggs > stock) {
+      toast(`Not enough stock — only ${stock} eggs available`, 'error');
+      return;
+    }
+
     // Show confirmation dialog instead of submitting directly
     setConfirmSale({
-      eggSizeId: parseInt(form.eggSizeId, 10),
+      eggSizeId,
       quantity: qty,
       unit: form.unit,
       traySize: form.unit === 'tray' ? parseInt(form.traySize, 10) : null,

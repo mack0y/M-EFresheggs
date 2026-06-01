@@ -63,6 +63,16 @@ export default function Spoilage() {
       toast('Please enter a valid quantity', 'error');
       return;
     }
+
+    // Client-side inventory check
+    const eggSizeId = parseInt(form.eggSizeId, 10);
+    const invItem = inventory.find(i => i.egg_size_id === eggSizeId);
+    const stock = invItem?.quantity_on_hand || 0;
+    if (qty > stock) {
+      toast(`Not enough stock — only ${stock} eggs available`, 'error');
+      return;
+    }
+
     setConfirmItem({ ...form, quantity: qty });
   }
 

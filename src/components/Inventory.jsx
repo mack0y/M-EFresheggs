@@ -52,7 +52,7 @@ export default function Inventory() {
       await updateInventory(item.egg_size_id, newQty);
       const actualDelta = newQty - currentQty;
       if (delta < 0 && actualDelta !== delta) {
-        toast(`Removed ${Math.abs(actualDelta)} from ${item.egg_sizes?.name} (stock was only ${currentQty})`);
+        toast(`Could only remove ${Math.abs(actualDelta)} from ${item.egg_sizes?.name} — all remaining stock cleared (was ${currentQty})`);
       } else {
         toast(
           delta > 0

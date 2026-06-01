@@ -57,7 +57,8 @@ export default function PriceSettings() {
       await updatePriceSetting(item.egg_size_id, pieceVal, trayVal);
       toast(`${item.egg_sizes?.name} prices saved!`);
       loadPrices();
-    } catch {
+    } catch (err) {
+      console.error('Price save error:', err);
       toast('Failed to save prices', 'error');
     } finally {
       setSaving(null);
