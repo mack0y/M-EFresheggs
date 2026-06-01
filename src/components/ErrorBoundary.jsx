@@ -28,7 +28,7 @@ export default class ErrorBoundary extends Component {
         <div className="error-boundary">
           <div className="error-boundary-card">
             <div className="error-boundary-icon">
-              <AlertTriangle size={32} />
+              <AlertTriangle size={28} />
             </div>
             <h2>Something went wrong</h2>
             <p className="error-boundary-message">{message}</p>
@@ -56,12 +56,12 @@ export default class ErrorBoundary extends Component {
             .error-boundary-card {
               text-align: center;
               background: var(--color-card);
-              border: 1px solid var(--color-border);
-              border-radius: var(--radius-lg);
+              border: 1px solid var(--color-border-light);
+              border-radius: var(--radius-xl);
               padding: 2.5rem;
               max-width: 440px;
               width: 100%;
-              box-shadow: var(--shadow-md);
+              box-shadow: var(--shadow-lg);
             }
 
             .error-boundary-icon {
@@ -79,6 +79,7 @@ export default class ErrorBoundary extends Component {
             .error-boundary-card h2 {
               margin-bottom: 0.5rem;
               font-size: 1.25rem;
+              font-weight: var(--font-weight-semibold);
             }
 
             .error-boundary-message {

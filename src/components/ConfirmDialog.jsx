@@ -5,7 +5,7 @@ export default function ConfirmDialog({ open, title, message, confirmLabel = 'Co
 
   const iconColor = variant === 'danger' ? 'var(--color-danger)' : 'var(--color-primary)';
   const iconBg = variant === 'danger' ? 'var(--color-danger-bg)' : 'var(--color-primary-light)';
-  const btnClass = variant === 'danger' ? 'btn-danger' : 'btn-primary';
+  const btnClass = variant === 'danger' ? 'btn-confirm-danger' : 'btn-confirm-primary';
 
   return (
     <div className="confirm-overlay" onClick={onCancel}>
@@ -29,7 +29,8 @@ export default function ConfirmDialog({ open, title, message, confirmLabel = 'Co
         .confirm-overlay {
           position: fixed;
           inset: 0;
-          background: rgba(0, 0, 0, 0.45);
+          background: rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(4px);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -40,14 +41,14 @@ export default function ConfirmDialog({ open, title, message, confirmLabel = 'Co
 
         .confirm-dialog {
           background: var(--color-card);
-          border: 1px solid var(--color-border);
-          border-radius: var(--radius-lg);
+          border: 1px solid var(--color-border-light);
+          border-radius: var(--radius-xl);
           padding: 2rem;
           max-width: 400px;
           width: 100%;
-          box-shadow: var(--shadow-lg);
+          box-shadow: var(--shadow-xl);
           text-align: center;
-          animation: slideIn 0.2s ease-out;
+          animation: scaleIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
 
         .confirm-icon {
@@ -62,7 +63,7 @@ export default function ConfirmDialog({ open, title, message, confirmLabel = 'Co
 
         .confirm-title {
           font-size: 1.125rem;
-          font-weight: 600;
+          font-weight: var(--font-weight-semibold);
           margin-bottom: 0.5rem;
         }
 
@@ -84,13 +85,26 @@ export default function ConfirmDialog({ open, title, message, confirmLabel = 'Co
           max-width: 140px;
         }
 
-        .confirm-actions .btn-danger {
-          background: var(--color-danger);
+        .btn-confirm-primary {
+          background: var(--color-primary);
           color: white;
+          box-shadow: var(--shadow-sm);
         }
 
-        .confirm-actions .btn-danger:hover {
+        .btn-confirm-primary:hover {
+          background: var(--color-primary-hover);
+          box-shadow: var(--shadow-md);
+        }
+
+        .btn-confirm-danger {
+          background: var(--color-danger);
+          color: white;
+          box-shadow: var(--shadow-sm);
+        }
+
+        .btn-confirm-danger:hover {
           background: #B71C1C;
+          box-shadow: var(--shadow-md);
         }
       `}</style>
     </div>
