@@ -424,6 +424,54 @@ export async function fetchInventoryValue() {
   return totalValue;
 }
 
+/**
+ * Calculate profit margins per egg size.
+ * Compares average delivery cost vs selling price for each size.
+ */
+export async function fetchProfitMargins() {
+  const [prices, deliveries] = await Promise.all([
+    fetchPriceSettings(),
+    fetchDeliveries({ limit: 500 }),
+  ]);
+
+  // Build cost map: average cost_per_egg per egg size from deliveries
+  const costAccumulator = {};
+  (deliveries || []).forEach(d => {
+    const id = d.egg_size_id;
+    if (!costAccumulator[id]) costAccumulator[id] = { totalCost: 0, totalEggs: 0, deliveries: 0 };
+    const eggCount = d.unit === 'tray' ? d.quantity * (d.tray_size || TRAY_SIZE) : d.quantity;
+    costAccumulator[id].totalCost += parseFloat(d.total_cost || 0);
+    costAccumulator[id].totalEggs += eggCount;
+    costAccumulator[id].deliveries++;
+  });
+
+  // Build margins per egg size
+  const margins = EGG_SIZES.map((name, index) => {
+    const price = (prices || []).find(p => p.egg_sizes?.sort_order === index + 1);
+    const cost = costAccumulator[price?.egg_size_id];
+
+    const pricePerPiece = parseFloat(price?.price_per_piece || 0);
+    const pricePerTray = parseFloat(price?.price_per_tray || 0);
+    const avgCostPerEgg = cost?.totalEggs > 0 ? cost.totalCost / cost.totalEggs : 0;
+    const profitPerEgg = pricePerPiece - avgCostPerEgg;
+    const marginPercent = pricePerPiece > 0 ? (profitPerEgg / pricePerPiece) * 100 : 0;
+
+    return {
+      name,
+      pricePerPiece,
+      pricePerTray,
+      avgCostPerEgg: Math.round(avgCostPerEgg * 100) / 100,
+      profitPerEgg: Math.round(profitPerEgg * 100) / 100,
+      marginPercent: Math.round(marginPercent * 10) / 10,
+      totalDelivered: cost?.totalEggs || 0,
+      totalDeliveryCost: cost?.totalCost || 0,
+      deliveryCount: cost?.deliveries || 0,
+    };
+  });
+
+  return margins.filter(m => m.totalDelivered > 0);
+}
+
 /** Calculate cost of spoilage data */
 export async function fetchSpoilageWithCost({ startDate, endDate, limit = 200 } = {}) {
   let query = supabase

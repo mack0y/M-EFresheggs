@@ -321,10 +321,11 @@ The design system lives in `src/index.css` with CSS custom properties.
 - Print-friendly layout
 
 ### Analytics
-- 5 chart tabs using Recharts: By Size, By Time, Trend, Revenue, Distribution (Pie)
+- 6 chart tabs using Recharts: By Size, By Time, Trend, Revenue, Distribution (Pie), Profit Margins
 - **Responsive PieChart** using percentage-based radii (70%/35%)
 - Date range selector: 7/30/90 days
 - Summary stats: total revenue, total eggs sold, best-selling size, peak hour
+- **Profit Margins tab** — Compares average delivery cost vs selling price per egg size with margin cards and grouped bar chart
 
 ### Dark Mode
 - Toggle button in sidebar footer and mobile header
@@ -402,6 +403,7 @@ All form fields across 10 components have proper `id` and `name` attributes:
 
 ### Utilities
 - `getLocalDate(date?)` — Returns today's (or given date's) YYYY-MM-DD string using **local timezone** (not UTC). Uses `toLocaleDateString('en-CA')`.
+- `fetchProfitMargins()` — Calculates profit margins per egg size by comparing average delivery cost vs selling price from price settings
 - `EGG_SIZES` — ['Peewee', 'Pullet', 'Small', 'Medium', 'Large', 'Extra Large', 'Jumbo']
 - `EXPENSE_CATEGORIES` — ['Feed', 'Labor', 'Utilities', 'Transport', 'Packaging', 'Maintenance', 'Misc']
 - `SPOILAGE_REASONS` — ['Cracked', 'Broken', 'Expired', 'Damaged', 'Other']
@@ -587,5 +589,11 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - **Dashboard optimization:** Fetches only today's deliveries instead of fetching 200 and filtering client-side
 - **Note:** `TIMESTAMPTZ` columns (updated_at) still correctly use `toISOString()` — only `DATE` columns were affected
 - **Note:** Existing records stored with wrong UTC dates are not retroactively fixed; only new entries use correct local dates
+
+### Profit Margins per Egg Size (June 2026)
+- New `fetchProfitMargins()` API function — calculates average cost per egg from deliveries vs selling price from price_settings
+- New "Margins" tab in Analytics — shows margin summary cards (cost, selling price, profit per size) and grouped bar chart comparing cost vs selling price- Margins load once on mount (not time-dependent)
+- Edge case: sizes with deliveries but no price set are filtered out to avoid misleading 100% margins
+- Browser tested: renders correctly, shows empty state when no delivery/price data
 
 # Last updated: Tue Jun  2 2026

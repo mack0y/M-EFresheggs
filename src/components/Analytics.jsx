@@ -23,7 +23,7 @@ import {
   AlertTriangle,
   RefreshCw,
 } from 'lucide-react';
-import { fetchSalesBySize, fetchSalesByHour, fetchSalesTrend, formatPeso, EGG_SIZES, getLocalDate } from '../lib/api';
+import { fetchSalesBySize, fetchSalesByHour, fetchSalesTrend, fetchProfitMargins, formatPeso, EGG_SIZES, getLocalDate } from '../lib/api';
 import { getUserFriendlyError } from '../lib/errors';
 
 const COLORS = [
@@ -57,6 +57,8 @@ export default function Analytics() {
   const [byHour, setByHour] = useState([]);
   const [trend, setTrend] = useState([]);
   const [revenueBySize, setRevenueBySize] = useState([]);
+  const [margins, setMargins] = useState([]);
+  const [loadingMargins, setLoadingMargins] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [days, setDays] = useState(30);
@@ -172,11 +174,27 @@ export default function Analytics() {
     }
   }
 
+  async function loadMargins() {
+    try {
+      setLoadingMargins(true);
+      const data = await fetchProfitMargins();
+      setMargins(data || []);
+    } catch (err) {
+      console.error('Margins load error:', err);
+    } finally {
+      setLoadingMargins(false);
+    }
+  }
+
   useEffect(() => {
     // Defer to microtask to avoid cascading render warning from loadAnalytics setState calls
     Promise.resolve().then(() => loadAnalytics());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [days]);
+
+  useEffect(() => {
+    Promise.resolve().then(() => loadMargins());
+  }, []);
 
   const totalEggsSold = bySize.reduce((sum, s) => sum + s.eggs, 0);
   const totalRevenue = revenueBySize.reduce((sum, s) => sum + s.revenue, 0);
@@ -304,6 +322,13 @@ export default function Analytics() {
           <DollarSign size={16} />
           Revenue
         </button>
+        <button
+          className={`chart-tab ${chartTab === 'margins' ? 'active' : ''}`}
+          onClick={() => setChartTab('margins')}
+        >
+          <DollarSign size={16} />
+          Margins
+        </button>
       </div>
 
       {/* Charts */}
@@ -430,6 +455,80 @@ export default function Analytics() {
                   <Tooltip content={<CustomTooltip />} />
                 </PieChart>
               </ResponsiveContainer>
+            </div>
+          )}
+
+          {chartTab === 'margins' && (
+            <div>
+              <h3 style={{ marginBottom: '1rem' }}>Profit Margins by Egg Size</h3>
+              {loadingMargins ? (
+                <div style={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div className="skeleton" style={{ width: '80%', height: 250 }}>&nbsp;</div>
+                </div>
+              ) : margins.length === 0 ? (
+                <div className="empty-state" style={{ height: 300 }}>
+                  <p>Record deliveries and set prices to see profit margins</p>
+                </div>
+              ) : (
+                <>
+                  {/* Margin summary cards */}
+                  <div className="margin-summary">
+                    {margins.filter(m => m.pricePerPiece > 0).map(m => (
+                      <div key={m.name} className="margin-card">
+                        <div className="margin-card-header">
+                          <span className="margin-card-size">{m.name}</span>
+                          <span className="margin-card-pct" style={{ color: m.marginPercent >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                            {m.marginPercent > 0 ? '+' : ''}{m.marginPercent}%
+                          </span>
+                        </div>
+                        <div className="margin-card-body">
+                          <div className="margin-card-row">
+                            <span className="margin-card-label">Selling</span>
+                            <span className="margin-card-value">{formatPeso(m.pricePerPiece)}/ea</span>
+                          </div>
+                          <div className="margin-card-row">
+                            <span className="margin-card-label">Cost</span>
+                            <span className="margin-card-value margin-card-cost">{formatPeso(m.avgCostPerEgg)}/ea</span>
+                          </div>
+                          <div className="margin-card-row margin-card-profit">
+                            <span className="margin-card-label">Profit</span>
+                            <span className="margin-card-value" style={{ color: m.profitPerEgg >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                              {formatPeso(m.profitPerEgg)}/ea
+                            </span>
+                          </div>
+                        </div>
+                        <div className="margin-card-footer">
+                          <span>{m.totalDelivered.toLocaleString()} eggs delivered ({m.deliveryCount} deliveries)</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Margin bar chart */}
+                  {margins.some(m => m.pricePerPiece > 0) && (
+                    <div style={{ marginTop: '1.25rem' }}>
+                      <h4 style={{ marginBottom: '0.75rem', fontSize: '0.9375rem', color: 'var(--color-text-secondary)' }}>Cost vs Selling Price Comparison</h4>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={margins.filter(m => m.pricePerPiece > 0)} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#E8DDD0" />
+                          <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                          <YAxis tick={{ fontSize: 12 }} />
+                          <Tooltip
+                            formatter={(value) => formatPeso(value)}
+                            labelStyle={{ fontWeight: 600 }}
+                          />
+                          <Bar dataKey="avgCostPerEgg" name="Avg Cost/Egg" fill="#C62828" radius={[4, 4, 0, 0]} opacity={0.8} />
+                          <Bar dataKey="pricePerPiece" name="Selling Price/Egg" fill="#2E7D32" radius={[4, 4, 0, 0]} opacity={0.8} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+
+                  <p className="chart-hint">
+                    Average cost is calculated from all delivery records. Compare against your selling price to see profit margins per egg.
+                  </p>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -564,6 +663,94 @@ export default function Analytics() {
           align-items: center;
           justify-content: center;
           color: var(--color-text-muted);
+        }
+
+        .margin-summary {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 0.75rem;
+          margin-bottom: 1.25rem;
+        }
+
+        @media (min-width: 640px) {
+          .margin-summary {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+
+        @media (min-width: 900px) {
+          .margin-summary {
+            grid-template-columns: repeat(3, 1fr);
+          }
+        }
+
+        .margin-card {
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-md);
+          overflow: hidden;
+          background: var(--color-card);
+          box-shadow: var(--shadow-sm);
+        }
+
+        .margin-card-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 0.75rem 1rem;
+          background: var(--color-bg);
+          border-bottom: 1px solid var(--color-border);
+        }
+
+        .margin-card-size {
+          font-weight: 700;
+          font-size: 0.9375rem;
+        }
+
+        .margin-card-pct {
+          font-weight: 800;
+          font-size: 1.0625rem;
+        }
+
+        .margin-card-body {
+          padding: 0.75rem 1rem;
+          display: flex;
+          flex-direction: column;
+          gap: 0.375rem;
+        }
+
+        .margin-card-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          font-size: 0.8125rem;
+        }
+
+        .margin-card-label {
+          color: var(--color-text-muted);
+        }
+
+        .margin-card-value {
+          font-weight: 600;
+          font-variant-numeric: tabular-nums;
+        }
+
+        .margin-card-cost {
+          color: var(--color-danger);
+        }
+
+        .margin-card-profit {
+          padding-top: 0.375rem;
+          border-top: 1px dashed var(--color-border);
+          margin-top: 0.25rem;
+        }
+
+        .margin-card-footer {
+          padding: 0.5rem 1rem;
+          background: var(--color-bg);
+          border-top: 1px solid var(--color-border);
+          font-size: 0.6875rem;
+          color: var(--color-text-muted);
+          text-align: center;
         }
       `}</style>
     </div>
