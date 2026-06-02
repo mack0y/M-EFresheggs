@@ -10,7 +10,7 @@ import {
   TrendingUp,
   TrendingDown,
 } from 'lucide-react';
-import { fetchSalesReport, fetchExpenses, fetchSpoilageWithCost, fetchCustomers, fetchDeliveries, formatPeso, EGG_SIZES, TRAY_SIZE } from '../lib/api';
+import { fetchSalesReport, fetchExpenses, fetchSpoilageWithCost, fetchCustomers, fetchDeliveries, formatPeso, EGG_SIZES, TRAY_SIZE, getLocalDate } from '../lib/api';
 import { getUserFriendlyError } from '../lib/errors';
 
 const SHIFTS = [
@@ -21,7 +21,7 @@ const SHIFTS = [
 ];
 
 function todayStr() {
-  return new Date().toISOString().split('T')[0];
+  return getLocalDate();
 }
 
 export default function Reports() {

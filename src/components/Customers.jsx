@@ -202,11 +202,7 @@ export default function Customers() {
         ) : customers.length === 0 ? (
           <div className="empty-state">
             <Users size={36} />
-            <p>No customers yet</p>
-            <button className="btn btn-primary" onClick={() => setShowForm(true)}>
-              <UserPlus size={16} />
-              Add your first customer
-            </button>
+            <p>No customers yet. Click "Add Customer" above to get started.</p>
           </div>
         ) : (
           customers.map((customer, i) => (

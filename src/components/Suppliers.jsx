@@ -6,7 +6,6 @@ import {
   RefreshCw,
   Phone,
   Trash2,
-  UserPlus,
 } from 'lucide-react';
 import { fetchSuppliers, addSupplier, deleteSupplier } from '../lib/api';
 import { toast } from './Toast';
@@ -112,10 +111,7 @@ export default function Suppliers() {
       {/* Add form */}
       {showForm && (
         <div className="card suppliers-form-card">
-          <h3 style={{ marginBottom: '1rem' }}>
-            <UserPlus size={18} style={{ verticalAlign: 'middle', marginRight: '0.5rem' }} />
-            New Supplier
-          </h3>
+          <h3 style={{ marginBottom: '1rem' }}>New Supplier</h3>
           <form onSubmit={handleSubmit}>
             <div className="form-grid">
               <div className="input-group">
@@ -202,11 +198,7 @@ export default function Suppliers() {
         ) : suppliers.length === 0 ? (
           <div className="empty-state">
             <Truck size={36} />
-            <p>No suppliers yet</p>
-            <button className="btn btn-primary" onClick={() => setShowForm(true)}>
-              <UserPlus size={16} />
-              Add your first supplier
-            </button>
+            <p>No suppliers yet. Click "Add Supplier" above to get started.</p>
           </div>
         ) : (
           suppliers.map((supplier, i) => (

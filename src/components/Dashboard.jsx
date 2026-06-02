@@ -12,7 +12,7 @@ import {
   Clock,
   Truck,
 } from 'lucide-react';
-import { fetchInventory, fetchTodaySales, fetchTodayExpenses, fetchInventoryValue, fetchDeliveries, getEggCount, formatInventory, formatPeso } from '../lib/api';
+import { fetchInventory, fetchTodaySales, fetchTodayExpenses, fetchInventoryValue, fetchDeliveries, getEggCount, formatInventory, formatPeso, getLocalDate } from '../lib/api';
 import { getUserFriendlyError } from '../lib/errors';
 
 function getGreeting() {
@@ -43,19 +43,19 @@ export default function Dashboard() {
     try {
       setLoading(true);
       setError(null);
+      const today = getLocalDate();
       const [inv, sales, expenses, invValue, deliveries] = await Promise.all([
         fetchInventory(),
         fetchTodaySales(),
         fetchTodayExpenses(),
         fetchInventoryValue(),
-        fetchDeliveries({ limit: 200 }),
+        fetchDeliveries({ startDate: today, endDate: today }),
       ]);
       setInventory(inv || []);
       setTodaySales(sales || []);
       setTodayExpenses(expenses || []);
       setInventoryValue(invValue);
-      const today = new Date().toISOString().split('T')[0];
-      setTodayDeliveries((deliveries || []).filter(d => d.delivery_date === today));
+      setTodayDeliveries(deliveries || []);
     } catch (err) {
       console.error('Dashboard load error:', err);
       setError(err);
@@ -261,7 +261,7 @@ export default function Dashboard() {
       )}
 
       {/* Content Grid */}
-      <div className="grid-2" style={{ gridTemplateColumns: todayDeliveries.length > 0 ? '1fr 1fr' : '1fr 1fr' }}>
+      <div className="grid-2">
         {/* Stock Levels */}
         <div className="card">
           <div className="card-header">

@@ -7,7 +7,7 @@ import {
   RefreshCw,
   ClipboardCheck,
 } from 'lucide-react';
-import { fetchSales, recordSale, fetchInventory, getEggCount, formatPeso, formatInventory } from '../lib/api';
+import { fetchSales, recordSale, fetchInventory, getEggCount, formatPeso, formatInventory, getLocalDate } from '../lib/api';
 import { toast } from './Toast';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
@@ -19,7 +19,7 @@ export default function SalesLog() {
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalDate();
 
   const [filter, setFilter] = useState('today');
   const [startDate, setStartDate] = useState(today);
@@ -118,7 +118,7 @@ export default function SalesLog() {
     yesterday.setDate(yesterday.getDate() - 1);
 
     if (dateStr === today) return 'Today';
-    if (dateStr === yesterday.toISOString().split('T')[0]) return 'Yesterday';
+    if (dateStr === getLocalDate(yesterday)) return 'Yesterday';
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 
@@ -294,7 +294,7 @@ export default function SalesLog() {
               setFilter('week');
               const d = new Date();
               d.setDate(d.getDate() - 7);
-              setStartDate(d.toISOString().split('T')[0]);
+              setStartDate(getLocalDate(d));
               setEndDate(today);
             }}
           >

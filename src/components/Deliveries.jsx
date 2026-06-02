@@ -24,6 +24,7 @@ import {
   formatPeso,
   toTraysAndPieces,
   TRAY_SIZE,
+  getLocalDate,
 } from '../lib/api';
 import { toast } from './Toast';
 import { getUserFriendlyError } from '../lib/errors';
@@ -42,7 +43,7 @@ export default function Deliveries() {
   const [editingPayment, setEditingPayment] = useState(null);
   const [confirmItem, setConfirmItem] = useState(null);
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalDate();
 
   const [form, setForm] = useState({
     supplierId: '',
@@ -187,7 +188,7 @@ export default function Deliveries() {
     if (dateStr === today) return 'Today';
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    if (dateStr === yesterday.toISOString().split('T')[0]) return 'Yesterday';
+    if (dateStr === getLocalDate(yesterday)) return 'Yesterday';
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 
@@ -442,7 +443,7 @@ export default function Deliveries() {
       )}
 
       {/* Delivery list */}
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+      <div className="card" style={{ padding: 0 }}>
         <div className="delivery-table-header">
           <span>Date</span>
           <span>Supplier</span>

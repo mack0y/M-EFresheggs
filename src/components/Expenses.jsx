@@ -7,7 +7,7 @@ import {
   TrendingDown,
   Receipt,
 } from 'lucide-react';
-import { fetchExpenses, recordExpense, formatPeso, EXPENSE_CATEGORIES } from '../lib/api';
+import { fetchExpenses, recordExpense, formatPeso, EXPENSE_CATEGORIES, getLocalDate } from '../lib/api';
 import { toast } from './Toast';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
@@ -27,7 +27,7 @@ export default function Expenses() {
   });
   const [confirmItem, setConfirmItem] = useState(null);
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalDate();
 
   useEffect(() => {
     loadExpenses();
@@ -100,7 +100,7 @@ export default function Expenses() {
     yesterday.setDate(yesterday.getDate() - 1);
 
     if (dateStr === today) return 'Today';
-    if (dateStr === yesterday.toISOString().split('T')[0]) return 'Yesterday';
+    if (dateStr === getLocalDate(yesterday)) return 'Yesterday';
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 

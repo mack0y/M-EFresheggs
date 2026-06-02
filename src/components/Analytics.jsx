@@ -23,7 +23,7 @@ import {
   AlertTriangle,
   RefreshCw,
 } from 'lucide-react';
-import { fetchSalesBySize, fetchSalesByHour, fetchSalesTrend, formatPeso, EGG_SIZES } from '../lib/api';
+import { fetchSalesBySize, fetchSalesByHour, fetchSalesTrend, formatPeso, EGG_SIZES, getLocalDate } from '../lib/api';
 import { getUserFriendlyError } from '../lib/errors';
 
 const COLORS = [
@@ -78,11 +78,11 @@ export default function Analytics() {
     try {
       setLoading(true);
       setError(null);
-      const endDate = new Date().toISOString().split('T')[0];
+      const endDate = getLocalDate();
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
 
-      const startDateStr = startDate.toISOString().split('T')[0];
+      const startDateStr = getLocalDate(startDate);
       const [sizeData, hourData, trendData] = await Promise.all([
         fetchSalesBySize(startDateStr, endDate),
         fetchSalesByHour(startDateStr, endDate),

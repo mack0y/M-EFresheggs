@@ -401,6 +401,7 @@ All form fields across 10 components have proper `id` and `name` attributes:
 - `PAYMENT_STATUSES` — ['unpaid', 'partial', 'paid']
 
 ### Utilities
+- `getLocalDate(date?)` — Returns today's (or given date's) YYYY-MM-DD string using **local timezone** (not UTC). Uses `toLocaleDateString('en-CA')`.
 - `EGG_SIZES` — ['Peewee', 'Pullet', 'Small', 'Medium', 'Large', 'Extra Large', 'Jumbo']
 - `EXPENSE_CATEGORIES` — ['Feed', 'Labor', 'Utilities', 'Transport', 'Packaging', 'Maintenance', 'Misc']
 - `SPOILAGE_REASONS` — ['Cracked', 'Broken', 'Expired', 'Damaged', 'Other']
@@ -576,5 +577,15 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - Fixed Dashboard alert subtitle text
 - Responsive PieChart sizing
 - PriceSettings error logging
+
+### Timezone Bug Fix (June 2026)
+- **Critical fix:** All DATE column operations now use `getLocalDate()` instead of `toISOString().split('T')[0]`
+- **Problem:** UTC-based dates caused entries between midnight–8 AM (Philippine time) to be stored with the previous day's date
+- **Solution:** Added `getLocalDate()` helper using `toLocaleDateString('en-CA')` for correct local timezone dates
+- **Affected components:** Dashboard, SalesLog, Expenses, Analytics, Deliveries, Reports, Spoilage, Suppliers
+- **Affected API functions:** recordSale, fetchTodaySales, fetchSalesTrend, fetchTodayExpenses, recordExpense
+- **Dashboard optimization:** Fetches only today's deliveries instead of fetching 200 and filtering client-side
+- **Note:** `TIMESTAMPTZ` columns (updated_at) still correctly use `toISOString()` — only `DATE` columns were affected
+- **Note:** Existing records stored with wrong UTC dates are not retroactively fixed; only new entries use correct local dates
 
 # Last updated: Tue Jun  2 2026

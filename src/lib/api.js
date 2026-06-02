@@ -1,5 +1,13 @@
 import { supabase } from '../lib/supabaseClient';
 
+// ===== Local Date Helper =====
+// Returns today's date in YYYY-MM-DD format using the user's LOCAL timezone
+// (not UTC, which is what toISOString() would give)
+export function getLocalDate(date) {
+  const d = date || new Date();
+  return d.toLocaleDateString('en-CA'); // en-CA gives YYYY-MM-DD format
+}
+
 // ===== Egg Sizes =====
 export const EGG_SIZES = [
   'Peewee',
@@ -68,7 +76,7 @@ export async function updatePriceSetting(eggSizeId, pricePerPiece, pricePerTray)
 // ===== Sales =====
 export async function recordSale({ eggSizeId, quantity, unit, traySize }) {
   const today = new Date();
-  const dateStr = today.toISOString().split('T')[0];
+  const dateStr = getLocalDate(today);
   const timeStr = today.toTimeString().split(' ')[0];
 
   // Fetch current price to calculate total amount
@@ -119,7 +127,7 @@ export async function fetchSales({ limit = 50, offset = 0, startDate, endDate } 
 }
 
 export async function fetchTodaySales() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalDate();
   const { data, error } = await supabase
     .from('sales')
     .select('*, egg_sizes(name)')
@@ -163,7 +171,7 @@ export async function fetchSalesTrend(days = 30) {
   const { data, error } = await supabase
     .from('sales')
     .select('sale_date, quantity, unit, tray_size')
-    .gte('sale_date', startDate.toISOString().split('T')[0])
+    .gte('sale_date', getLocalDate(startDate))
     .order('sale_date', { ascending: true });
   if (error) throw error;
   return data;
@@ -218,12 +226,12 @@ export async function fetchExpenses({ startDate, endDate, limit = 100 } = {}) {
 }
 
 export async function fetchTodayExpenses() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalDate();
   return fetchExpenses({ startDate: today, endDate: today });
 }
 
 export async function recordExpense({ category, description, amount }) {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalDate();
   const { data, error } = await supabase
     .from('expenses')
     .insert({ category, description, amount, expense_date: today })

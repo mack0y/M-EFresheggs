@@ -7,7 +7,7 @@ import {
   Calendar,
   DollarSign,
 } from 'lucide-react';
-import { fetchSpoilageWithCost, recordSpoilage, fetchInventory, SPOILAGE_REASONS, formatPeso } from '../lib/api';
+import { fetchSpoilageWithCost, recordSpoilage, fetchInventory, SPOILAGE_REASONS, formatPeso, getLocalDate } from '../lib/api';
 import { toast } from './Toast';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
@@ -20,7 +20,7 @@ export default function Spoilage() {
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalDate();
 
   const [form, setForm] = useState({
     eggSizeId: '',
@@ -121,7 +121,7 @@ export default function Spoilage() {
     if (dateStr === today) return 'Today';
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    if (dateStr === yesterday.toISOString().split('T')[0]) return 'Yesterday';
+    if (dateStr === getLocalDate(yesterday)) return 'Yesterday';
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 
