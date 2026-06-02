@@ -14,6 +14,8 @@ import {
   AlertTriangle,
   Moon,
   Sun,
+  Truck,
+  Building,
 } from 'lucide-react';
 
 const navItems = [
@@ -23,6 +25,8 @@ const navItems = [
   { to: '/sales', icon: ShoppingCart, label: 'Sales' },
   { to: '/spoilage', icon: AlertTriangle, label: 'Spoilage' },
   { to: '/customers', icon: Users, label: 'Customers' },
+  { to: '/suppliers', icon: Building, label: 'Suppliers' },
+  { to: '/deliveries', icon: Truck, label: 'Deliveries' },
   { to: '/expenses', icon: TrendingDown, label: 'Expenses' },
   { to: '/analytics', icon: TrendingUp, label: 'Analytics' },
   { to: '/reports', icon: FileText, label: 'Reports' },

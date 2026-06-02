@@ -10,8 +10,9 @@ import {
   TrendingUp,
   TrendingDown,
   Clock,
+  Truck,
 } from 'lucide-react';
-import { fetchInventory, fetchTodaySales, fetchTodayExpenses, fetchInventoryValue, getEggCount, formatInventory, formatPeso } from '../lib/api';
+import { fetchInventory, fetchTodaySales, fetchTodayExpenses, fetchInventoryValue, fetchDeliveries, getEggCount, formatInventory, formatPeso } from '../lib/api';
 import { getUserFriendlyError } from '../lib/errors';
 
 function getGreeting() {
@@ -34,6 +35,7 @@ export default function Dashboard() {
   const [todaySales, setTodaySales] = useState([]);
   const [todayExpenses, setTodayExpenses] = useState([]);
   const [inventoryValue, setInventoryValue] = useState(0);
+  const [todayDeliveries, setTodayDeliveries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -41,16 +43,19 @@ export default function Dashboard() {
     try {
       setLoading(true);
       setError(null);
-      const [inv, sales, expenses, invValue] = await Promise.all([
+      const [inv, sales, expenses, invValue, deliveries] = await Promise.all([
         fetchInventory(),
         fetchTodaySales(),
         fetchTodayExpenses(),
         fetchInventoryValue(),
+        fetchDeliveries({ limit: 200 }),
       ]);
       setInventory(inv || []);
       setTodaySales(sales || []);
       setTodayExpenses(expenses || []);
       setInventoryValue(invValue);
+      const today = new Date().toISOString().split('T')[0];
+      setTodayDeliveries((deliveries || []).filter(d => d.delivery_date === today));
     } catch (err) {
       console.error('Dashboard load error:', err);
       setError(err);
@@ -62,6 +67,11 @@ export default function Dashboard() {
   useEffect(() => {
     Promise.resolve().then(() => loadData());
   }, []);
+
+  const todayDeliveryCount = todayDeliveries.length;
+  const todayDeliveryCost = todayDeliveries.reduce(
+    (sum, d) => sum + parseFloat(d.total_cost || 0), 0
+  );
 
   const totalEggsSoldToday = todaySales.reduce(
     (sum, s) => sum + getEggCount(s), 0
@@ -195,6 +205,30 @@ export default function Dashboard() {
             <span className="stat-card-label">Expenses</span>
           </div>
         </div>
+
+        <div className="stat-card-item">
+          <div className="stat-card-icon" style={{ background: '#E0F2F1', color: '#00695C' }}>
+            <Truck size={18} />
+          </div>
+          <div className="stat-card-content">
+            <span className="stat-card-value">
+              {loading ? '—' : todayDeliveryCount}
+            </span>
+            <span className="stat-card-label">Deliveries</span>
+          </div>
+        </div>
+
+        <div className="stat-card-item">
+          <div className="stat-card-icon" style={{ background: '#FFF3E0', color: '#E65100' }}>
+            <Truck size={18} />
+          </div>
+          <div className="stat-card-content">
+            <span className="stat-card-value">
+              {loading ? '—' : formatPeso(todayDeliveryCost)}
+            </span>
+            <span className="stat-card-label">Delivery Cost</span>
+          </div>
+        </div>
       </div>
 
       {/* Low Stock Alert */}
@@ -227,7 +261,7 @@ export default function Dashboard() {
       )}
 
       {/* Content Grid */}
-      <div className="grid-2">
+      <div className="grid-2" style={{ gridTemplateColumns: todayDeliveries.length > 0 ? '1fr 1fr' : '1fr 1fr' }}>
         {/* Stock Levels */}
         <div className="card">
           <div className="card-header">
@@ -298,8 +332,7 @@ export default function Dashboard() {
                   <span className="skeleton" style={{ width: 50, height: 18 }}>&nbsp;</span>
                 </div>
               ))}
-            </div>
-          ) : todaySales.length === 0 ? (
+            </div>              ) : todaySales.length === 0 ? (
             <div className="empty-state">
               <ShoppingCart size={32} />
               <p>No sales recorded today</p>
@@ -336,6 +369,79 @@ export default function Dashboard() {
                     <span className="sale-time">
                       <Clock size={11} />
                       {sale.sale_time?.slice(0, 5)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Today's Deliveries */}
+        <div className="card">
+          <div className="card-header">
+            <h2>Today's Deliveries</h2>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => navigate('/deliveries')}
+            >
+              View All <ArrowRight size={14} />
+            </button>
+          </div>
+          {loading ? (
+            <div className="stock-list">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="stock-item">
+                  <span className="skeleton" style={{ width: 70, height: 18 }}>&nbsp;</span>
+                  <span className="skeleton" style={{ width: 50, height: 18 }}>&nbsp;</span>
+                </div>
+              ))}
+            </div>
+          ) : todayDeliveries.length === 0 ? (
+            <div className="empty-state">
+              <Truck size={32} />
+              <p>No deliveries today</p>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => navigate('/deliveries')}
+              >
+                Record a Delivery
+              </button>
+            </div>
+          ) : (
+            <div className="stock-list">
+              {todayDeliveries.slice(0, 10).map((delivery, i) => (
+                <div
+                  key={delivery.id}
+                  className="stock-item"
+                  style={{ animationDelay: `${i * 0.03}s` }}
+                >
+                  <div className="sale-info">
+                    <span className="stock-name">
+                      {delivery.egg_sizes?.name || 'Unknown'}
+                    </span>
+                    <span className="sale-qty-detail">
+                      {delivery.suppliers?.name || 'Unknown'}
+                      {' · '}{delivery.quantity}{' '}
+                      {delivery.unit === 'tray'
+                        ? `tray${delivery.quantity > 1 ? 's' : ''}`
+                        : `egg${delivery.quantity > 1 ? 's' : ''}`}
+                    </span>
+                  </div>
+                  <div className="stock-right">
+                    <span className="delivery-cost-small">
+                      {formatPeso(delivery.total_cost)}
+                    </span>
+                    <span className="sale-time">
+                      <span className="delivery-payment-status" style={{
+                        display: 'inline-block',
+                        padding: '0.1rem 0.35rem',
+                        borderRadius: 999,
+                        fontSize: '0.6rem',
+                        fontWeight: 600,
+                        background: delivery.payment_status === 'paid' ? '#E8F5E9' : delivery.payment_status === 'partial' ? '#FFF8E1' : '#FFF3E0',
+                        color: delivery.payment_status === 'paid' ? '#2E7D32' : delivery.payment_status === 'partial' ? '#F57F17' : '#E65100',
+                      }}>{delivery.payment_status}</span>
                     </span>
                   </div>
                 </div>

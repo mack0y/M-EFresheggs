@@ -302,6 +302,94 @@ export async function deleteCustomer(id) {
   if (error) throw error;
 }
 
+// ===== Suppliers =====
+
+export async function fetchSuppliers() {
+  const { data, error } = await supabase
+    .from('suppliers')
+    .select('*')
+    .order('name', { ascending: true });
+  if (error) throw error;
+  return data;
+}
+
+export async function addSupplier({ name, phone, notes }) {
+  const { data, error } = await supabase
+    .from('suppliers')
+    .insert({ name, phone, notes })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteSupplier(id) {
+  const { error } = await supabase
+    .from('suppliers')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
+
+// ===== Deliveries =====
+
+export const PAYMENT_STATUSES = ['unpaid', 'partial', 'paid'];
+
+export async function fetchDeliveries({ limit = 200, startDate, endDate } = {}) {
+  let query = supabase
+    .from('deliveries')
+    .select('*, suppliers(name), egg_sizes(name, sort_order)')
+    .order('delivery_date', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  if (startDate) query = query.gte('delivery_date', startDate);
+  if (endDate) query = query.lte('delivery_date', endDate);
+
+  const { data, error } = await query.limit(limit);
+  if (error) throw error;
+  return data;
+}
+
+export async function recordDelivery({ supplierId, eggSizeId, quantity, unit, traySize, costPerEgg, totalCost, paymentStatus, notes, deliveryDate }) {
+  const { data, error } = await supabase
+    .from('deliveries')
+    .insert({
+      supplier_id: supplierId,
+      egg_size_id: eggSizeId,
+      quantity,
+      unit,
+      tray_size: traySize || 30,
+      cost_per_egg: costPerEgg,
+      total_cost: totalCost,
+      payment_status: paymentStatus,
+      notes,
+      delivery_date: deliveryDate,
+    })
+    .select('*, suppliers(name), egg_sizes(name)')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateDeliveryPayment(id, paymentStatus) {
+  const { data, error } = await supabase
+    .from('deliveries')
+    .update({ payment_status: paymentStatus })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteDelivery(id) {
+  const { error } = await supabase
+    .from('deliveries')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
+
 // ===== Utilities =====
 
 export const TRAY_SIZE = 30;

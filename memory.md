@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-A mobile-first web application for tracking egg inventory, recording sales, managing pricing, viewing sales analytics, generating shift-based reports, and tracking expenses. Built for **M&E Fresh Eggs**, an egg retail business.
+A mobile-first web application for tracking egg inventory, recording sales, managing pricing, viewing sales analytics, generating shift-based reports, tracking expenses, and managing supplier deliveries. Built for **M&E Fresh Eggs**, an egg retail business.
 
 **Live:** https://mack0y.github.io/M-EFresheggs/
 **Supabase Project:** https://supabase.com/dashboard/project/npohyeqnaltpqzmmlmej
@@ -34,6 +34,7 @@ M-EFresheggs/
 ├── vite.config.js
 ├── database_schema.sql     # Full schema including expenses, spoilage, customers
 ├── migration_pricing.sql   # Migration for pricing tables
+├── migration_suppliers_deliveries.sql  # Migration for suppliers & deliveries
 ├── memory.md               # This file
 ├── eslint.config.js
 ├── .github/workflows/deploy.yml
@@ -57,6 +58,8 @@ M-EFresheggs/
         ├── Expenses.jsx        # Expense tracking by category
         ├── Spoilage.jsx        # Egg wastage tracking
         ├── Customers.jsx       # Customer directory
+        ├── Suppliers.jsx       # Supplier directory
+        ├── Deliveries.jsx      # Supplier delivery tracking
         ├── Toast.jsx           # Global notification system (with SVG icons)
         ├── ConfirmDialog.jsx   # Reusable confirmation modal (with backdrop blur)
         └── ErrorBoundary.jsx   # Error boundary wrapper
@@ -135,6 +138,31 @@ M-EFresheggs/
 | notes | TEXT | Optional |
 | created_at | TIMESTAMPTZ | Auto |
 
+#### `suppliers` — Supplier directory
+| Column | Type | Notes |
+|--------|------|-------|
+| id | BIGINT PK | Auto-generated |
+| name | TEXT | NOT NULL |
+| phone | TEXT | Optional |
+| notes | TEXT | Optional |
+| created_at | TIMESTAMPTZ | Auto |
+
+#### `deliveries` — Supplier delivery records
+| Column | Type | Notes |
+|--------|------|-------|
+| id | BIGINT PK | Auto-generated |
+| supplier_id | BIGINT FK → suppliers | |
+| egg_size_id | BIGINT FK → egg_sizes | |
+| quantity | INTEGER | > 0 |
+| unit | TEXT | 'piece' or 'tray' |
+| tray_size | INTEGER | 30 (CHECK IN 12, 30) |
+| cost_per_egg | NUMERIC(10,2) | ≥ 0 |
+| total_cost | NUMERIC(10,2) | ≥ 0 |
+| payment_status | TEXT | unpaid, partial, paid |
+| notes | TEXT | Optional |
+| delivery_date | DATE | Default today |
+| created_at | TIMESTAMPTZ | Auto |
+
 ### Triggers
 - **`after_sale_insert`** — Automatically deducts inventory when a sale is recorded. Converts trays to egg count (qty × tray_size) before deducting.
 - **`after_spoilage_insert`** — Automatically deducts inventory when spoilage is recorded.
@@ -148,15 +176,17 @@ All tables use permissive policies (`ALL USING true`) since this is a single-use
 
 | Route | Component | Description |
 |-------|-----------|-------------|
-| `/` | Dashboard | Welcome greeting, revenue/profit stats, stock levels, today's sales |
+| `/` | Dashboard | Welcome greeting, revenue/profit stats, stock levels, today's sales & deliveries |
 | `/inventory` | Inventory | Add/remove stock by trays or pieces per egg size |
 | `/prices` | PriceSettings | Set per-piece and per-tray selling prices |
 | `/sales` | SalesLog | Record sales, filter by date range (Today/This Week/Custom) |
 | `/spoilage` | Spoilage | Track egg wastage by size, reason, with cost estimation |
 | `/customers` | Customers | Customer directory (name, phone, notes) |
+| `/suppliers` | Suppliers | Supplier directory (name, phone, notes) |
+| `/deliveries` | Deliveries | Track supplier deliveries with cost & payment status |
 | `/expenses` | Expenses | Record expenses by category, filter & view breakdown |
 | `/analytics` | Analytics | 5 chart views (by size, by hour, trend, revenue, distribution) |
-| `/reports` | Reports | Shift-based sales reports with CSV export + revenue vs expenses |
+| `/reports` | Reports | Shift-based sales reports with CSV export + revenue vs expenses + deliveries |
 
 ---
 
@@ -196,7 +226,7 @@ The design system lives in `src/index.css` with CSS custom properties.
 ## Layout & Navigation
 
 ### Desktop (≥768px)
-- Fixed sidebar (260px) with logo, 9 nav items, and dark mode toggle
+- Fixed sidebar (260px) with logo, 11 nav items, and dark mode toggle
 - Main content area fills remaining width
 
 ### Mobile (<768px)
@@ -214,10 +244,11 @@ The design system lives in `src/index.css` with CSS custom properties.
 ### Dashboard
 - **Welcome greeting** with time-of-day emoji (🌅/☀️/🌙) and date
 - **Primary stat cards** — Today's Revenue, Net Profit (green/red based on positive/negative)
-- **Secondary stat grid** — Total Stock, Stock Value, Eggs Sold, Expenses
+- **Secondary stat grid** — Total Stock, Stock Value, Eggs Sold, Expenses, Deliveries count, Delivery Cost
 - **Low stock alert card** — Shows out-of-stock sizes count with "Restock immediately" message
 - **Stock levels list** with trays/pieces breakdown and status badges
 - **Today's sales feed** with amounts and times
+- **Today's deliveries feed** with supplier, egg size, quantity, cost, and payment status
 - Loading skeletons for all data
 
 ### Inventory Management
@@ -259,14 +290,34 @@ The design system lives in `src/index.css` with CSS custom properties.
 - Empty state with quick-add button
 - Mobile-responsive layout
 
+### Supplier Directory (`/suppliers`)
+- Manage supplier contacts: name, phone, notes
+- Add and remove suppliers with confirmation
+- Empty state with quick-add button
+- Mobile-responsive layout (same pattern as Customers)
+
+### Delivery Tracking (`/deliveries`)
+- Record supplier deliveries: supplier, egg size, quantity (trays/pieces)
+- Cost per egg and total cost calculation
+- Payment status tracking (unpaid/partial/paid) with inline update dropdown
+- Stats: total deliveries, total cost, unpaid amount, today's deliveries
+- Payment breakdown badges with color coding
+- Confirmation dialog before recording
+- Cost preview in form before submission
+- Delete deliveries with confirmation
+- Redirect to Suppliers page when no suppliers exist
+- Note: Deliveries are a log only — inventory is updated manually from Inventory page
+- Mobile-responsive card layout
+
 ### Reports
 - Date range pickers (From / To)
 - Shift selector: Morning (6AM–2PM), Afternoon (2PM–10PM), Whole Day, Custom
 - Report table: Egg Size, Trays, Pieces, Total Eggs, Revenue, Transactions
 - Total row with properly converted trays (pieces always < 30)
 - Summary cards: Total Eggs Sold, Revenue, Transactions, Trays Sold, Pieces Sold
-- **Revenue vs Expenses** — net profit calculation with expense breakdown by category
-- **CSV Export** button with sales, spoilage, and customer data
+- **Deliveries table** — Shows all deliveries in the report period (supplier, size, qty, cost, payment status) with total cost
+- **Revenue vs Expenses** — net profit calculation including delivery costs, with expense breakdown by category
+- **CSV Export** button with sales, spoilage, deliveries, and customer data
 - Print-friendly layout
 
 ### Analytics
@@ -286,12 +337,14 @@ The design system lives in `src/index.css` with CSS custom properties.
 
 ## Accessibility
 
-All form fields across 8 components have proper `id` and `name` attributes:
+All form fields across 10 components have proper `id` and `name` attributes:
 - **Inventory.jsx** — Dynamic IDs per egg size (e.g., `inv-tray-add-{id}`)
 - **SalesLog.jsx** — `sale-egg-size`, `sale-quantity`, `sale-filter-start/end`
 - **Expenses.jsx** — `expense-category`, `expense-amount`, `expense-description`
 - **Spoilage.jsx** — `spoilage-egg-size`, `spoilage-quantity`, `spoilage-reason`, `spoilage-date`
 - **Customers.jsx** — `customer-name`, `customer-phone`, `customer-notes`
+- **Suppliers.jsx** — `supplier-name`, `supplier-phone`, `supplier-notes`
+- **Deliveries.jsx** — `delivery-supplier`, `delivery-egg-size`, `delivery-unit`, `delivery-quantity`, `delivery-cost`, `delivery-date`, `delivery-payment`, `delivery-notes`
 - **PriceSettings.jsx** — Dynamic IDs with `htmlFor` on labels (e.g., `price-piece-{id}`)
 - **Reports.jsx** — `report-start-date`, `report-end-date`, `report-start-time`, `report-end-time`
 - **Analytics.jsx** — `analytics-days`
@@ -334,6 +387,18 @@ All form fields across 8 components have proper `id` and `name` attributes:
 - `fetchCustomers()` — Get all customers sorted by name
 - `addCustomer({ name, phone, notes })` — Add a customer
 - `deleteCustomer(id)` — Remove a customer
+
+### Suppliers
+- `fetchSuppliers()` — Get all suppliers sorted by name
+- `addSupplier({ name, phone, notes })` — Add a supplier
+- `deleteSupplier(id)` — Remove a supplier
+
+### Deliveries
+- `fetchDeliveries({ limit, startDate, endDate })` — Deliveries with supplier & egg size names
+- `recordDelivery({ supplierId, eggSizeId, quantity, unit, traySize, costPerEgg, totalCost, paymentStatus, notes, deliveryDate })` — Record a delivery
+- `updateDeliveryPayment(id, paymentStatus)` — Update payment status
+- `deleteDelivery(id)` — Remove a delivery record
+- `PAYMENT_STATUSES` — ['unpaid', 'partial', 'paid']
 
 ### Utilities
 - `EGG_SIZES` — ['Peewee', 'Pullet', 'Small', 'Medium', 'Large', 'Extra Large', 'Jumbo']
@@ -405,6 +470,7 @@ VITE_SUPABASE_URL="https://npohyeqnaltpqzmmlmej.supabase.co" VITE_SUPABASE_ANON_
 1. Create a Supabase project at https://supabase.com
 2. Open **SQL Editor** → New Query
 3. Run the entire `database_schema.sql` to create all tables, triggers, and seed data
+4. Run `migration_suppliers_deliveries.sql` to add suppliers & deliveries tables
 
 ### 2. Environment Variables
 Create `.env` file:
@@ -449,6 +515,8 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 | **Expenses** | 4-column grid → 2-column card layout (date+category left, amount right, desc full-width), stats stack |
 | **Spoilage** | 4-column grid → card layout, stats stack |
 | **Customers** | 4-column grid → card layout |
+| **Suppliers** | 4-column grid → card layout (same as Customers) |
+| **Deliveries** | 7-column grid → card layout with payment status, stats stack |
 | **Analytics** | Chart tabs wrap naturally, PieChart uses responsive percentages |
 | **Reports** | 2-column controls grid, shift tabs wrap, table has horizontal scroll |
 
@@ -474,6 +542,20 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 
 ## Recent Changes (Session Log)
 
+### Supplier Delivery Tracking & Integration (June 2026)
+- New `Suppliers.jsx` component — supplier directory (name, phone, notes)
+- New `Deliveries.jsx` component — full delivery tracking with cost, payment status
+- New `suppliers` and `deliveries` database tables with indexes and RLS
+- New API functions: fetchSuppliers, addSupplier, deleteSupplier, fetchDeliveries, recordDelivery, updateDeliveryPayment, deleteDelivery
+- Routes: `/suppliers` and `/deliveries`
+- Nav: Suppliers (Building icon), Deliveries (Truck icon)
+- SQL migration file: `migration_suppliers_deliveries.sql`
+- Deliveries are log-only — no auto-inventory adjustment
+
+### Deliveries in Reports & Dashboard
+- **Reports.jsx** — Fetches deliveries for the report period, displays deliveries table (date, supplier, size, qty, unit, cost/egg, total cost, payment status), includes delivery costs in net profit calculation, adds deliveries section to CSV export
+- **Dashboard.jsx** — Fetches today's deliveries, shows delivery count and delivery cost in secondary stat grid, adds "Today's Deliveries" card in content grid with supplier name, egg size, quantity, cost, and payment status badge
+
 ### UI/UX Overhaul
 - Complete design system v2 with new CSS variables, shadows, transitions, radii
 - Mobile bottom navigation bar with 5 quick tabs + More button
@@ -484,7 +566,7 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - ErrorBoundary: updated to design system variables
 
 ### Accessibility Fixes
-- Added `id` and `name` attributes to all 28 form fields across 8 components
+- Added `id` and `name` attributes to all form fields across all components
 - Added `htmlFor` on labels in PriceSettings
 
 ### Bug Fixes
@@ -495,4 +577,4 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - Responsive PieChart sizing
 - PriceSettings error logging
 
-# Last updated: Sat Jun  7 12:00:00 CST 2026
+# Last updated: Tue Jun  2 2026

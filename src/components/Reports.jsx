@@ -10,7 +10,7 @@ import {
   TrendingUp,
   TrendingDown,
 } from 'lucide-react';
-import { fetchSalesReport, fetchExpenses, fetchSpoilageWithCost, fetchCustomers, formatPeso, EGG_SIZES, TRAY_SIZE } from '../lib/api';
+import { fetchSalesReport, fetchExpenses, fetchSpoilageWithCost, fetchCustomers, fetchDeliveries, formatPeso, EGG_SIZES, TRAY_SIZE } from '../lib/api';
 import { getUserFriendlyError } from '../lib/errors';
 
 const SHIFTS = [
@@ -34,6 +34,7 @@ export default function Reports() {
   const [error, setError] = useState(null);
   const [report, setReport] = useState(null);
   const [reportExpenses, setReportExpenses] = useState([]);
+  const [reportDeliveries, setReportDeliveries] = useState([]);
   function selectShift(index) {
     setActiveShift(index);
     const shift = SHIFTS[index];
@@ -51,12 +52,14 @@ export default function Reports() {
     try {
       setLoading(true);
       setError(null);
-      const [salesData, expensesData] = await Promise.all([
+      const [salesData, expensesData, deliveriesData] = await Promise.all([
         fetchSalesReport({ startDate, endDate, startTime, endTime }),
         fetchExpenses({ startDate, endDate }),
+        fetchDeliveries({ startDate, endDate }),
       ]);
       setReport(salesData || []);
       setReportExpenses(expensesData || []);
+      setReportDeliveries(deliveriesData || []);
     } catch (err) {
       console.error('Report load error:', err);
       setError(err);
@@ -169,6 +172,26 @@ export default function Reports() {
       // skip spoilage data if fetch fails
     }
 
+    // Add deliveries section (using already-fetched reportDeliveries)
+    if (reportDeliveries && reportDeliveries.length > 0) {
+      rows.push([], ['=== DELIVERIES ==='], ['Date', 'Supplier', 'Size', 'Quantity', 'Unit', 'Cost per Egg', 'Total Cost', 'Payment Status', 'Notes']);
+      reportDeliveries.forEach(d => {
+        rows.push([
+          d.delivery_date,
+          d.suppliers?.name || 'Unknown',
+          d.egg_sizes?.name || 'Unknown',
+          d.quantity,
+          d.unit,
+          `\u20B1${parseFloat(d.cost_per_egg || 0).toFixed(2)}`,
+          `\u20B1${parseFloat(d.total_cost || 0).toFixed(2)}`,
+          d.payment_status,
+          (d.notes || '').replace(/,/g, ';'),
+        ]);
+      });
+      const totalDelivCost = reportDeliveries.reduce((sum, d) => sum + parseFloat(d.total_cost || 0), 0);
+      rows.push(['Total', '', '', '', '', '', `\u20B1${totalDelivCost.toFixed(2)}`, '', '']);
+    }
+
     // Add customers section
     try {
       const customersData = await fetchCustomers();
@@ -212,7 +235,11 @@ export default function Reports() {
     (sum, e) => sum + parseFloat(e.amount || 0),
     0
   );
-  const netProfit = processed ? processed.totals.revenue - totalExpenses : 0;
+  const totalDeliveryCost = reportDeliveries.reduce(
+    (sum, d) => sum + parseFloat(d.total_cost || 0),
+    0
+  );
+  const netProfit = processed ? processed.totals.revenue - totalExpenses - totalDeliveryCost : 0;
 
   const expenseByCategory = {};
   reportExpenses.forEach(e => {
@@ -434,8 +461,62 @@ export default function Reports() {
             </div>
           )}
 
+          {/* Deliveries section */}
+          {reportDeliveries.length > 0 && (
+            <div className="report-section" style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '2px solid var(--color-border)' }}>
+              <h3 className="report-profit-title">Deliveries ({reportDeliveries.length})</h3>
+              <div className="report-table-wrap">
+                <table className="report-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Supplier</th>
+                      <th>Size</th>
+                      <th className="num">Qty</th>
+                      <th>Unit</th>
+                      <th className="num">Cost/Egg</th>
+                      <th className="num">Total Cost</th>
+                      <th>Payment</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reportDeliveries.map(d => (
+                      <tr key={d.id}>
+                        <td style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>{d.delivery_date}</td>
+                        <td className="size-cell">{d.suppliers?.name || 'Unknown'}</td>
+                        <td>{d.egg_sizes?.name || 'Unknown'}</td>
+                        <td className="num">{d.quantity.toLocaleString()}</td>
+                        <td>{d.unit}</td>
+                        <td className="num">{formatPeso(d.cost_per_egg)}</td>
+                        <td className="num" style={{ color: 'var(--color-danger)', fontWeight: 600 }}>{formatPeso(d.total_cost)}</td>
+                        <td>
+                          <span className="report-delivery-badge" style={{
+                            display: 'inline-block',
+                            padding: '0.15rem 0.5rem',
+                            borderRadius: 999,
+                            fontSize: '0.7rem',
+                            fontWeight: 600,
+                            background: d.payment_status === 'paid' ? '#E8F5E9' : d.payment_status === 'partial' ? '#FFF8E1' : '#FFF3E0',
+                            color: d.payment_status === 'paid' ? '#2E7D32' : d.payment_status === 'partial' ? '#F57F17' : '#E65100',
+                          }}>{d.payment_status}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="total-row">
+                      <td colSpan={6} className="size-cell">Total Delivery Cost</td>
+                      <td className="num" style={{ color: 'var(--color-danger)' }}>{formatPeso(totalDeliveryCost)}</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
+
           {/* Expense vs Revenue */}
-          {reportExpenses.length > 0 && (
+          {(reportExpenses.length > 0 || totalDeliveryCost > 0) && (
             <div className="report-profit-section">
               <h3 className="report-profit-title">Revenue vs Expenses</h3>
               <div className="report-profit-grid">
