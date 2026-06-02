@@ -596,4 +596,21 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - Edge case: sizes with deliveries but no price set are filtered out to avoid misleading 100% margins
 - Browser tested: renders correctly, shows empty state when no delivery/price data
 
+### Delivery Unit Simplified (June 2026)
+- **Deliveries.jsx** — Removed "Piece" unit option from Record Delivery form; all deliveries are now recorded by tray only
+- Removed unit dropdown, simplified `calculateTotalCost()`, `executeDelivery()`, and `formatQuantity()` to always use tray math
+- Updated confirm dialog and form state to remove piece references
+
+### Bug Fixes Audit (June 2026)
+- **Inventory.jsx** — Fixed hardcoded `30` (tray size) — now uses `TRAY_SIZE` constant from api.js in 4 places; added missing import
+- **Spoilage.jsx** — Increased `fetchSpoilageWithCost` limit from 200 to 1000 for more accurate total stats
+- **Reports.jsx** — Added `console.error` logging to previously empty catch blocks in CSV export (spoilage and customers fetch failures)
+- **ESLint clean** — 0 errors, 0 warnings confirmed after all fixes
+
+### Performance Optimization (June 2026)
+- **Route-based code splitting** — All 10 page components use `React.lazy()` + `<Suspense>` for on-demand loading; initial bundle reduced from 1,004 kB to ~242 kB (75% reduction)
+- **Vendor chunk splitting** — `vendor-react` (219 kB), `vendor-charts` (387 kB), `vendor-db` (201 kB), `vendor-ui` (10 kB) split into separate cacheable chunks
+- **CSS deduplication** — Removed duplicate `.error-banner` and `.page-header-row` CSS from Dashboard.jsx and Inventory.jsx inline styles (already defined in index.css)
+- **Build time** — 306ms, 21 chunks total, no warnings
+
 # Last updated: Tue Jun  2 2026

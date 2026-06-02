@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Plus, Minus, AlertTriangle, RefreshCw, Trash2, PackagePlus } from 'lucide-react';
-import { fetchInventory, updateInventory, formatInventory, EGG_SIZES } from '../lib/api';
+import { fetchInventory, updateInventory, formatInventory, EGG_SIZES, TRAY_SIZE } from '../lib/api';
 import { toast } from './Toast';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
@@ -19,7 +19,7 @@ export default function Inventory() {
   function requestConfirm(item, delta, unit) {
     const qty = Math.abs(delta);
     const isRemove = delta < 0;
-    const trayCount = unit === 'trays' ? qty / 30 : null;
+    const trayCount = unit === 'trays' ? qty / TRAY_SIZE : null;
     const label = trayCount
       ? `${trayCount} tray${trayCount > 1 ? 's' : ''} (${qty} eggs)`
       : `${qty} egg${qty > 1 ? 's' : ''}`;
@@ -74,7 +74,7 @@ export default function Inventory() {
       toast('Enter a valid number of trays', 'error');
       return;
     }
-    requestConfirm(item, val * 30, 'trays');
+    requestConfirm(item, val * TRAY_SIZE, 'trays');
   }
 
   async function handleTrayRemove(item) {
@@ -83,7 +83,7 @@ export default function Inventory() {
       toast('Enter a valid number of trays', 'error');
       return;
     }
-    requestConfirm(item, -(val * 30), 'trays');
+    requestConfirm(item, -(val * TRAY_SIZE), 'trays');
   }
 
   async function handleCustomAdd(item) {
@@ -274,7 +274,7 @@ export default function Inventory() {
                             type="button"
                             className="btn-icon btn-icon-danger inv-num-btn"
                             onClick={() => handleTrayRemove(item)}
-                            disabled={isAdjusting || qty < 30 || !trayRemoveInputs[item.egg_size_id]}
+                            disabled={isAdjusting || qty < TRAY_SIZE || !trayRemoveInputs[item.egg_size_id]}
                             title="Remove trays"
                           >
                             <Minus size={15} />
@@ -366,43 +366,7 @@ export default function Inventory() {
         onCancel={() => setConfirmItem(null)}
       />
 
-      <style>{`        .error-banner {
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-          padding: 1rem;
-          background: var(--color-danger-bg);
-          border: 1px solid var(--color-danger);
-          border-radius: var(--radius-md);
-          margin-bottom: 1.5rem;
-          color: var(--color-danger);
-        }
-
-        .error-banner-content {
-          flex: 1;
-        }
-
-        .error-banner-content p {
-          font-size: 0.8125rem;
-          margin-top: 0.25rem;
-          color: var(--color-text-secondary);
-        }
-
-          .page-header-row {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          margin-bottom: 1.25rem;
-          gap: 1rem;
-        }
-
-        .page-subtitle {
-          color: var(--color-text-secondary);
-          font-size: 0.875rem;
-          margin-top: 0.15rem;
-        }
-
-        .inv-list {
+      <style>{`        .inv-list {
           display: flex;
           flex-direction: column;
           gap: 0.75rem;

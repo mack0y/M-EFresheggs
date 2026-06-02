@@ -744,28 +744,6 @@ export default function Dashboard() {
           text-align: center;
         }
 
-        .error-banner {
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-          padding: 1rem;
-          background: var(--color-danger-bg);
-          border: 1px solid var(--color-danger);
-          border-radius: var(--radius-md);
-          margin-bottom: var(--space-xl);
-          color: var(--color-danger);
-        }
-
-        .error-banner-content {
-          flex: 1;
-        }
-
-        .error-banner-content p {
-          font-size: 0.8125rem;
-          margin-top: 0.25rem;
-          color: var(--color-text-secondary);
-        }
-
         @media (max-width: 640px) {
           .primary-stats {
             grid-template-columns: 1fr;

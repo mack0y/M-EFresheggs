@@ -39,7 +39,7 @@ export default function Spoilage() {
       setLoading(true);
       setError(null);
       const [spoilageData, invData] = await Promise.all([
-        fetchSpoilageWithCost({ limit: 200 }),
+        fetchSpoilageWithCost({ limit: 1000 }),
         fetchInventory(),
       ]);
       setSpoilage(spoilageData || []);

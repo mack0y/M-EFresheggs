@@ -168,8 +168,8 @@ export default function Reports() {
         const totalCost = spoilageData.reduce((sum, s) => sum + parseFloat(s.cost || 0), 0);
         rows.push(['Total', '', '', '', `₱${totalCost.toFixed(2)}`]);
       }
-    } catch {
-      // skip spoilage data if fetch fails
+    } catch (e) {
+      console.error('Failed to fetch spoilage data for CSV export:', e);
     }
 
     // Add deliveries section (using already-fetched reportDeliveries)
@@ -201,8 +201,8 @@ export default function Reports() {
           rows.push([c.name, c.phone || '', (c.notes || '').replace(/,/g, ';')]);
         });
       }
-    } catch {
-      // skip customers data if fetch fails
+    } catch (e) {
+      console.error('Failed to fetch customers data for CSV export:', e);
     }
 
     const csvContent = rows.map(row => row.join(',')).join('\n');

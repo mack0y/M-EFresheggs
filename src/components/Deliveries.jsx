@@ -49,7 +49,6 @@ export default function Deliveries() {
     supplierId: '',
     eggSizeId: '',
     quantity: '',
-    unit: 'tray',
     costPerEgg: '',
     paymentStatus: 'unpaid',
     notes: '',
@@ -84,7 +83,7 @@ export default function Deliveries() {
     const qty = parseInt(form.quantity, 10);
     const costPerEgg = parseFloat(form.costPerEgg);
     if (isNaN(qty) || isNaN(costPerEgg) || qty <= 0 || costPerEgg < 0) return 0;
-    const eggCount = form.unit === 'tray' ? qty * TRAY_SIZE : qty;
+    const eggCount = qty * TRAY_SIZE;
     return eggCount * costPerEgg;
   }
 
@@ -110,12 +109,12 @@ export default function Deliveries() {
   async function executeDelivery(data) {
     setSubmitting(true);
     try {
-      const eggCount = data.unit === 'tray' ? data.quantity * TRAY_SIZE : data.quantity;
+      const eggCount = data.quantity * TRAY_SIZE;
       await recordDelivery({
         supplierId: parseInt(data.supplierId, 10),
         eggSizeId: parseInt(data.eggSizeId, 10),
         quantity: data.quantity,
-        unit: data.unit,
+        unit: 'tray',
         traySize: TRAY_SIZE,
         costPerEgg: parseFloat(data.costPerEgg),
         totalCost: eggCount * parseFloat(data.costPerEgg),
@@ -128,7 +127,6 @@ export default function Deliveries() {
         supplierId: '',
         eggSizeId: '',
         quantity: '',
-        unit: 'tray',
         costPerEgg: '',
         paymentStatus: 'unpaid',
         notes: '',
@@ -193,9 +191,7 @@ export default function Deliveries() {
   }
 
   function formatQuantity(delivery) {
-    const totalEggs = delivery.unit === 'tray'
-      ? delivery.quantity * (delivery.tray_size || TRAY_SIZE)
-      : delivery.quantity;
+    const totalEggs = delivery.quantity * (delivery.tray_size || TRAY_SIZE);
     const { trays, pieces } = toTraysAndPieces(totalEggs);
     if (trays === 0) return `${pieces} pcs`;
     if (pieces === 0) return `${trays} tray${trays > 1 ? 's' : ''}`;
@@ -326,19 +322,7 @@ export default function Deliveries() {
                       ))}
                   </select>
                 </div>
-                <div className="input-group">
-                  <label htmlFor="delivery-unit">Unit</label>
-                  <select
-                    id="delivery-unit"
-                    name="unit"
-                    className="select"
-                    value={form.unit}
-                    onChange={e => setForm({ ...form, unit: e.target.value })}
-                  >
-                    <option value="tray">Tray (30 eggs)</option>
-                    <option value="piece">Piece</option>
-                  </select>
-                </div>
+
                 <div className="input-group">
                   <label htmlFor="delivery-quantity">Quantity</label>
                   <input
@@ -347,7 +331,7 @@ export default function Deliveries() {
                     type="number"
                     className="input"
                     min="1"
-                    placeholder={form.unit === 'tray' ? 'Number of trays' : 'Number of eggs'}
+                    placeholder="Number of trays"
                     value={form.quantity}
                     onChange={e => setForm({ ...form, quantity: e.target.value })}
                     required
@@ -534,7 +518,7 @@ export default function Deliveries() {
         open={!!confirmItem}
         title="Record this delivery?"
         message={confirmItem
-          ? `Record ${confirmItem.quantity} ${confirmItem.unit === 'tray' ? 'tray(s)' : 'egg(s)'} of ${inventory.find(i => i.egg_size_id === parseInt(confirmItem.eggSizeId, 10))?.egg_sizes?.name || 'Unknown'} from ${suppliers.find(s => s.id === parseInt(confirmItem.supplierId, 10))?.name || 'Unknown'}?`
+          ? `Record ${confirmItem.quantity} tray(s) of ${inventory.find(i => i.egg_size_id === parseInt(confirmItem.eggSizeId, 10))?.egg_sizes?.name || 'Unknown'} from ${suppliers.find(s => s.id === parseInt(confirmItem.supplierId, 10))?.name || 'Unknown'}?`
           : ''}
         confirmLabel="Record"
         variant="primary"
