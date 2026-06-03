@@ -174,7 +174,7 @@ export default function Reports() {
 
     // Add deliveries section (using already-fetched reportDeliveries)
     if (reportDeliveries && reportDeliveries.length > 0) {
-      rows.push([], ['=== DELIVERIES ==='], ['Date', 'Supplier', 'Size', 'Quantity', 'Unit', 'Cost per Egg', 'Total Cost', 'Payment Status', 'Notes']);
+      rows.push([], ['=== DELIVERIES ==='], [                      'Date', 'Supplier', 'Size', 'Quantity', 'Unit', 'Cost per Tray', 'Total Cost', 'Payment Status', 'Notes']);
       reportDeliveries.forEach(d => {
         rows.push([
           d.delivery_date,
@@ -474,7 +474,7 @@ export default function Reports() {
                       <th>Size</th>
                       <th className="num">Qty</th>
                       <th>Unit</th>
-                      <th className="num">Cost/Egg</th>
+                      <th className="num">Cost/Tray</th>
                       <th className="num">Total Cost</th>
                       <th>Payment</th>
                     </tr>

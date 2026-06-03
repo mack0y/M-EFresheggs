@@ -49,7 +49,7 @@ export default function Deliveries() {
     supplierId: '',
     eggSizeId: '',
     quantity: '',
-    costPerEgg: '',
+    costPerTray: '',
     paymentStatus: 'unpaid',
     notes: '',
     date: today,
@@ -81,10 +81,9 @@ export default function Deliveries() {
 
   function calculateTotalCost() {
     const qty = parseInt(form.quantity, 10);
-    const costPerEgg = parseFloat(form.costPerEgg);
-    if (isNaN(qty) || isNaN(costPerEgg) || qty <= 0 || costPerEgg < 0) return 0;
-    const eggCount = qty * TRAY_SIZE;
-    return eggCount * costPerEgg;
+    const cost = parseFloat(form.costPerTray);
+    if (isNaN(qty) || isNaN(cost) || qty <= 0 || cost < 0) return 0;
+    return qty * cost;
   }
 
   function handleSubmit(e) {
@@ -98,8 +97,8 @@ export default function Deliveries() {
       toast('Please enter a valid quantity', 'error');
       return;
     }
-    if (!form.costPerEgg || parseFloat(form.costPerEgg) < 0) {
-      toast('Please enter a valid cost per egg', 'error');
+    if (!form.costPerTray || parseFloat(form.costPerTray) < 0) {
+      toast('Please enter a valid cost per tray', 'error');
       return;
     }
     setConfirmItem({ ...form, quantity: qty });
@@ -109,15 +108,14 @@ export default function Deliveries() {
   async function executeDelivery(data) {
     setSubmitting(true);
     try {
-      const eggCount = data.quantity * TRAY_SIZE;
       await recordDelivery({
         supplierId: parseInt(data.supplierId, 10),
         eggSizeId: parseInt(data.eggSizeId, 10),
         quantity: data.quantity,
         unit: 'tray',
         traySize: TRAY_SIZE,
-        costPerEgg: parseFloat(data.costPerEgg),
-        totalCost: eggCount * parseFloat(data.costPerEgg),
+        costPerTray: parseFloat(data.costPerTray),
+        totalCost: data.quantity * parseFloat(data.costPerTray),
         paymentStatus: data.paymentStatus,
         notes: data.notes.trim(),
         deliveryDate: data.date,
@@ -127,7 +125,7 @@ export default function Deliveries() {
         supplierId: '',
         eggSizeId: '',
         quantity: '',
-        costPerEgg: '',
+        costPerTray: '',
         paymentStatus: 'unpaid',
         notes: '',
         date: today,
@@ -338,17 +336,17 @@ export default function Deliveries() {
                   />
                 </div>
                 <div className="input-group">
-                  <label htmlFor="delivery-cost">Cost per Egg (₱)</label>
+                  <label htmlFor="delivery-cost">Cost per Tray (₱)</label>
                   <input
                     id="delivery-cost"
-                    name="costPerEgg"
+                    name="costPerTray"
                     type="number"
                     className="input"
                     min="0"
                     step="0.01"
                     placeholder="0.00"
-                    value={form.costPerEgg}
-                    onChange={e => setForm({ ...form, costPerEgg: e.target.value })}
+                    value={form.costPerTray}
+                    onChange={e => setForm({ ...form, costPerTray: e.target.value })}
                     required
                   />
                 </div>
@@ -392,7 +390,7 @@ export default function Deliveries() {
               </div>
 
               {/* Cost preview */}
-              {form.quantity && form.costPerEgg && (
+              {form.quantity && form.costPerTray && (
                 <div className="delivery-cost-preview">
                   <span>Total Cost:</span>
                   <strong>{formatPeso(calculateTotalCost())}</strong>

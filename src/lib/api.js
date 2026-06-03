@@ -358,7 +358,7 @@ export async function fetchDeliveries({ limit = 200, startDate, endDate } = {}) 
   return data;
 }
 
-export async function recordDelivery({ supplierId, eggSizeId, quantity, unit, traySize, costPerEgg, totalCost, paymentStatus, notes, deliveryDate }) {
+export async function recordDelivery({ supplierId, eggSizeId, quantity, unit, traySize, costPerTray, totalCost, paymentStatus, notes, deliveryDate }) {
   const { data, error } = await supabase
     .from('deliveries')
     .insert({
@@ -367,7 +367,7 @@ export async function recordDelivery({ supplierId, eggSizeId, quantity, unit, tr
       quantity,
       unit,
       tray_size: traySize || 30,
-      cost_per_egg: costPerEgg,
+      cost_per_egg: costPerTray,
       total_cost: totalCost,
       payment_status: paymentStatus,
       notes,

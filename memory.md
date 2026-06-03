@@ -396,7 +396,7 @@ All form fields across 10 components have proper `id` and `name` attributes:
 
 ### Deliveries
 - `fetchDeliveries({ limit, startDate, endDate })` — Deliveries with supplier & egg size names
-- `recordDelivery({ supplierId, eggSizeId, quantity, unit, traySize, costPerEgg, totalCost, paymentStatus, notes, deliveryDate })` — Record a delivery
+- `recordDelivery({ supplierId, eggSizeId, quantity, unit, traySize, costPerTray, totalCost, paymentStatus, notes, deliveryDate })` — Record a delivery (cost per tray, not per egg)
 - `updateDeliveryPayment(id, paymentStatus)` — Update payment status
 - `deleteDelivery(id)` — Remove a delivery record
 - `PAYMENT_STATUSES` — ['unpaid', 'partial', 'paid']
@@ -601,6 +601,13 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - Removed unit dropdown, simplified `calculateTotalCost()`, `executeDelivery()`, and `formatQuantity()` to always use tray math
 - Updated confirm dialog and form state to remove piece references
 
+### Pricing Changed to Cost per Tray (June 2026)
+- **Deliveries.jsx** — Changed "Cost per Egg" input to "Cost per Tray" since deliveries are only in trays
+- **Total cost calculation** — Now `quantity × costPerTray` instead of `quantity × TRAY_SIZE × costPerEgg`
+- **api.js** — `recordDelivery()` parameter renamed from `costPerEgg` to `costPerTray` for clarity
+- **Reports.jsx** — Updated table and CSV headers from "Cost/Egg" and "Cost per Egg" to "Cost/Tray" and "Cost per Tray"
+- **DB note:** The `cost_per_egg` column now stores cost per tray; all downstream calculations (profit margins, averages) still work correctly
+
 ### Bug Fixes Audit (June 2026)
 - **Inventory.jsx** — Fixed hardcoded `30` (tray size) — now uses `TRAY_SIZE` constant from api.js in 4 places; added missing import
 - **Spoilage.jsx** — Increased `fetchSpoilageWithCost` limit from 200 to 1000 for more accurate total stats
@@ -613,4 +620,4 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - **CSS deduplication** — Removed duplicate `.error-banner` and `.page-header-row` CSS from Dashboard.jsx and Inventory.jsx inline styles (already defined in index.css)
 - **Build time** — 306ms, 21 chunks total, no warnings
 
-# Last updated: Tue Jun  2 2026
+# Last updated: Wed Jun  3 2026
