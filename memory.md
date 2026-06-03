@@ -620,4 +620,14 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - **CSS deduplication** — Removed duplicate `.error-banner` and `.page-header-row` CSS from Dashboard.jsx and Inventory.jsx inline styles (already defined in index.css)
 - **Build time** — 306ms, 21 chunks total, no warnings
 
+### Sale Amount Preview in Form (June 2026)
+- **SalesLog.jsx** — Added live "Total the customer pays" preview to the New Sale form
+- Shows calculated total based on selected egg size, quantity, and unit (piece/tray) using current price settings
+- Matches the same preview pattern used in the delivery form — green banner with formatted peso amount
+- Fetches `priceSettings` alongside inventory data on load; gracefully handles missing prices or zero amounts
+
+### Deploy Fix (June 2026)
+- **package-lock.json** — Regenerated to fix GitHub Actions deploy failure at the `npm ci` step
+- Deploys now complete successfully on push to main
+
 # Last updated: Wed Jun  3 2026
