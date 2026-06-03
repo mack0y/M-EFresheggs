@@ -7,7 +7,7 @@ import {
   RefreshCw,
   ClipboardCheck,
 } from 'lucide-react';
-import { fetchSales, recordSale, fetchInventory, getEggCount, formatPeso, formatInventory, getLocalDate } from '../lib/api';
+import { fetchSales, recordSale, fetchInventory, fetchPriceSettings, getEggCount, formatPeso, formatInventory, getLocalDate } from '../lib/api';
 import { toast } from './Toast';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
@@ -15,6 +15,7 @@ import ConfirmDialog from './ConfirmDialog';
 export default function SalesLog() {
   const [sales, setSales] = useState([]);
   const [inventory, setInventory] = useState([]);
+  const [priceSettings, setPriceSettings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -44,18 +45,35 @@ export default function SalesLog() {
       setError(null);
       const offset = 0;
       const limit = filter === 'today' || (startDate && endDate) ? 500 : 100;
-      const [salesData, invData] = await Promise.all([
+      const [salesData, invData, priceData] = await Promise.all([
         fetchSales({ limit, offset, startDate, endDate }),
         fetchInventory(),
+        fetchPriceSettings(),
       ]);
       setSales(salesData || []);
       setInventory(invData || []);
+      setPriceSettings(priceData || []);
     } catch (err) {
       console.error('Sales load error:', err);
       setError(err);
     } finally {
       setLoading(false);
     }
+  }
+
+  function calculateTotalAmount() {
+    if (!form.eggSizeId || !form.quantity) return null;
+    const qty = parseInt(form.quantity, 10);
+    if (isNaN(qty) || qty <= 0) return null;
+    const eggSizeId = parseInt(form.eggSizeId, 10);
+    const price = priceSettings.find(p => p.egg_size_id === eggSizeId);
+    if (!price) return null;
+    const perUnitPrice = form.unit === 'tray'
+      ? parseFloat(price.price_per_tray || 0)
+      : parseFloat(price.price_per_piece || 0);
+    const totalAmount = qty * perUnitPrice;
+    if (totalAmount <= 0) return null;
+    return totalAmount;
   }
 
   async function handleSubmit(e) {
@@ -252,6 +270,14 @@ export default function SalesLog() {
                 </div>
               )}
             </div>
+
+              {/* Total cost preview */}
+              {calculateTotalAmount() && (
+                <div className="sale-cost-preview">
+                  <span>Total the customer pays:</span>
+                  <strong>{formatPeso(calculateTotalAmount())}</strong>
+                </div>
+              )}
 
             <button
               type="submit"
@@ -496,6 +522,22 @@ export default function SalesLog() {
           background: var(--color-primary);
           border-color: var(--color-primary);
           color: white;
+        }
+
+        .sale-cost-preview {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 0.75rem 1rem;
+          margin-top: 1rem;
+          background: var(--color-primary-50);
+          border-radius: var(--radius-md);
+          font-size: 0.9375rem;
+        }
+
+        .sale-cost-preview strong {
+          color: var(--color-primary);
+          font-size: 1.0625rem;
         }
 
         .filter-tabs {
