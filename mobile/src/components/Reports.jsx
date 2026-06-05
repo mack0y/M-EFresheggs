@@ -52,7 +52,7 @@ export default function Reports() {
     try {
       setLoading(true);
       setError(null);
-      const [salesData, expensesData, deliveriesData] = await Promise.all([
+      const [salesData, expensesData, deliveriesData, priceData, costData] = await Promise.all([
         fetchSalesReport({ startDate, endDate, startTime, endTime }),
         fetchExpenses({ startDate, endDate }),
         fetchDeliveries({ startDate, endDate }),
