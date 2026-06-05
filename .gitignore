@@ -15,6 +15,10 @@ dist-ssr
 # Environment variables (contains secrets)
 .env
 
+# Large build artifacts (do not commit manually downloaded)
+gradle-download.zip
+gradle-local/
+
 # Sensitive files
 supabase key.txt
 supabase.txt
