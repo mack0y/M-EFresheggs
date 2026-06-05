@@ -8,7 +8,7 @@ import {
   Printer,
   Download,
 } from 'lucide-react';
-import { fetchSalesReport, fetchExpenses, fetchSpoilageWithCost, fetchCustomers, fetchDeliveries, formatPeso, EGG_SIZES, TRAY_SIZE, getLocalDate } from '../lib/api';
+import { fetchSalesReport, fetchExpenses, fetchSpoilageWithCost, fetchCustomers, fetchDeliveries, fetchCostsPerEgg, fetchPriceSettings, formatPeso, EGG_SIZES, TRAY_SIZE, getLocalDate } from '../lib/api';
 import { getUserFriendlyError } from '../lib/errors';
 
 const SHIFTS = [
@@ -33,6 +33,8 @@ export default function Reports() {
   const [report, setReport] = useState(null);
   const [reportExpenses, setReportExpenses] = useState([]);
   const [reportDeliveries, setReportDeliveries] = useState([]);
+  const [priceSettings, setPriceSettings] = useState([]);
+  const [costsPerEgg, setCostsPerEgg] = useState({});
   function selectShift(index) {
     setActiveShift(index);
     const shift = SHIFTS[index];
@@ -54,10 +56,14 @@ export default function Reports() {
         fetchSalesReport({ startDate, endDate, startTime, endTime }),
         fetchExpenses({ startDate, endDate }),
         fetchDeliveries({ startDate, endDate }),
+        fetchPriceSettings(),
+        fetchCostsPerEgg(),
       ]);
       setReport(salesData || []);
       setReportExpenses(expensesData || []);
       setReportDeliveries(deliveriesData || []);
+      setPriceSettings(priceData || []);
+      setCostsPerEgg(costData || {});
     } catch (err) {
       console.error('Report load error:', err);
       setError(err);
@@ -233,6 +239,30 @@ export default function Reports() {
     (sum, d) => sum + parseFloat(d.total_cost || 0),
     0
   );
+
+  // Compute profit data per egg size
+  const profitData = processed && priceSettings.length > 0 ? (() => {
+    const rows = processed.rows.map(row => {
+      const price = (priceSettings || []).find(p => p.egg_sizes?.name === row.name);
+      const sizeId = price?.egg_size_id;
+      const cost = sizeId ? (costsPerEgg || {})[sizeId] : null;
+      const costPerEgg = cost?.avgCostPerEgg || 0;
+      const costPerTray = cost?.avgCostPerTray || 0;
+      const sellPerPiece = parseFloat(price?.price_per_piece || 0);
+      const sellPerTray = parseFloat(price?.price_per_tray || 0);
+      const profitPerEgg = Math.round((sellPerPiece - costPerEgg) * 100) / 100;
+      const profitPerTray = Math.round((sellPerTray - costPerTray) * 100) / 100;
+      const marginPercent = sellPerPiece > 0 ? Math.round((profitPerEgg / sellPerPiece) * 1000) / 10 : 0;
+      const cogs = Math.round(costPerEgg * row.totalEggs * 100) / 100;
+      return { ...row, costPerEgg, costPerTray, sellPerPiece, sellPerTray, profitPerEgg, profitPerTray, marginPercent, cogs };
+    });
+
+    const totalCOGS = rows.reduce((sum, r) => sum + r.cogs, 0);
+    const totalExpensesAmount = reportExpenses.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
+    const netProfit = Math.round((processed.totals.revenue - totalExpensesAmount - totalCOGS) * 100) / 100;
+
+    return { rows, totalCOGS, totalExpenses: totalExpensesAmount, netProfit };
+  })() : null;
 
   return (
     <div className="fade-in">
@@ -495,6 +525,79 @@ export default function Reports() {
                       <td colSpan={6} className="size-cell">Total Delivery Cost</td>
                       <td className="num" style={{ color: 'var(--color-danger)' }}>{formatPeso(totalDeliveryCost)}</td>
                       <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Profit & Margins */}
+          {profitData && profitData.rows.some(r => r.totalEggs > 0) && (
+            <div className="report-section" style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '2px solid var(--color-border)' }}>
+              <h3 className="report-profit-title">Profit & Margins</h3>
+              <div className="report-table-wrap">
+                <table className="report-table">
+                  <thead>
+                    <tr>
+                      <th>Egg Size</th>
+                      <th className="num">Cost/Tray</th>
+                      <th className="num">Cost/Egg</th>
+                      <th className="num">Sell/Tray</th>
+                      <th className="num">Sell/Egg</th>
+                      <th className="num">Profit/Tray</th>
+                      <th className="num">Profit/Egg</th>
+                      <th className="num">Margin</th>
+                      <th className="num">COGS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {profitData.rows.map(row => (
+                      <tr key={row.name}>
+                        <td className="size-cell">{row.name}</td>
+                        <td className="num">{row.costPerTray > 0 ? formatPeso(row.costPerTray) : '—'}</td>
+                        <td className="num">{row.costPerEgg > 0 ? formatPeso(row.costPerEgg) : '—'}</td>
+                        <td className="num">{row.sellPerTray > 0 ? formatPeso(row.sellPerTray) : '—'}</td>
+                        <td className="num">{row.sellPerPiece > 0 ? formatPeso(row.sellPerPiece) : '—'}</td>
+                        <td className="num" style={{ color: row.profitPerTray >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                          {row.sellPerTray > 0 ? formatPeso(row.profitPerTray) : '—'}
+                        </td>
+                        <td className="num" style={{ color: row.profitPerEgg >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                          {row.sellPerPiece > 0 ? formatPeso(row.profitPerEgg) : '—'}
+                        </td>
+                        <td className="num" style={{ color: row.marginPercent >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                          {row.sellPerPiece > 0 ? `${row.marginPercent}%` : '—'}
+                        </td>
+                        <td className="num" style={{ color: 'var(--color-danger)' }}>{row.cogs > 0 ? formatPeso(row.cogs) : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="total-row">
+                      <td className="size-cell">Total</td>
+                      <td colSpan={5}></td>
+                      <td className="num" colSpan={2} style={{ fontSize: '0.875rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                          <span style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
+                            <span>Revenue:</span>
+                            <span className="revenue">{formatPeso(processed.totals.revenue)}</span>
+                          </span>
+                          <span style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
+                            <span>COGS:</span>
+                            <span style={{ color: 'var(--color-danger)' }}>{formatPeso(profitData.totalCOGS)}</span>
+                          </span>
+                          <span style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
+                            <span>Expenses:</span>
+                            <span style={{ color: 'var(--color-danger)' }}>{formatPeso(profitData.totalExpenses)}</span>
+                          </span>
+                          <span style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', borderTop: '1px solid var(--color-border)', paddingTop: '0.25rem' }}>
+                            <span style={{ fontWeight: 800 }}>Net Profit:</span>
+                            <span style={{ color: profitData.netProfit >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 800 }}>
+                              {formatPeso(profitData.netProfit)}
+                            </span>
+                          </span>
+                        </div>
+                      </td>
                     </tr>
                   </tfoot>
                 </table>

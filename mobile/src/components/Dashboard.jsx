@@ -12,7 +12,7 @@ import {
   Clock,
   Truck,
 } from 'lucide-react';
-import { fetchInventory, fetchTodaySales, fetchTodayExpenses, fetchInventoryValue, fetchDeliveries, getEggCount, formatInventory, formatPeso, getLocalDate } from '../lib/api';
+import { fetchInventory, fetchTodaySales, fetchTodayExpenses, fetchInventoryValue, fetchDeliveries, fetchCostsPerEgg, getEggCount, formatInventory, formatPeso, getLocalDate } from '../lib/api';
 import { getUserFriendlyError } from '../lib/errors';
 
 function getGreeting() {
@@ -36,6 +36,7 @@ export default function Dashboard() {
   const [todayExpenses, setTodayExpenses] = useState([]);
   const [inventoryValue, setInventoryValue] = useState(0);
   const [todayDeliveries, setTodayDeliveries] = useState([]);
+  const [costsPerEgg, setCostsPerEgg] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -44,18 +45,20 @@ export default function Dashboard() {
       setLoading(true);
       setError(null);
       const today = getLocalDate();
-      const [inv, sales, expenses, invValue, deliveries] = await Promise.all([
+      const [inv, sales, expenses, invValue, deliveries, costs] = await Promise.all([
         fetchInventory(),
         fetchTodaySales(),
         fetchTodayExpenses(),
         fetchInventoryValue(),
         fetchDeliveries({ startDate: today, endDate: today }),
+        fetchCostsPerEgg(),
       ]);
       setInventory(inv || []);
       setTodaySales(sales || []);
       setTodayExpenses(expenses || []);
       setInventoryValue(invValue);
       setTodayDeliveries(deliveries || []);
+      setCostsPerEgg(costs || {});
     } catch (err) {
       console.error('Dashboard load error:', err);
       setError(err);
@@ -73,7 +76,12 @@ export default function Dashboard() {
   const totalEggsSoldToday = todaySales.reduce((sum, s) => sum + getEggCount(s), 0);
   const todayRevenue = todaySales.reduce((sum, s) => sum + parseFloat(s.total_amount || 0), 0);
   const todayExpenseTotal = todayExpenses.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
-  const netProfit = todayRevenue - todayExpenseTotal;
+  const todayCOGS = todaySales.reduce((sum, s) => {
+    const cost = costsPerEgg[s.egg_size_id];
+    const eggCount = getEggCount(s);
+    return sum + (cost?.avgCostPerEgg || 0) * eggCount;
+  }, 0);
+  const netProfit = todayRevenue - todayExpenseTotal - todayCOGS;
   const totalStock = inventory.reduce((sum, item) => sum + (item.quantity_on_hand || 0), 0);
   const lowStockItems = inventory.filter(item => item.quantity_on_hand <= 50 && item.quantity_on_hand > 0);
   const outOfStockItems = inventory.filter(item => item.quantity_on_hand === 0);

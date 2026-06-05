@@ -446,6 +446,39 @@ export async function fetchInventoryValue() {
   return totalValue;
 }
 
+/**
+ * Fetch average cost per egg for each egg size from all delivery history.
+ * Returns a Map of egg_size_id -> { avgCostPerEgg, avgCostPerTray }
+ */
+export async function fetchCostsPerEgg() {
+  const { data: deliveries, error } = await supabase
+    .from('deliveries')
+    .select('egg_size_id, quantity, unit, tray_size, total_cost');
+
+  if (error) throw error;
+
+  const costMap = {};
+  (deliveries || []).forEach(d => {
+    const id = d.egg_size_id;
+    if (!costMap[id]) costMap[id] = { totalCost: 0, totalEggs: 0 };
+    const eggCount = d.unit === 'tray' ? d.quantity * (d.tray_size || TRAY_SIZE) : d.quantity;
+    costMap[id].totalCost += parseFloat(d.total_cost || 0);
+    costMap[id].totalEggs += eggCount;
+  });
+
+  const result = {};
+  Object.keys(costMap).forEach(id => {
+    const c = costMap[id];
+    const avgCostPerEgg = c.totalEggs > 0 ? c.totalCost / c.totalEggs : 0;
+    result[id] = {
+      avgCostPerEgg: Math.round(avgCostPerEgg * 100) / 100,
+      avgCostPerTray: Math.round(avgCostPerEgg * TRAY_SIZE * 100) / 100,
+    };
+  });
+
+  return result;
+}
+
 export async function fetchProfitMargins() {
   const [prices, deliveries] = await Promise.all([
     fetchPriceSettings(),
@@ -474,6 +507,7 @@ export async function fetchProfitMargins() {
 
     return {
       name,
+      eggSizeId: price?.egg_size_id,
       pricePerPiece,
       pricePerTray,
       avgCostPerEgg: Math.round(avgCostPerEgg * 100) / 100,
