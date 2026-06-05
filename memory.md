@@ -698,4 +698,13 @@ mobile/
 - **Fix:** In `fetchSalesReport()` (both web app and mobile api.js), checks if startTime > endTime. If overnight, uses OR filter (`sale_time >= 19:00 OR sale_time <= 09:35`) instead of AND
 - Verified working: 24 sales returned for June 3-5 overnight query
 
+### Dedicated Profits Page (June 2026)
+- **New `/profits` route** — Real-time profit dashboard separate from Reports
+- **Profits.jsx** (web + mobile) — Loads data automatically on page load with period selector (Today / This Week / This Month / Custom)
+- **6 summary cards** — Revenue, COGS, Expenses, Gross Profit, Net Profit (color-coded), Eggs Sold
+- **Per egg size table** — Sold, Revenue, Cost/Tray, Cost/Egg, Sell/Tray, Sell/Egg, Profit/Tray, Profit/Egg, Margin %, COGS (all green/red color-coded)
+- **Net profit breakdown strip** — Revenue → COGS → Expenses = Net Profit with color-coded result
+- **Navigation** — Profits link added to sidebar after Dashboard (second position) in both web and mobile apps
+- Uses existing API functions (fetchSalesReport, fetchCostsPerEgg, fetchPriceSettings, fetchExpenses)
+
 # Last updated: Thu Jun  5 2026
