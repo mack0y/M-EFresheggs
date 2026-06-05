@@ -23,6 +23,7 @@ import {
 // All nav items for the full menu
 const allNavItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/profits', icon: TrendingUp, label: 'Profits' },
   { to: '/inventory', icon: Package, label: 'Inventory' },
   { to: '/prices', icon: DollarSign, label: 'Pricing' },
   { to: '/sales', icon: ShoppingCart, label: 'Sales' },
@@ -32,7 +33,6 @@ const allNavItems = [
   { to: '/deliveries', icon: Truck, label: 'Deliveries' },
   { to: '/expenses', icon: TrendingDown, label: 'Expenses' },
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
-  { to: '/profits', icon: TrendingUp, label: 'Profits' },
   { to: '/reports', icon: FileText, label: 'Reports' },
 ];
 
