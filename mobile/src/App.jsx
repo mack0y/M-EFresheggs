@@ -27,7 +27,7 @@ function PageLoading() {
 
 export default function App() {
   return (
-    <BrowserRouter basename="/M-EFresheggs/mobile">
+    <BrowserRouter basename={import.meta.env.VITE_BASE_PATH || '/M-EFresheggs/mobile'}>
       <Layout>
         <Suspense fallback={<PageLoading />}>
           <Routes>
