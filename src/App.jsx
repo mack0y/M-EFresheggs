@@ -27,7 +27,7 @@ function PageLoading() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/M-EFresheggs">
       <Layout>
         <Suspense fallback={<PageLoading />}>
           <Routes>
