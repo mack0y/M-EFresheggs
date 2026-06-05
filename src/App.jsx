@@ -10,6 +10,7 @@ const PriceSettings = lazy(() => import('./components/PriceSettings'));
 const SalesLog = lazy(() => import('./components/SalesLog'));
 const Analytics = lazy(() => import('./components/Analytics'));
 const Reports = lazy(() => import('./components/Reports'));
+const Profits = lazy(() => import('./components/Profits'));
 const Expenses = lazy(() => import('./components/Expenses'));
 const Spoilage = lazy(() => import('./components/Spoilage'));
 const Customers = lazy(() => import('./components/Customers'));
@@ -42,6 +43,7 @@ export default function App() {
             <Route path="/suppliers" element={<ErrorBoundary><Suppliers /></ErrorBoundary>} />
             <Route path="/deliveries" element={<ErrorBoundary><Deliveries /></ErrorBoundary>} />
             <Route path="/reports" element={<ErrorBoundary><Reports /></ErrorBoundary>} />
+            <Route path="/profits" element={<ErrorBoundary><Profits /></ErrorBoundary>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>

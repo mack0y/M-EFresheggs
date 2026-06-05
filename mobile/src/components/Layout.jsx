@@ -32,6 +32,7 @@ const allNavItems = [
   { to: '/deliveries', icon: Truck, label: 'Deliveries' },
   { to: '/expenses', icon: TrendingDown, label: 'Expenses' },
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
+  { to: '/profits', icon: TrendingUp, label: 'Profits' },
   { to: '/reports', icon: FileText, label: 'Reports' },
 ];
 

@@ -29,6 +29,7 @@ const navItems = [
   { to: '/deliveries', icon: Truck, label: 'Deliveries' },
   { to: '/expenses', icon: TrendingDown, label: 'Expenses' },
   { to: '/analytics', icon: TrendingUp, label: 'Analytics' },
+  { to: '/profits', icon: TrendingUp, label: 'Profits' },
   { to: '/reports', icon: FileText, label: 'Reports' },
 ];
 
