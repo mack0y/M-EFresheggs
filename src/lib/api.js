@@ -434,15 +434,11 @@ export async function fetchInventoryValue() {
 }
 
 /**
- * Fetch average cost per egg for each egg size from all delivery history.
+ * Fetch average cost per egg for each egg size from delivery history.
  * Returns a Map of egg_size_id -> { avgCostPerEgg, avgCostPerTray }
  */
 export async function fetchCostsPerEgg() {
-  const { data: deliveries, error } = await supabase
-    .from('deliveries')
-    .select('egg_size_id, quantity, unit, tray_size, total_cost');
-
-  if (error) throw error;
+  const deliveries = await fetchDeliveries({ limit: 500 });
 
   const costMap = {};
   (deliveries || []).forEach(d => {
@@ -453,7 +449,6 @@ export async function fetchCostsPerEgg() {
     costMap[id].totalEggs += eggCount;
   });
 
-  // Convert to map with averages
   const result = {};
   Object.keys(costMap).forEach(id => {
     const c = costMap[id];
