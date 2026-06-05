@@ -630,4 +630,72 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - **package-lock.json** — Regenerated to fix GitHub Actions deploy failure at the `npm ci` step
 - Deploys now complete successfully on push to main
 
-# Last updated: Wed Jun  3 2026
+## Mobile PWA App (June 2026)
+
+A mobile-first Progressive Web App was created in `/mobile/` that replicates the full web app as an installable PWA.
+
+### Mobile App Structure
+```
+mobile/
+├── package.json                    # Dependencies (React 19, Supabase, Recharts, etc.)
+├── vite.config.js                  # PWA plugin + base path /M-EFresheggs/mobile/
+├── index.html                      # Mobile meta tags, PWA theme
+├── .env                            # Supabase credentials
+├── public/
+│   ├── logo.png                    # Company logo
+│   └── icons/
+│       ├── icon.svg                # App icon SVG
+│       ├── icon-192.png            # PWA icon (192×192, from logo)
+│       └── icon-512.png            # PWA icon (512×512, from logo)
+└── src/
+    ├── main.jsx                    # Entry point
+    ├── App.jsx                     # Lazy-loaded routes for all 11 pages (basename: /M-EFresheggs/mobile/)
+    ├── index.css                   # Mobile-optimized design system (dark mode, animations)
+    ├── lib/
+    │   ├── supabaseClient.js       # Supabase connection (same backend)
+    │   ├── api.js                  # Full API layer (all CRUD operations)
+    │   └── errors.js               # Error handling
+    └── components/
+        ├── Layout.jsx              # Bottom tab bar (Home/Stock/Sales/Costs/More) + slide-up menu sheet
+        ├── Dashboard.jsx           # Mobile-optimized: compact stat cards, today's feed
+        ├── Inventory.jsx           # Full stock management (copied from web app)
+        ├── PriceSettings.jsx       # Full pricing (copied from web app)
+        ├── SalesLog.jsx            # Full sales recording (copied from web app)
+        ├── Spoilage.jsx            # Full spoilage tracking (copied from web app)
+        ├── Customers.jsx           # Full customer directory (copied from web app)
+        ├── Suppliers.jsx           # Full supplier directory (copied from web app)
+        ├── Deliveries.jsx          # Full delivery tracking (copied from web app)
+        ├── Expenses.jsx            # Full expense tracking (copied from web app)
+        ├── Analytics.jsx           # Full charts (Recharts) (copied from web app)
+        ├── Reports.jsx             # Full reports + CSV export (copied, print styles fixed)
+        ├── Toast.jsx               # Global notifications
+        ├── ConfirmDialog.jsx       # Confirmation modals
+        └── ErrorBoundary.jsx       # Error boundary
+```
+
+### Key Differences from Web App
+| Web App | Mobile PWA |
+|---|---|
+| Sidebar navigation | **Bottom tab bar** (5 tabs) + **slide-up menu grid** |
+| Desktop + mobile responsive | **Pure mobile-first** |
+| GitHub Pages at `/M-EFresheggs/` | **Same repo** at `/M-EFresheggs/mobile/` |
+| Standard website | **Installable PWA** with service worker |
+
+### Company Logo
+- Company logo (logo.png) displayed in the mobile app header alongside "M&E Fresh Eggs" title
+- Logo used as PWA icon (192×192 and 512×512)
+- Also used as favicon and apple-touch-icon
+
+### Revenue vs Expenses Removed from Reports
+- **Both web app and mobile** — Removed the entire Revenue vs Expenses section (net profit calculation, expense breakdown, profit cards)
+- Removed TrendingUp and TrendingDown icon imports
+- Removed associated variables (totalExpenses, netProfit, expenseByCategory, COGS calculations)
+- Kept totalDeliveryCost for the Deliveries table total row
+- Reports now shows: Sales table → Deliveries table → Footer
+
+### Overnight Shift Bug Fix
+- **Bug:** Custom shift from 7:00 PM to 9:35 AM (overnight, crossing midnight) returned empty reports because the sale_time filter used AND (`>= 19:00 AND <= 09:35` — impossible condition)
+- **Fix:** In `fetchSalesReport()` (both web app and mobile api.js), checks if startTime > endTime. If overnight, uses OR filter (`sale_time >= 19:00 OR sale_time <= 09:35`) instead of AND
+- Verified working: 24 sales returned for June 3-5 overnight query
+
+# Last updated: Thu Jun  5 2026

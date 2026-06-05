@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background rounded square -->
+  <rect width="512" height="512" rx="80" fill="#2E7D32"/>
+  <!-- Egg shape -->
+  <ellipse cx="256" cy="270" rx="110" ry="150" fill="#FFF8E1" transform="rotate(-8, 256, 270)"/>
+  <!-- Egg yolk highlight -->
+  <ellipse cx="256" cy="270" rx="80" ry="110" fill="#FFE082" transform="rotate(-8, 256, 270)"/>
+  <!-- Shine -->
+  <ellipse cx="220" cy="200" rx="30" ry="40" fill="rgba(255,255,255,0.3)" transform="rotate(-15, 220, 200)"/>
+</svg>

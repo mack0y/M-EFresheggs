@@ -741,15 +741,16 @@ export default function Reports() {
         /* Print styles */
         @media print {
           body { background: white; }
-          .sidebar, .mobile-header, .report-controls, .error-banner,
+          .app-shell, .app-header, .bottom-tab-bar, .menu-overlay, .report-controls, .error-banner,
           .page-header-row, .btn { display: none !important; }
+          .app-content { padding: 0 !important; padding-top: 0 !important; }
           .report-output {
             box-shadow: none;
             border: none;
             padding: 0;
           }
-          .report-table th { background: #f5f5f5; }
-          .total-row td { background: #f0f0f0; }
+          .report-table th { background: #f5f5f5 !important; }
+          .total-row td { background: #f0f0f0 !important; }
         }
       `}</style>
     </div>

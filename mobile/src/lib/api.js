@@ -1,11 +1,9 @@
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from './supabaseClient';
 
 // ===== Local Date Helper =====
-// Returns today's date in YYYY-MM-DD format using the user's LOCAL timezone
-// (not UTC, which is what toISOString() would give)
 export function getLocalDate(date) {
   const d = date || new Date();
-  return d.toLocaleDateString('en-CA'); // en-CA gives YYYY-MM-DD format
+  return d.toLocaleDateString('en-CA');
 }
 
 // ===== Egg Sizes =====
@@ -49,7 +47,6 @@ export async function updateInventory(eggSizeId, quantity) {
 }
 
 // ===== Price Settings =====
-
 export async function fetchPriceSettings() {
   const { data, error } = await supabase
     .from('price_settings')
@@ -79,7 +76,6 @@ export async function recordSale({ eggSizeId, quantity, unit, traySize }) {
   const dateStr = getLocalDate(today);
   const timeStr = today.toTimeString().split(' ')[0];
 
-  // Fetch current price to calculate total amount
   const { data: priceData } = await supabase
     .from('price_settings')
     .select('price_per_piece, price_per_tray')
@@ -178,11 +174,6 @@ export async function fetchSalesTrend(days = 30) {
 }
 
 // ===== Reports =====
-
-/**
- * Fetch sales within a date and time range, joined with egg size info.
- * Used for generating shift-based reports.
- */
 export async function fetchSalesReport({ startDate, endDate, startTime, endTime }) {
   let query = supabase
     .from('sales')
@@ -208,7 +199,6 @@ export async function fetchSalesReport({ startDate, endDate, startTime, endTime 
 }
 
 // ===== Expenses =====
-
 export const EXPENSE_CATEGORIES = [
   'Feed',
   'Labor',
@@ -251,7 +241,6 @@ export async function recordExpense({ category, description, amount }) {
 }
 
 // ===== Spoilage =====
-
 export const SPOILAGE_REASONS = [
   'Cracked',
   'Broken',
@@ -290,8 +279,36 @@ export async function recordSpoilage({ eggSizeId, quantity, reason, spoilageDate
   return data;
 }
 
-// ===== Customers =====
+export async function fetchSpoilageWithCost({ startDate, endDate, limit = 200 } = {}) {
+  let query = supabase
+    .from('spoilage')
+    .select('*, egg_sizes(name, sort_order)')
+    .order('spoilage_date', { ascending: false });
 
+  if (startDate) query = query.gte('spoilage_date', startDate);
+  if (endDate) query = query.lte('spoilage_date', endDate);
+
+  const { data: spoilageData, error } = await query.limit(limit);
+  if (error) throw error;
+
+  const { data: priceData } = await supabase
+    .from('price_settings')
+    .select('egg_size_id, price_per_piece');
+
+  const priceMap = {};
+  (priceData || []).forEach(p => {
+    priceMap[p.egg_size_id] = parseFloat(p.price_per_piece || 0);
+  });
+
+  const withCost = (spoilageData || []).map(s => ({
+    ...s,
+    cost: s.quantity * (priceMap[s.egg_size_id] || 0),
+  }));
+
+  return withCost;
+}
+
+// ===== Customers =====
 export async function fetchCustomers() {
   const { data, error } = await supabase
     .from('customers')
@@ -320,7 +337,6 @@ export async function deleteCustomer(id) {
 }
 
 // ===== Suppliers =====
-
 export async function fetchSuppliers() {
   const { data, error } = await supabase
     .from('suppliers')
@@ -349,7 +365,6 @@ export async function deleteSupplier(id) {
 }
 
 // ===== Deliveries =====
-
 export const PAYMENT_STATUSES = ['unpaid', 'partial', 'paid'];
 
 export async function fetchDeliveries({ limit = 200, startDate, endDate } = {}) {
@@ -408,10 +423,8 @@ export async function deleteDelivery(id) {
 }
 
 // ===== Utilities =====
-
 export const TRAY_SIZE = 30;
 
-/** Calculate total inventory monetary value */
 export async function fetchInventoryValue() {
   const [inv, prices] = await Promise.all([
     fetchInventory(),
@@ -433,17 +446,12 @@ export async function fetchInventoryValue() {
   return totalValue;
 }
 
-/**
- * Calculate profit margins per egg size.
- * Compares average delivery cost vs selling price for each size.
- */
 export async function fetchProfitMargins() {
   const [prices, deliveries] = await Promise.all([
     fetchPriceSettings(),
     fetchDeliveries({ limit: 500 }),
   ]);
 
-  // Build cost map: average cost_per_egg per egg size from deliveries
   const costAccumulator = {};
   (deliveries || []).forEach(d => {
     const id = d.egg_size_id;
@@ -454,7 +462,6 @@ export async function fetchProfitMargins() {
     costAccumulator[id].deliveries++;
   });
 
-  // Build margins per egg size
   const margins = EGG_SIZES.map((name, index) => {
     const price = (prices || []).find(p => p.egg_sizes?.sort_order === index + 1);
     const cost = costAccumulator[price?.egg_size_id];
@@ -481,38 +488,6 @@ export async function fetchProfitMargins() {
   return margins.filter(m => m.totalDelivered > 0);
 }
 
-/** Calculate cost of spoilage data */
-export async function fetchSpoilageWithCost({ startDate, endDate, limit = 200 } = {}) {
-  let query = supabase
-    .from('spoilage')
-    .select('*, egg_sizes(name, sort_order)')
-    .order('spoilage_date', { ascending: false });
-
-  if (startDate) query = query.gte('spoilage_date', startDate);
-  if (endDate) query = query.lte('spoilage_date', endDate);
-
-  const { data: spoilageData, error } = await query.limit(limit);
-  if (error) throw error;
-
-  // Fetch prices to calculate cost
-  const { data: priceData } = await supabase
-    .from('price_settings')
-    .select('egg_size_id, price_per_piece');
-
-  const priceMap = {};
-  (priceData || []).forEach(p => {
-    priceMap[p.egg_size_id] = parseFloat(p.price_per_piece || 0);
-  });
-
-  // Add cost to each spoilage entry
-  const withCost = (spoilageData || []).map(s => ({
-    ...s,
-    cost: s.quantity * (priceMap[s.egg_size_id] || 0),
-  }));
-
-  return withCost;
-}
-
 /** Convert a sale record to total egg count */
 export function getEggCount(sale) {
   if (sale.unit === 'tray') return sale.quantity * (sale.tray_size || 30);
@@ -526,7 +501,7 @@ export function toTraysAndPieces(totalEggs) {
   return { trays, pieces };
 }
 
-/** Format total eggs as a readable string, e.g. "2 trays + 22 pcs" */
+/** Format total eggs as a readable string */
 export function formatInventory(totalEggs) {
   const { trays, pieces } = toTraysAndPieces(totalEggs);
   if (trays === 0) return `${pieces} pcs`;
