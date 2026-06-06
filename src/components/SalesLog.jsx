@@ -60,7 +60,6 @@ export default function SalesLog() {
       ]);
       setSales(salesData || []);
       setHasMore(salesData && salesData.length === limit);
-      setSelectedIds(new Set());
       setPage(0);
       setInventory(invData || []);
       setPriceSettings(priceData || []);
