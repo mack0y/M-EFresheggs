@@ -61,7 +61,8 @@ export default function Inventory() {
         );
       }
       loadInventory();
-    } catch {
+    } catch (err) {
+      console.error('Inventory adjust error:', err);
       toast('Failed to adjust inventory', 'error');
     } finally {
       setAdjusting(null);

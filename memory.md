@@ -29,40 +29,51 @@ A mobile-first web application for tracking egg inventory, recording sales, mana
 
 ```
 M-EFresheggs/
-├── .env                    # Supabase credentials (gitignored)
+├── .env                        # Supabase credentials (gitignored)
 ├── package.json
-├── vite.config.js
-├── database_schema.sql     # Full schema including expenses, spoilage, customers
-├── migration_pricing.sql   # Migration for pricing tables
-├── migration_suppliers_deliveries.sql  # Migration for suppliers & deliveries
-├── memory.md               # This file
+├── vite.config.js              # Vite + React + PWA plugin
+├── database_schema.sql
+├── migration_pricing.sql
+├── migration_suppliers_deliveries.sql
+├── memory.md
 ├── eslint.config.js
 ├── .github/workflows/deploy.yml
 ├── README.md
+├── public/
+│   ├── logo.png                # Company logo / PWA icon
+│   └── icons/
+│       ├── icon.svg
+│       ├── icon-192.png
+│       └── icon-512.png
 └── src/
-    ├── main.jsx            # Entry point
-    ├── App.jsx             # Router + Layout wrapper
-    ├── index.css           # Design system v2 (CSS variables, utilities, animations)
+    ├── main.jsx                # Entry point
+    ├── App.jsx                 # Router + Layout + Suspense
+    ├── index.css               # Design system (CSS variables, dark mode, animations)
     ├── lib/
     │   ├── supabaseClient.js   # Supabase connection
-    │   ├── api.js              # All data operations + utilities
-    │   └── errors.js           # User-friendly error messages
+    │   ├── api.js              # All data operations, pagination, exportAllData, APP_VERSION
+    │   ├── errors.js           # User-friendly error messages
+    │   └── salesUtils.js       # Sale calculations, validation, grouping, quick qty chips
+    ├── hooks/
+    │   ├── useSalesForm.js     # Sale form state + submission flow (unused — inline)
+    │   └── useSalesList.js     # Sale list loading, period filter, grouping (unused — inline)
     └── components/
-        ├── Layout.jsx          # Sidebar nav + mobile bottom nav bar
-        ├── Dashboard.jsx       # Welcome greeting, stat cards, stock levels, alerts
+        ├── Layout.jsx          # Sidebar nav + mobile bottom nav + keyboard shortcuts + version badge
+        ├── Dashboard.jsx       # Auto-refresh (30s), stat cards, stock alerts, today's feed
         ├── Inventory.jsx       # Add/remove stock by trays or pieces
-        ├── SalesLog.jsx        # Record & filter sales by date range
-        ├── PriceSettings.jsx   # Set per-piece & per-tray prices
-        ├── Analytics.jsx       # Charts (size, time, trend, revenue, distribution)
-        ├── Reports.jsx         # Shift-based sales reports with CSV export
-        ├── Expenses.jsx        # Expense tracking by category
-        ├── Spoilage.jsx        # Egg wastage tracking
+        ├── SalesLog.jsx        # Search, sort, bulk delete, pagination, date filter, modal form
+        ├── PriceSettings.jsx   # Per-piece & per-tray prices per egg size
+        ├── Profits.jsx         # Revenue → COGS → Expenses = Net Profit with per-size breakdown
+        ├── Analytics.jsx       # 6 chart tabs (by size, hour, trend, revenue, pie, margins)
+        ├── Reports.jsx         # Shift-based reports, CSV export, Backup (JSON), deliveries
+        ├── Expenses.jsx        # Search, sort, bulk delete, pagination, undo toast
+        ├── Spoilage.jsx        # Search, sort, bulk delete, pagination, undo toast
         ├── Customers.jsx       # Customer directory
         ├── Suppliers.jsx       # Supplier directory
-        ├── Deliveries.jsx      # Supplier delivery tracking
-        ├── Toast.jsx           # Global notification system (with SVG icons)
-        ├── ConfirmDialog.jsx   # Reusable confirmation modal (with backdrop blur)
-        └── ErrorBoundary.jsx   # Error boundary wrapper
+        ├── Deliveries.jsx      # Multi-size batch form, search, bulk delete, pagination, undo
+        ├── Toast.jsx           # Global notifications (undo action support, 5s duration)
+        ├── ConfirmDialog.jsx   # Reusable confirmation modal (backdrop blur, scale-in)
+        └── ErrorBoundary.jsx   # React error fallback UI
 ```
 
 ---
@@ -147,20 +158,21 @@ M-EFresheggs/
 | notes | TEXT | Optional |
 | created_at | TIMESTAMPTZ | Auto |
 
-#### `deliveries` — Supplier delivery records
+#### `deliveries` — Supplier delivery records (multi-size batches)
 | Column | Type | Notes |
 |--------|------|-------|
 | id | BIGINT PK | Auto-generated |
 | supplier_id | BIGINT FK → suppliers | |
 | egg_size_id | BIGINT FK → egg_sizes | |
 | quantity | INTEGER | > 0 |
-| unit | TEXT | 'piece' or 'tray' |
-| tray_size | INTEGER | 30 (CHECK IN 12, 30) |
-| cost_per_egg | NUMERIC(10,2) | ≥ 0 |
+| unit | TEXT | 'tray' only |
+| tray_size | INTEGER | 30 |
+| cost_per_egg | NUMERIC(10,2) | ≥ 0 (stores cost per tray) |
 | total_cost | NUMERIC(10,2) | ≥ 0 |
 | payment_status | TEXT | unpaid, partial, paid |
 | notes | TEXT | Optional |
 | delivery_date | DATE | Default today |
+| batch_id | UUID | Groups multiple sizes from one delivery |
 | created_at | TIMESTAMPTZ | Auto |
 
 ### Triggers
@@ -260,12 +272,19 @@ The design system lives in `src/index.css` with CSS custom properties.
 - Quick stock status badges: In Stock (green), Low Stock ≤50 (yellow), Out of Stock (red)
 
 ### Sales Recording
-- Select egg size, unit (piece/tray), and quantity
-- Tray size selector (30 eggs)
+- Modal form with egg size selector, unit (piece/tray), quantity input
+- Quick quantity chips (+1, +5, +10, +30 for pieces; +1, +2, +5, +10 for trays)
+- Live price display and egg count conversion (e.g., "= 2 trays + 15 pcs")
 - Auto-calculates total amount from current price settings
 - **Client-side inventory validation** — shows "Not enough stock" error before DB failure
 - Confirmation dialog before recording
-- Date range filter (Today / This Week / Custom Range)
+- **Search bar** — filter sales by customer name or egg size
+- **Sortable columns** — click headers to sort by size, qty, amount (default: newest first)
+- **Bulk delete** — checkbox selection + "Delete Selected (X)"
+- **Load More** pagination (50 per page)
+- **Undo toast** after recording
+- Date range filter (Today / Yesterday / This Week / This Month / Custom)
+- Sales list grouped by date with collapsible sections
 - Each sale shows eggs breakdown column (e.g., "2 trays + 5 pcs")
 - Supabase trigger auto-deducts from inventory
 
@@ -297,17 +316,16 @@ The design system lives in `src/index.css` with CSS custom properties.
 - Mobile-responsive layout (same pattern as Customers)
 
 ### Delivery Tracking (`/deliveries`)
-- Record supplier deliveries: supplier, egg size, quantity (trays/pieces)
-- Cost per egg and total cost calculation
-- Payment status tracking (unpaid/partial/paid) with inline update dropdown
-- Stats: total deliveries, total cost, unpaid amount, today's deliveries
-- Payment breakdown badges with color coding
-- Confirmation dialog before recording
+- **Multi-size batch form** — All egg sizes shown in a grid with qty + cost per tray inputs; fill in only the sizes received
+- Single submission creates one DB row per size linked by a shared `batch_id`
+- **Grouped list** — Batches shown as a single row with total qty + cost; expandable to see individual sizes
+- Search by supplier name, record count ("Showing X batches")
+- Payment status tracking (unpaid/partial/paid) with batch-level update dropdown
+- Stats: total batches, total cost, unpaid amount, today's deliveries
+- Bulk delete with checkbox selection (deletes entire batches)
+- Undo toast after recording
+- Load More pagination (50 per page)
 - Cost preview in form before submission
-- Delete deliveries with confirmation
-- Redirect to Suppliers page when no suppliers exist
-- Note: Deliveries are a log only — inventory is updated manually from Inventory page
-- Mobile-responsive card layout
 
 ### Reports
 - Date range pickers (From / To)
@@ -365,9 +383,17 @@ All form fields across 10 components have proper `id` and `name` attributes:
 
 ### Sales
 - `recordSale({ eggSizeId, quantity, unit, traySize })` — Records sale, calculates total, triggers inventory deduction
-- `fetchSales({ limit, offset, startDate, endDate })` — Sales with date range + egg size names
+- `fetchSales({ limit, offset, startDate, endDate })` — Sales with date range + egg size names (offset pagination via `.range()`)
 - `fetchTodaySales()` — Today's sales only
-- `fetchSalesReport({ startDate, endDate, startTime, endTime })` — Shift-based report data with egg size info
+- `fetchSalesReport({ startDate, endDate, startTime, endTime })` — Shift-based report data with egg size info (overnight shift support)
+
+### Sales Utils (`salesUtils.js`)
+- `calculateSaleTotal(quantity, unit, traySize, priceSettings, eggSizeId)` — Computes total amount
+- `validateStock(inventory, eggSizeId, quantity, unit, traySize)` — Client-side stock check
+- `formatSaleForDisplay(sale)` — Returns formatted display string
+- `groupSalesByDate(sales, today)` — Groups sales into date sections (Today/Yesterday/date)
+- `getPeriodPresets(today)` — Returns filter presets for date range selectors
+- `QUICK_QTY_CHIPS` — { piece: [1,5,10,30], tray: [1,2,5,10] }
 
 ### Analytics
 - `fetchSalesBySize(startDate, endDate)` — Sales in date range for size/revenue breakdown
@@ -375,14 +401,14 @@ All form fields across 10 components have proper `id` and `name` attributes:
 - `fetchSalesTrend(days)` — Daily sales for trend line
 
 ### Expenses
-- `fetchExpenses({ startDate, endDate, limit })` — Filtered expense list
+- `fetchExpenses({ startDate, endDate, limit, offset })` — Filtered expense list (offset pagination)
 - `fetchTodayExpenses()` — Today's expenses
 - `recordExpense({ category, description, amount })` — Record a new expense
 
 ### Spoilage
-- `fetchSpoilage({ startDate, endDate, limit })` — Filtered spoilage list
+- `fetchSpoilage({ startDate, endDate, limit, offset })` — Filtered spoilage list (offset pagination)
 - `recordSpoilage({ eggSizeId, quantity, reason, spoilageDate })` — Record spoilage
-- `fetchSpoilageWithCost({ startDate, endDate, limit })` — Spoilage with cost estimation
+- `fetchSpoilageWithCost({ startDate, endDate, limit, offset })` — Spoilage with cost estimation (offset pagination)
 
 ### Customers
 - `fetchCustomers()` — Get all customers sorted by name
@@ -395,15 +421,20 @@ All form fields across 10 components have proper `id` and `name` attributes:
 - `deleteSupplier(id)` — Remove a supplier
 
 ### Deliveries
-- `fetchDeliveries({ limit, startDate, endDate })` — Deliveries with supplier & egg size names
-- `recordDelivery({ supplierId, eggSizeId, quantity, unit, traySize, costPerTray, totalCost, paymentStatus, notes, deliveryDate })` — Record a delivery (cost per tray, not per egg)
+- `fetchDeliveries({ limit, offset, startDate, endDate })` — Deliveries with supplier & egg size names (offset pagination)
+- `recordDelivery({ supplierId, eggSizeId, quantity, unit, traySize, costPerTray, totalCost, paymentStatus, notes, deliveryDate })` — Record a single-size delivery
+- `recordDeliveryBatch({ supplierId, items, unit, traySize, paymentStatus, notes, deliveryDate })` — Record multiple sizes in one batch (generates batch_id UUID)
+- `deleteDeliveryBatch(batchId)` — Delete all items in a batch
 - `updateDeliveryPayment(id, paymentStatus)` — Update payment status
-- `deleteDelivery(id)` — Remove a delivery record
+- `deleteDelivery(id)` — Remove a single delivery record
 - `PAYMENT_STATUSES` — ['unpaid', 'partial', 'paid']
+- List grouped by `batch_id`: multi-size submissions shown as expandable rows; old records (no batch_id) shown individually
 
 ### Utilities
 - `getLocalDate(date?)` — Returns today's (or given date's) YYYY-MM-DD string using **local timezone** (not UTC). Uses `toLocaleDateString('en-CA')`.
-- `fetchProfitMargins()` — Calculates profit margins per egg size by comparing average delivery cost vs selling price from price settings
+- `fetchProfitMargins()` — Calculates profit margins per egg size by comparing average delivery cost vs selling price
+- `exportAllData()` — Fetches all tables (sales, deliveries, expenses, spoilage, inventory, prices, suppliers, customers) as a single JSON object
+- `APP_VERSION` — `import.meta.env.VITE_APP_VERSION || '1.0.0'`
 - `EGG_SIZES` — ['Peewee', 'Pullet', 'Small', 'Medium', 'Large', 'Extra Large', 'Jumbo']
 - `EXPENSE_CATEGORIES` — ['Feed', 'Labor', 'Utilities', 'Transport', 'Packaging', 'Maintenance', 'Misc']
 - `SPOILAGE_REASONS` — ['Cracked', 'Broken', 'Expired', 'Damaged', 'Other']
@@ -418,12 +449,11 @@ All form fields across 10 components have proper `id` and `name` attributes:
 ## Shared Components
 
 ### Toast (`Toast.jsx`)
-- Global notification system via `toast(message, type)` function
-- Auto-dismiss after 3 seconds
+- Global notification system via `toast(message, type, action?)` function
+- Auto-dismiss after 3 seconds (5 seconds if action button present)
 - Types: success (green with checkmark), error (red with X)
-- SVG icons for visual clarity
-- Spring animation entrance (`slideUp`)
-- Positioned above bottom nav on mobile (`bottom: 5rem`)
+- **Undo action** — Optional `{ label, onClick }` object renders an action button (e.g., "Undo")
+- SVG icons, spring animation entrance (`slideUp`)
 
 ### ConfirmDialog (`ConfirmDialog.jsx`)
 - Reusable modal for confirming destructive or important actions
@@ -495,12 +525,20 @@ npm run dev
 
 - **Tray size is fixed at 30 eggs**
 - **No authentication** — Single-user app with permissive RLS policies
-- **Mobile-first design** — Larger fonts, touch-friendly buttons, responsive grid, optimized for 375px+ screens
+- **PWA supported** — Service worker, manifest, installable to home screen (iOS + Android)
+- **Mobile-first design** — Larger fonts, touch-friendly buttons (44px min), responsive grid, optimized for 375px+ screens
 - **CSS uses inline `<style>` blocks** within each component (no CSS modules)
 - **Design system v2** lives in `src/index.css` with CSS custom properties
 - **All form fields have `id` and `name` attributes** for accessibility
 - **Client-side inventory validation** before sales and spoilage recording
+- **Keyboard shortcuts** — Ctrl+N for primary action, Escape to close forms (handled in Layout.jsx)
+- **Auto-refresh** — Dashboard refreshes every 30 seconds
+- **Undo toasts** — Use `toast(msg, type, { label, onClick })` for reversible actions (5s duration)
+- **Pagination** — All list components load 50 items at a time with "Load More" button
+- **API pagination** — Uses `.range(offset, offset + limit - 1)` for offset-based pagination
+- **Delivery batches** — Multiple egg sizes per delivery linked by `batch_id` UUID
 - **ESLint clean** — 0 errors, 0 warnings
+- **npm audit clean** — 0 vulnerabilities
 
 ---
 
@@ -630,61 +668,12 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - **package-lock.json** — Regenerated to fix GitHub Actions deploy failure at the `npm ci` step
 - Deploys now complete successfully on push to main
 
-## Mobile PWA App (June 2026)
-
-A mobile-first Progressive Web App was created in `/mobile/` that replicates the full web app as an installable PWA.
-
-### Mobile App Structure
-```
-mobile/
-├── package.json                    # Dependencies (React 19, Supabase, Recharts, etc.)
-├── vite.config.js                  # PWA plugin + base path /M-EFresheggs/mobile/
-├── index.html                      # Mobile meta tags, PWA theme
-├── .env                            # Supabase credentials
-├── public/
-│   ├── logo.png                    # Company logo
-│   └── icons/
-│       ├── icon.svg                # App icon SVG
-│       ├── icon-192.png            # PWA icon (192×192, from logo)
-│       └── icon-512.png            # PWA icon (512×512, from logo)
-└── src/
-    ├── main.jsx                    # Entry point
-    ├── App.jsx                     # Lazy-loaded routes for all 11 pages (basename: /M-EFresheggs/mobile/)
-    ├── index.css                   # Mobile-optimized design system (dark mode, animations)
-    ├── lib/
-    │   ├── supabaseClient.js       # Supabase connection (same backend)
-    │   ├── api.js                  # Full API layer (all CRUD operations)
-    │   └── errors.js               # Error handling
-    └── components/
-        ├── Layout.jsx              # Bottom tab bar (Home/Stock/Sales/Costs/More) + slide-up menu sheet
-        ├── Dashboard.jsx           # Mobile-optimized: compact stat cards, today's feed
-        ├── Inventory.jsx           # Full stock management (copied from web app)
-        ├── PriceSettings.jsx       # Full pricing (copied from web app)
-        ├── SalesLog.jsx            # Full sales recording (copied from web app)
-        ├── Spoilage.jsx            # Full spoilage tracking (copied from web app)
-        ├── Customers.jsx           # Full customer directory (copied from web app)
-        ├── Suppliers.jsx           # Full supplier directory (copied from web app)
-        ├── Deliveries.jsx          # Full delivery tracking (copied from web app)
-        ├── Expenses.jsx            # Full expense tracking (copied from web app)
-        ├── Analytics.jsx           # Full charts (Recharts) (copied from web app)
-        ├── Reports.jsx             # Full reports + CSV export (copied, print styles fixed)
-        ├── Toast.jsx               # Global notifications
-        ├── ConfirmDialog.jsx       # Confirmation modals
-        └── ErrorBoundary.jsx       # Error boundary
-```
-
-### Key Differences from Web App
-| Web App | Mobile PWA |
-|---|---|
-| Sidebar navigation | **Bottom tab bar** (5 tabs) + **slide-up menu grid** |
-| Desktop + mobile responsive | **Pure mobile-first** |
-| GitHub Pages at `/M-EFresheggs/` | **Same repo** at `/M-EFresheggs/mobile/` |
-| Standard website | **Installable PWA** with service worker |
-
-### Company Logo
-- Company logo (logo.png) displayed in the mobile app header alongside "M&E Fresh Eggs" title
-- Logo used as PWA icon (192×192 and 512×512)
-- Also used as favicon and apple-touch-icon
+## PWA Support (June 2026)
+- Web app is now an installable PWA with service worker and manifest
+- `vite-plugin-pwa` with Workbox runtime caching for Supabase API responses (NetworkFirst, 24hr cache)
+- Manifest: standalone display, portrait orientation, installable to home screen
+- Apple-specific meta tags for iOS standalone mode
+- Icons: logo.png (any), icon-192.png, icon-512.png (maskable)
 
 ### Revenue vs Expenses Removed from Reports
 - **Both web app and mobile** — Removed the entire Revenue vs Expenses section (net profit calculation, expense breakdown, profit cards)
@@ -695,16 +684,48 @@ mobile/
 
 ### Overnight Shift Bug Fix
 - **Bug:** Custom shift from 7:00 PM to 9:35 AM (overnight, crossing midnight) returned empty reports because the sale_time filter used AND (`>= 19:00 AND <= 09:35` — impossible condition)
-- **Fix:** In `fetchSalesReport()` (both web app and mobile api.js), checks if startTime > endTime. If overnight, uses OR filter (`sale_time >= 19:00 OR sale_time <= 09:35`) instead of AND
-- Verified working: 24 sales returned for June 3-5 overnight query
+- **Fix:** In `fetchSalesReport()`, checks if startTime > endTime. If overnight, uses OR filter (`sale_time >= 19:00 OR sale_time <= 09:35`) instead of AND
 
 ### Dedicated Profits Page (June 2026)
 - **New `/profits` route** — Real-time profit dashboard separate from Reports
-- **Profits.jsx** (web + mobile) — Loads data automatically on page load with period selector (Today / This Week / This Month / Custom)
-- **6 summary cards** — Revenue, COGS, Expenses, Gross Profit, Net Profit (color-coded), Eggs Sold
-- **Per egg size table** — Sold, Revenue, Cost/Tray, Cost/Egg, Sell/Tray, Sell/Egg, Profit/Tray, Profit/Egg, Margin %, COGS (all green/red color-coded)
-- **Net profit breakdown strip** — Revenue → COGS → Expenses = Net Profit with color-coded result
-- **Navigation** — Profits link added to sidebar after Dashboard (second position) in both web and mobile apps
-- Uses existing API functions (fetchSalesReport, fetchCostsPerEgg, fetchPriceSettings, fetchExpenses)
+- **Profits.jsx** — Loads data automatically with period selector (Today / This Week / This Month / Custom)
+- **6 summary cards** — Revenue, COGS, Expenses, Gross Profit, Net Profit, Eggs Sold
+- **Per egg size table** with color-coded margins
+- **Net profit breakdown strip** — Revenue → COGS → Expenses = Net Profit
 
-# Last updated: Thu Jun  5 2026
+### Mobile PWA Merged into Web App (June 2026)
+- `mobile/` directory deleted; web app is now the single installable PWA
+- Added `vite-plugin-pwa` to web app: service worker, manifest, runtime caching for Supabase API
+- Added Apple meta tags for iOS standalone mode
+- PWA icons (logo.png, icon-192.png, icon-512.png) added to `public/`
+
+### Deliveries Multi-Size Form (June 2026)
+- Form now shows all egg sizes with qty + cost per tray inputs in a grid
+- Single submission creates one DB row per size, all linked by a shared `batch_id` UUID
+- List groups items by `batch_id` — expandable to see individual sizes
+- Batch-level actions: delete whole batch, update payment for all items
+- New API: `recordDeliveryBatch()`, `deleteDeliveryBatch()`
+- Added `batch_id` column to `deliveries` table
+
+### Full Feature Enhancement Pass (June 2026)
+- **Dashboard auto-refresh** — Stats refresh every 30 seconds automatically
+- **Search bars** — Sales (customer/size), Deliveries (supplier), Expenses (category/description), Spoilage (size/reason) — real-time filter as you type
+- **Record counts** — "Showing X of Y" on all list pages
+- **Sortable columns** — Click headers to sort by size, qty, amount, date (Sales, Expenses, Spoilage)
+- **Bulk delete** — Checkbox selection + "Delete Selected (X)" on Sales, Deliveries, Expenses, Spoilage
+- **Undo toasts** — After recording (sale, delivery, expense, spoilage), toast shows "Undo" button for 5 seconds that reverses the action
+- **Pagination** — All list pages load 50 items at a time with "Load More" button
+- **Keyboard shortcuts** — Ctrl+N for primary action, Escape to close forms
+- **Export All Data** — "Backup" button in Reports downloads all tables as JSON
+- **Better empty states** — Helpful hints on all empty lists (e.g., "Click 'Record Sale' or press Ctrl+N")
+- **Version badge** — `v1.0.0` in sidebar footer, configurable via `VITE_APP_VERSION`
+- **Tooltips** — `title` attributes on all icon-only buttons
+
+### Bug Fixes Audit (June 2026)
+- Fixed bare `catch { }` in Inventory.jsx — added error logging
+- Removed unused imports: `ArrowRight` (Dashboard), `Settings` (Layout)
+- Removed dead `getFilteredSales()` wrapper in mobile SalesLog
+- Fixed missing `Edit3` import in web Deliveries.jsx
+- `npm audit` — 0 vulnerabilities confirmed
+
+# Last updated: Sat Jun 6 2026

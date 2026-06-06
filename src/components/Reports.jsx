@@ -8,7 +8,8 @@ import {
   Printer,
   Download,
 } from 'lucide-react';
-import { fetchSalesReport, fetchExpenses, fetchSpoilageWithCost, fetchCustomers, fetchDeliveries, fetchCostsPerEgg, fetchPriceSettings, formatPeso, EGG_SIZES, TRAY_SIZE, getLocalDate } from '../lib/api';
+import { fetchSalesReport, fetchExpenses, fetchSpoilageWithCost, fetchCustomers, fetchDeliveries, fetchCostsPerEgg, fetchPriceSettings, formatPeso, EGG_SIZES, TRAY_SIZE, getLocalDate, exportAllData } from '../lib/api';
+import { toast } from './Toast';
 import { getUserFriendlyError } from '../lib/errors';
 
 const SHIFTS = [
@@ -136,6 +137,23 @@ export default function Reports() {
         pieces: totalPiecesFromEggs,
       },
     };
+  }
+
+  async function handleExportAll() {
+    try {
+      const data = await exportAllData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `M-E-Fresh-Eggs-backup-${getLocalDate()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast('All data exported!');
+    } catch (err) {
+      console.error('Export all error:', err);
+      toast('Failed to export data', 'error');
+    }
   }
 
   async function handleExportCSV() {
@@ -274,6 +292,10 @@ export default function Reports() {
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           {processed && (
             <>
+              <button className="btn btn-secondary btn-sm" onClick={handleExportAll}>
+                <Download size={16} />
+                Backup
+              </button>
               <button className="btn btn-secondary btn-sm" onClick={handleExportCSV}>
                 <Download size={16} />
                 CSV

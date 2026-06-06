@@ -1,23 +1,22 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-// Toast context for global notifications
-/* eslint-disable react-refresh/only-export-components */
 let addToastFn = null;
 
-export function toast(message, type = 'success') {
-  if (addToastFn) addToastFn(message, type);
+export function toast(message, type = 'success', action = null) {
+  if (addToastFn) addToastFn(message, type, action);
 }
 
 export function ToastContainer() {
   const [toasts, setToasts] = useState([]);
   const idRef = useRef(0);
 
-  const addToast = useCallback((message, type = 'success') => {
+  const addToast = useCallback((message, type = 'success', action = null) => {
     const id = ++idRef.current;
-    setToasts(prev => [...prev, { id, message, type }]);
+    const duration = action ? 5000 : 3000;
+    setToasts(prev => [...prev, { id, message, type, action }]);
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
-    }, 3000);
+    }, duration);
   }, []);
 
   useEffect(() => {
@@ -40,6 +39,17 @@ export function ToastContainer() {
             </svg>
           )}
           <span>{t.message}</span>
+          {t.action && (
+            <button
+              className="toast-action"
+              onClick={() => {
+                t.action.onClick();
+                setToasts(prev => prev.filter(toast => toast.id !== t.id));
+              }}
+            >
+              {t.action.label}
+            </button>
+          )}
         </div>
       ))}
 
@@ -70,14 +80,26 @@ export function ToastContainer() {
           line-height: 1.3;
         }
 
-        .toast-success {
-          background: var(--color-success);
+        .toast-success { background: var(--color-success); color: white; }
+        .toast-error { background: var(--color-danger); color: white; }
+
+        .toast-action {
+          margin-left: auto;
+          padding: 0.25rem 0.625rem;
+          border: 1px solid rgba(255,255,255,0.5);
+          border-radius: var(--radius-sm);
+          background: transparent;
           color: white;
+          font-size: 0.75rem;
+          font-weight: 600;
+          cursor: pointer;
+          white-space: nowrap;
+          transition: all 0.15s;
         }
 
-        .toast-error {
-          background: var(--color-danger);
-          color: white;
+        .toast-action:hover {
+          background: rgba(255,255,255,0.2);
+          border-color: rgba(255,255,255,0.8);
         }
 
         @media (min-width: 768px) {

@@ -219,7 +219,7 @@ export const EXPENSE_CATEGORIES = [
   'Misc',
 ];
 
-export async function fetchExpenses({ startDate, endDate, limit = 100 } = {}) {
+export async function fetchExpenses({ startDate, endDate, limit = 100, offset = 0 } = {}) {
   let query = supabase
     .from('expenses')
     .select('*')
@@ -229,7 +229,7 @@ export async function fetchExpenses({ startDate, endDate, limit = 100 } = {}) {
   if (startDate) query = query.gte('expense_date', startDate);
   if (endDate) query = query.lte('expense_date', endDate);
 
-  const { data, error } = await query.limit(limit);
+  const { data, error } = await query.range(offset, offset + limit - 1);
   if (error) throw error;
   return data;
 }
@@ -260,7 +260,7 @@ export const SPOILAGE_REASONS = [
   'Other',
 ];
 
-export async function fetchSpoilage({ startDate, endDate, limit = 100 } = {}) {
+export async function fetchSpoilage({ startDate, endDate, limit = 100, offset = 0 } = {}) {
   let query = supabase
     .from('spoilage')
     .select('*, egg_sizes(name, sort_order)')
@@ -270,7 +270,7 @@ export async function fetchSpoilage({ startDate, endDate, limit = 100 } = {}) {
   if (startDate) query = query.gte('spoilage_date', startDate);
   if (endDate) query = query.lte('spoilage_date', endDate);
 
-  const { data, error } = await query.limit(limit);
+  const { data, error } = await query.range(offset, offset + limit - 1);
   if (error) throw error;
   return data;
 }
@@ -352,7 +352,7 @@ export async function deleteSupplier(id) {
 
 export const PAYMENT_STATUSES = ['unpaid', 'partial', 'paid'];
 
-export async function fetchDeliveries({ limit = 200, startDate, endDate } = {}) {
+export async function fetchDeliveries({ limit = 200, offset = 0, startDate, endDate } = {}) {
   let query = supabase
     .from('deliveries')
     .select('*, suppliers(name), egg_sizes(name, sort_order)')
@@ -362,7 +362,7 @@ export async function fetchDeliveries({ limit = 200, startDate, endDate } = {}) 
   if (startDate) query = query.gte('delivery_date', startDate);
   if (endDate) query = query.lte('delivery_date', endDate);
 
-  const { data, error } = await query.limit(limit);
+  const { data, error } = await query.range(offset, offset + limit - 1);
   if (error) throw error;
   return data;
 }
@@ -386,6 +386,40 @@ export async function recordDelivery({ supplierId, eggSizeId, quantity, unit, tr
     .single();
   if (error) throw error;
   return data;
+}
+
+export async function recordDeliveryBatch({ supplierId, items, unit, traySize, paymentStatus, notes, deliveryDate }) {
+  if (!items || items.length === 0) {
+    throw new Error('No items to record');
+  }
+  const batchId = crypto.randomUUID();
+  const rows = items.map(item => ({
+    supplier_id: supplierId,
+    egg_size_id: item.eggSizeId,
+    quantity: item.quantity,
+    unit,
+    tray_size: traySize || 30,
+    cost_per_egg: item.costPerTray,
+    total_cost: item.quantity * parseFloat(item.costPerTray),
+    payment_status: paymentStatus,
+    notes: notes.trim(),
+    delivery_date: deliveryDate,
+    batch_id: batchId,
+  }));
+  const { data, error } = await supabase
+    .from('deliveries')
+    .insert(rows)
+    .select('*, suppliers(name), egg_sizes(name)');
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteDeliveryBatch(batchId) {
+  const { error } = await supabase
+    .from('deliveries')
+    .delete()
+    .eq('batch_id', batchId);
+  if (error) throw error;
 }
 
 export async function updateDeliveryPayment(id, paymentStatus) {
@@ -512,7 +546,7 @@ export async function fetchProfitMargins() {
 }
 
 /** Calculate cost of spoilage data */
-export async function fetchSpoilageWithCost({ startDate, endDate, limit = 200 } = {}) {
+export async function fetchSpoilageWithCost({ startDate, endDate, limit = 200, offset = 0 } = {}) {
   let query = supabase
     .from('spoilage')
     .select('*, egg_sizes(name, sort_order)')
@@ -521,7 +555,7 @@ export async function fetchSpoilageWithCost({ startDate, endDate, limit = 200 } 
   if (startDate) query = query.gte('spoilage_date', startDate);
   if (endDate) query = query.lte('spoilage_date', endDate);
 
-  const { data: spoilageData, error } = await query.limit(limit);
+  const { data: spoilageData, error } = await query.range(offset, offset + limit - 1);
   if (error) throw error;
 
   // Fetch prices to calculate cost
@@ -541,6 +575,32 @@ export async function fetchSpoilageWithCost({ startDate, endDate, limit = 200 } 
   }));
 
   return withCost;
+}
+
+export const APP_VERSION = import.meta.env.VITE_APP_VERSION || '1.0.6';
+
+export async function exportAllData() {
+  const tables = [
+    { name: 'sales', fn: () => supabase.from('sales').select('*').order('created_at') },
+    { name: 'deliveries', fn: () => supabase.from('deliveries').select('*, suppliers(name), egg_sizes(name)').order('delivery_date') },
+    { name: 'expenses', fn: () => supabase.from('expenses').select('*').order('expense_date') },
+    { name: 'spoilage', fn: () => supabase.from('spoilage').select('*, egg_sizes(name)').order('spoilage_date') },
+    { name: 'inventory', fn: () => supabase.from('inventory').select('*, egg_sizes(name)') },
+    { name: 'price_settings', fn: () => supabase.from('price_settings').select('*, egg_sizes(name)') },
+    { name: 'suppliers', fn: () => supabase.from('suppliers').select('*').order('name') },
+    { name: 'customers', fn: () => supabase.from('customers').select('*').order('name') },
+  ];
+  const results = {};
+  for (const { name, fn } of tables) {
+    const { data, error } = await fn();
+    if (error) {
+      console.error(`Export error for ${name}:`, error);
+      results[name] = { error: error.message };
+    } else {
+      results[name] = data || [];
+    }
+  }
+  return { exportedAt: new Date().toISOString(), appVersion: APP_VERSION, data: results };
 }
 
 /** Convert a sale record to total egg count */

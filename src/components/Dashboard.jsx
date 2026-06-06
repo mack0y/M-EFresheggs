@@ -69,6 +69,8 @@ export default function Dashboard() {
 
   useEffect(() => {
     Promise.resolve().then(() => loadData());
+    const interval = setInterval(loadData, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const todayDeliveryCount = todayDeliveries.length;
@@ -174,7 +176,7 @@ export default function Dashboard() {
             <span className="stat-card-value">
               {loading ? <span className="skeleton" style={{ display: 'inline-block', width: 50, height: 24 }}>&nbsp;</span> : totalStock.toLocaleString()}
             </span>
-            <span className="stat-card-label">Total Stock</span>
+            <span className="stat-card-label">{inventory.length} items in stock</span>
           </div>
         </div>
 
@@ -198,7 +200,7 @@ export default function Dashboard() {
             <span className="stat-card-value">
               {loading ? '—' : totalEggsSoldToday.toLocaleString()}
             </span>
-            <span className="stat-card-label">Eggs Sold</span>
+            <span className="stat-card-label">{todaySales.length} sale{todaySales.length !== 1 ? 's' : ''}</span>
           </div>
         </div>
 
@@ -222,7 +224,7 @@ export default function Dashboard() {
             <span className="stat-card-value">
               {loading ? '—' : todayDeliveryCount}
             </span>
-            <span className="stat-card-label">Deliveries</span>
+            <span className="stat-card-label">{todayDeliveryCount} deliver{todayDeliveryCount === 1 ? 'y' : 'ies'}</span>
           </div>
         </div>
 
@@ -234,7 +236,7 @@ export default function Dashboard() {
             <span className="stat-card-value">
               {loading ? '—' : formatPeso(todayDeliveryCost)}
             </span>
-            <span className="stat-card-label">Delivery Cost</span>
+            <span className="stat-card-label">{todayDeliveries.length > 0 ? formatPeso(todayDeliveryCost / (todayDeliveries.length || 1)) + '/avg' : 'delivery cost'}</span>
           </div>
         </div>
       </div>

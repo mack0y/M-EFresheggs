@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
+import { APP_VERSION } from '../lib/api';
 import {
   LayoutDashboard,
   Package,
@@ -16,6 +17,7 @@ import {
   Sun,
   Truck,
   Building,
+  Tag,
 } from 'lucide-react';
 
 const navItems = [
@@ -59,6 +61,28 @@ export default function Layout({ children }) {
   // Close sidebar on route change
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setSidebarOpen(false); }, [location.pathname]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    function handleKeyDown(e) {
+      // Ctrl+N: click primary action button (Record / Add)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+        e.preventDefault();
+        const btn = document.querySelector('.page-header-row .btn-primary');
+        if (btn) btn.click();
+      }
+      // Escape: click Cancel button if form is open
+      if (e.key === 'Escape') {
+        const cancelBtn = document.querySelector('.btn-primary')?.closest('.page-header-row')?.querySelector('.btn-primary');
+        const headerBtn = document.querySelector('.page-header-row .btn-primary');
+        if (headerBtn && headerBtn.textContent.includes('Cancel')) {
+          headerBtn.click();
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   return (
     <div className="layout">
@@ -132,6 +156,10 @@ export default function Layout({ children }) {
             </div>
             <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
           </button>
+          <div className="sidebar-version">
+            <Tag size={12} />
+            <span>v{APP_VERSION}</span>
+          </div>
         </div>
       </aside>
 
@@ -334,6 +362,20 @@ export default function Layout({ children }) {
           color: var(--color-primary);
         }
 
+        .sidebar-version {
+          display: flex;
+          align-items: center;
+          gap: 0.375rem;
+          padding: 0.5rem 0.875rem;
+          font-size: 0.6875rem;
+          color: var(--color-text-muted);
+          opacity: 0.6;
+        }
+
+        .sidebar-version svg {
+          opacity: 0.5;
+        }
+
         .nav-link {
           display: flex;
           align-items: center;
@@ -465,6 +507,17 @@ export default function Layout({ children }) {
             padding-top: 1.5rem;
             padding-bottom: 1.5rem;
           }
+        }
+
+        kbd {
+          display: inline-block;
+          padding: 0.1rem 0.35rem;
+          font-size: 0.7rem;
+          font-family: inherit;
+          background: var(--color-bg-subtle, #f0f0f0);
+          border: 1px solid var(--color-border, #ddd);
+          border-radius: 3px;
+          box-shadow: 0 1px 0 rgba(0,0,0,0.1);
         }
 
         @media (max-width: 767px) {

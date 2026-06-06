@@ -6,8 +6,11 @@ import {
   RefreshCw,
   TrendingDown,
   Receipt,
+  Trash2,
+  Search,
 } from 'lucide-react';
 import { fetchExpenses, recordExpense, formatPeso, EXPENSE_CATEGORIES, getLocalDate } from '../lib/api';
+import { supabase } from '../lib/supabaseClient';
 import { toast } from './Toast';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
@@ -19,6 +22,13 @@ export default function Expenses() {
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [filterCategory, setFilterCategory] = useState('all');
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortField, setSortField] = useState('expense_date');
+  const [sortDir, setSortDir] = useState('desc');
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [lastRecordedId, setLastRecordedId] = useState(null);
 
   const [form, setForm] = useState({
     category: '',
@@ -26,6 +36,8 @@ export default function Expenses() {
     amount: '',
   });
   const [confirmItem, setConfirmItem] = useState(null);
+
+  const PAGE_SIZE = 50;
 
   const today = getLocalDate();
 
@@ -37,13 +49,69 @@ export default function Expenses() {
     try {
       setLoading(true);
       setError(null);
-      const data = await fetchExpenses();
+      setPage(0);
+      const data = await fetchExpenses({ limit: PAGE_SIZE, offset: 0 });
       setExpenses(data || []);
+      setHasMore(data && data.length >= PAGE_SIZE);
     } catch (err) {
       console.error('Expenses load error:', err);
       setError(err);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadMore() {
+    try {
+      const nextOffset = (page + 1) * PAGE_SIZE;
+      const data = await fetchExpenses({ limit: PAGE_SIZE, offset: nextOffset });
+      if (data && data.length > 0) {
+        setExpenses(prev => [...prev, ...data]);
+        setPage(prev => prev + 1);
+        setHasMore(data.length >= PAGE_SIZE);
+      } else {
+        setHasMore(false);
+      }
+    } catch (err) {
+      console.error('Expenses load more error:', err);
+      toast('Failed to load more expenses', 'error');
+    }
+  }
+
+  function handleSort(field) {
+    if (sortField === field) {
+      setSortDir(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+  }
+
+  function handleSelectAll() {
+    if (selectedIds.length === filteredExpenses.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredExpenses.map(e => e.id));
+    }
+  }
+
+  function handleSelectOne(id) {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  }
+
+  async function handleDeleteSelected() {
+    if (selectedIds.length === 0) return;
+    try {
+      const { error } = await supabase.from('expenses').delete().in('id', selectedIds);
+      if (error) throw error;
+      toast(`Deleted ${selectedIds.length} expense(s)`, 'success');
+      setSelectedIds([]);
+      loadExpenses();
+    } catch (err) {
+      console.error('Bulk delete error:', err);
+      toast('Failed to delete expenses', 'error');
     }
   }
 
@@ -65,8 +133,22 @@ export default function Expenses() {
   async function executeExpense(data) {
     setSubmitting(true);
     try {
-      await recordExpense(data);
-      toast('Expense recorded!');
+      const result = await recordExpense(data);
+      setLastRecordedId(result.id);
+      toast('Expense recorded!', 'success', {
+        label: 'Undo',
+        onClick: async () => {
+          try {
+            const { error } = await supabase.from('expenses').delete().eq('id', result.id);
+            if (error) throw error;
+            toast('Expense undone', 'success');
+            loadExpenses();
+          } catch (err) {
+            console.error('Undo delete error:', err);
+            toast('Failed to undo', 'error');
+          }
+        },
+      });
       setForm({ category: '', description: '', amount: '' });
       setShowForm(false);
       loadExpenses();
@@ -78,10 +160,40 @@ export default function Expenses() {
     }
   }
 
-  const filteredExpenses =
-    filterCategory === 'all'
-      ? expenses
-      : expenses.filter(e => e.category === filterCategory);
+  const filteredExpenses = (() => {
+    let list =
+      filterCategory === 'all'
+        ? expenses
+        : expenses.filter(e => e.category === filterCategory);
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      list = list.filter(
+        e =>
+          e.category?.toLowerCase().includes(q) ||
+          e.description?.toLowerCase().includes(q)
+      );
+    }
+
+    list.sort((a, b) => {
+      let aVal, bVal;
+      if (sortField === 'category') {
+        aVal = (a.category || '').toLowerCase();
+        bVal = (b.category || '').toLowerCase();
+      } else if (sortField === 'amount') {
+        aVal = parseFloat(a.amount || 0);
+        bVal = parseFloat(b.amount || 0);
+      } else {
+        aVal = a.expense_date || '';
+        bVal = b.expense_date || '';
+      }
+      if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return list;
+  })();
 
   const todayTotal = expenses
     .filter(e => e.expense_date === today)
@@ -248,13 +360,57 @@ export default function Expenses() {
         </div>
       )}
 
+      {/* Search and toolbar */}
+      <div className="expense-toolbar">
+        <div className="expense-search">
+          <Search size={16} />
+          <input
+            type="text"
+            className="input"
+            placeholder="Search by category or description..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
+        </div>
+        <div className="expense-record-count">
+          Showing {filteredExpenses.length} of {expenses.length} expenses
+        </div>
+      </div>
+
+      {selectedIds.length > 0 && (
+        <div className="bulk-actions">
+          <button
+            className="btn btn-sm btn-danger"
+            onClick={handleDeleteSelected}
+            title="Delete selected expenses"
+          >
+            <Trash2 size={14} />
+            Delete Selected ({selectedIds.length})
+          </button>
+        </div>
+      )}
+
       {/* Expense list */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <div className="expense-table-header">
-          <span>Date</span>
-          <span>Category</span>
+          <span className="expense-check-col">
+            <input
+              type="checkbox"
+              checked={filteredExpenses.length > 0 && selectedIds.length === filteredExpenses.length}
+              onChange={handleSelectAll}
+              title="Select all"
+            />
+          </span>
+          <span className="sortable" onClick={() => handleSort('expense_date')} title="Sort by date">
+            Date {sortField === 'expense_date' ? (sortDir === 'asc' ? ' \u25B2' : ' \u25BC') : ''}
+          </span>
+          <span className="sortable" onClick={() => handleSort('category')} title="Sort by category">
+            Category {sortField === 'category' ? (sortDir === 'asc' ? ' \u25B2' : ' \u25BC') : ''}
+          </span>
           <span>Description</span>
-          <span className="num">Amount</span>
+          <span className="num sortable" onClick={() => handleSort('amount')} title="Sort by amount">
+            Amount {sortField === 'amount' ? (sortDir === 'asc' ? ' \u25B2' : ' \u25BC') : ''}
+          </span>
         </div>
         {loading ? (
           <div className="loading-list">
@@ -268,6 +424,7 @@ export default function Expenses() {
           <div className="empty-state">
             <DollarSign size={36} />
             <p>No expenses recorded yet</p>
+            <p style={{ fontSize: '0.8125rem', marginTop: '-0.25rem' }}>Track operational costs like labor, feed, and utilities</p>
           </div>
         ) : (
           filteredExpenses.map((exp, i) => (
@@ -276,18 +433,34 @@ export default function Expenses() {
               className="expense-row"
               style={{ animationDelay: `${i * 0.025}s` }}
             >
+              <span className="expense-check-col">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.includes(exp.id)}
+                  onChange={() => handleSelectOne(exp.id)}
+                  title={`Select ${exp.category} expense`}
+                />
+              </span>
               <span className="expense-date">{formatDate(exp.expense_date)}</span>
               <span className="expense-category">
                 <span className={`expense-cat-badge expense-cat-${exp.category?.toLowerCase()}`}>
                   {exp.category}
                 </span>
               </span>
-              <span className="expense-desc">{exp.description || '—'}</span>
+              <span className="expense-desc">{exp.description || '\u2014'}</span>
               <span className="expense-amount num">{formatPeso(exp.amount)}</span>
             </div>
           ))
         )}
       </div>
+
+      {hasMore && (
+        <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+          <button className="btn btn-secondary" onClick={loadMore}>
+            Load More
+          </button>
+        </div>
+      )}
 
       <ConfirmDialog
         open={!!confirmItem}
@@ -435,7 +608,7 @@ export default function Expenses() {
 
         .expense-table-header {
           display: grid;
-          grid-template-columns: 70px 90px 1fr 100px;
+          grid-template-columns: 36px 70px 90px 1fr 100px;
           padding: 0.625rem 1rem;
           font-size: 0.75rem;
           font-weight: 600;
@@ -448,7 +621,7 @@ export default function Expenses() {
 
         .expense-row {
           display: grid;
-          grid-template-columns: 70px 90px 1fr 100px;
+          grid-template-columns: 36px 70px 90px 1fr 100px;
           align-items: center;
           padding: 0.75rem 1rem;
           border-bottom: 1px solid var(--color-border);
@@ -500,6 +673,65 @@ export default function Expenses() {
 
         .num { text-align: right; }
 
+        .expense-check-col {
+          display: flex;
+          align-items: center;
+        }
+
+        .sortable {
+          cursor: pointer;
+          user-select: none;
+        }
+
+        .sortable:hover {
+          color: var(--color-primary);
+        }
+
+        .expense-toolbar {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          margin-bottom: 0.75rem;
+          flex-wrap: wrap;
+        }
+
+        .expense-search {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          min-width: 200px;
+        }
+
+        .expense-search svg {
+          flex-shrink: 0;
+          color: var(--color-text-muted);
+        }
+
+        .expense-search .input {
+          flex: 1;
+        }
+
+        .expense-record-count {
+          font-size: 0.8125rem;
+          color: var(--color-text-muted);
+          white-space: nowrap;
+        }
+
+        .bulk-actions {
+          margin-bottom: 0.75rem;
+        }
+
+        .btn-danger {
+          background: var(--color-danger);
+          color: white;
+          border: none;
+        }
+
+        .btn-danger:hover {
+          background: #c0392b;
+        }
+
         .empty-state {
           display: flex;
           flex-direction: column;
@@ -516,28 +748,33 @@ export default function Expenses() {
             display: none;
           }
           .expense-row {
-            grid-template-columns: 1fr auto;
+            grid-template-columns: auto 1fr auto;
             gap: 0.1rem 0.5rem;
             padding: 0.625rem 0.75rem;
           }
-          .expense-date {
+          .expense-check-col {
             grid-column: 1;
+            grid-row: 1 / 3;
+            align-self: center;
+          }
+          .expense-date {
+            grid-column: 2;
             grid-row: 1;
             font-size: 0.6875rem;
             color: var(--color-text-muted);
           }
           .expense-category {
-            grid-column: 1;
+            grid-column: 2;
             grid-row: 2;
           }
           .expense-amount {
-            grid-column: 2;
+            grid-column: 3;
             grid-row: 1 / 3;
             align-self: center;
             font-size: 0.9375rem;
           }
           .expense-desc {
-            grid-column: 1 / -1;
+            grid-column: 2 / -1;
             grid-row: 3;
             font-size: 0.8125rem;
           }

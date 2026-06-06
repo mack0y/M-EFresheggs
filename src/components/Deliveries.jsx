@@ -11,12 +11,17 @@ import {
   CheckCircle,
   Clock,
   Trash2,
+  ChevronDown,
+  ChevronRight,
   Edit3,
+  Search,
 } from 'lucide-react';
+import { supabase } from '../lib/supabaseClient';
 import {
   fetchDeliveries,
-  recordDelivery,
+  recordDeliveryBatch,
   deleteDelivery,
+  deleteDeliveryBatch,
   updateDeliveryPayment,
   fetchSuppliers,
   fetchInventory,
@@ -42,14 +47,19 @@ export default function Deliveries() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [editingPayment, setEditingPayment] = useState(null);
   const [confirmItem, setConfirmItem] = useState(null);
+  const [expandedBatches, setExpandedBatches] = useState({});
+  const PAGE_SIZE = 50;
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedBatches, setSelectedBatches] = useState(new Set());
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
 
   const today = getLocalDate();
 
   const [form, setForm] = useState({
     supplierId: '',
-    eggSizeId: '',
-    quantity: '',
-    costPerTray: '',
+    sizes: [],
     paymentStatus: 'unpaid',
     notes: '',
     date: today,
@@ -59,16 +69,34 @@ export default function Deliveries() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    if (inventory.length > 0) {
+      setForm(prev => ({
+        ...prev,
+        sizes: inventory
+          .sort((a, b) => (a.egg_sizes?.sort_order || 0) - (b.egg_sizes?.sort_order || 0))
+          .map(item => ({
+            eggSizeId: item.egg_size_id,
+            name: item.egg_sizes?.name || 'Unknown',
+            quantity: '',
+            costPerTray: '',
+          })),
+      }));
+    }
+  }, [inventory]);
+
   async function loadData() {
     try {
       setLoading(true);
       setError(null);
       const [delData, suppData, invData] = await Promise.all([
-        fetchDeliveries({ limit: 200 }),
+        fetchDeliveries({ limit: PAGE_SIZE, offset: 0 }),
         fetchSuppliers(),
         fetchInventory(),
       ]);
       setDeliveries(delData || []);
+      setPage(0);
+      setHasMore(delData && delData.length === PAGE_SIZE);
       setSuppliers(suppData || []);
       setInventory(invData || []);
     } catch (err) {
@@ -79,57 +107,102 @@ export default function Deliveries() {
     }
   }
 
-  function calculateTotalCost() {
-    const qty = parseInt(form.quantity, 10);
-    const cost = parseFloat(form.costPerTray);
-    if (isNaN(qty) || isNaN(cost) || qty <= 0 || cost < 0) return 0;
-    return qty * cost;
+  async function loadMore() {
+    try {
+      const nextPage = page + 1;
+      const data = await fetchDeliveries({ limit: PAGE_SIZE, offset: nextPage * PAGE_SIZE });
+      if (data && data.length > 0) {
+        setDeliveries(prev => [...prev, ...data]);
+        setPage(nextPage);
+        setHasMore(data.length === PAGE_SIZE);
+      } else {
+        setHasMore(false);
+      }
+    } catch (err) {
+      console.error('Load more error:', err);
+      toast('Failed to load more deliveries', 'error');
+    }
+  }
+
+  function updateSize(index, field, value) {
+    setForm(prev => {
+      const sizes = [...prev.sizes];
+      sizes[index] = { ...sizes[index], [field]: value };
+      return { ...prev, sizes };
+    });
+  }
+
+  function calculateBatchTotal() {
+    return form.sizes.reduce((sum, s) => {
+      const qty = parseInt(s.quantity, 10) || 0;
+      const cost = parseFloat(s.costPerTray) || 0;
+      return sum + (qty * cost);
+    }, 0);
+  }
+
+  function activeSizes() {
+    return form.sizes.filter(s => parseInt(s.quantity, 10) > 0);
   }
 
   function handleSubmit(e) {
     e.preventDefault();
-    if (!form.supplierId || !form.eggSizeId || !form.quantity) {
-      toast('Please fill in supplier, egg size, and quantity', 'error');
+    if (!form.supplierId) {
+      toast('Please select a supplier', 'error');
       return;
     }
-    const qty = parseInt(form.quantity, 10);
-    if (isNaN(qty) || qty <= 0) {
-      toast('Please enter a valid quantity', 'error');
+    const active = activeSizes();
+    if (active.length === 0) {
+      toast('Enter quantity for at least one egg size', 'error');
       return;
     }
-    if (!form.costPerTray || parseFloat(form.costPerTray) < 0) {
-      toast('Please enter a valid cost per tray', 'error');
-      return;
+    for (const s of active) {
+      if (!s.costPerTray || parseFloat(s.costPerTray) < 0) {
+        toast(`Enter cost per tray for ${s.name}`, 'error');
+        return;
+      }
     }
-    setConfirmItem({ ...form, quantity: qty });
+    setConfirmItem({ ...form });
   }
-
 
   async function executeDelivery(data) {
     setSubmitting(true);
     try {
-      await recordDelivery({
+      const active = data.sizes.filter(s => parseInt(s.quantity, 10) > 0);
+      const result = await recordDeliveryBatch({
         supplierId: parseInt(data.supplierId, 10),
-        eggSizeId: parseInt(data.eggSizeId, 10),
-        quantity: data.quantity,
+        items: active.map(s => ({
+          eggSizeId: parseInt(s.eggSizeId, 10),
+          quantity: parseInt(s.quantity, 10),
+          costPerTray: parseFloat(s.costPerTray),
+        })),
         unit: 'tray',
         traySize: TRAY_SIZE,
-        costPerTray: parseFloat(data.costPerTray),
-        totalCost: data.quantity * parseFloat(data.costPerTray),
         paymentStatus: data.paymentStatus,
         notes: data.notes.trim(),
         deliveryDate: data.date,
       });
-      toast('Delivery recorded!');
-      setForm({
+      const batchId = result?.[0]?.batch_id;
+      toast('Delivery recorded!', 'success', {
+        label: 'Undo',
+        onClick: () => {
+          if (batchId) {
+            deleteDeliveryBatch(batchId).then(() => {
+              toast('Delivery undone');
+              loadData();
+            }).catch(() => {
+              toast('Failed to undo delivery', 'error');
+            });
+          }
+        },
+      });
+      setForm(prev => ({
+        ...prev,
         supplierId: '',
-        eggSizeId: '',
-        quantity: '',
-        costPerTray: '',
+        sizes: prev.sizes.map(s => ({ ...s, quantity: '', costPerTray: '' })),
         paymentStatus: 'unpaid',
         notes: '',
         date: today,
-      });
+      }));
       setShowForm(false);
       loadData();
     } catch (err) {
@@ -140,10 +213,37 @@ export default function Deliveries() {
     }
   }
 
-  async function handleDeleteDelivery(id) {
+  async function handleBulkDeleteConfirmed() {
+    try {
+      const ids = [...selectedBatches];
+      await Promise.all(ids.map(batchId => deleteDeliveryBatch(batchId)));
+      toast(`${ids.length} delivery(ies) removed`);
+      setSelectedBatches(new Set());
+      setConfirmBulkDelete(false);
+      loadData();
+    } catch (err) {
+      console.error('Bulk delete error:', err);
+      toast('Failed to remove deliveries', 'error');
+      setConfirmBulkDelete(false);
+    }
+  }
+
+  async function handleDeleteBatch(batchId) {
+    try {
+      await deleteDeliveryBatch(batchId);
+      toast('Delivery removed');
+      setDeleteTarget(null);
+      loadData();
+    } catch (err) {
+      console.error('Delete batch error:', err);
+      toast('Failed to remove delivery', 'error');
+    }
+  }
+
+  async function handleDeleteSingle(id) {
     try {
       await deleteDelivery(id);
-      toast('Delivery removed');
+      toast('Delivery item removed');
       setDeleteTarget(null);
       loadData();
     } catch (err) {
@@ -163,6 +263,28 @@ export default function Deliveries() {
       toast('Failed to update payment status', 'error');
     }
   }
+
+  // Group deliveries by batch_id
+  const batches = {};
+  deliveries.forEach(d => {
+    const bid = d.batch_id || `single_${d.id}`;
+    if (!batches[bid]) {
+      batches[bid] = { batchId: bid, items: [], isSingle: !d.batch_id };
+    }
+    batches[bid].items.push(d);
+  });
+  const batchList = Object.values(batches).sort((a, b) => {
+    const dateA = a.items[0]?.delivery_date || '';
+    const dateB = b.items[0]?.delivery_date || '';
+    if (dateA !== dateB) return dateB.localeCompare(dateA);
+    return (b.items[0]?.id || 0) - (a.items[0]?.id || 0);
+  });
+
+  const filteredBatchList = batchList.filter(batch => {
+    if (!searchQuery) return true;
+    const name = (batch.items[0]?.suppliers?.name || '').toLowerCase();
+    return name.includes(searchQuery.toLowerCase());
+  });
 
   const totalCostAll = deliveries.reduce((sum, d) => sum + parseFloat(d.total_cost || 0), 0);
   const unpaidTotal = deliveries
@@ -196,6 +318,21 @@ export default function Deliveries() {
     return `${trays}t + ${pieces}p`;
   }
 
+  function batchTotalQty(items) {
+    return items.reduce((sum, d) => sum + d.quantity, 0);
+  }
+
+  function batchTotalCost(items) {
+    return items.reduce((sum, d) => sum + parseFloat(d.total_cost || 0), 0);
+  }
+
+  function batchPaymentStatus(items) {
+    const statuses = items.map(d => d.payment_status);
+    if (statuses.every(s => s === 'paid')) return 'paid';
+    if (statuses.some(s => s === 'paid')) return 'partial';
+    return 'unpaid';
+  }
+
   const paymentColors = {
     unpaid: { bg: '#FFF3E0', color: '#E65100' },
     partial: { bg: '#FFF8E1', color: '#F57F17' },
@@ -223,7 +360,7 @@ export default function Deliveries() {
         <div className="delivery-stat-card">
           <Truck size={18} />
           <div>
-            <span className="delivery-stat-value">{deliveries.length}</span>
+            <span className="delivery-stat-value">{batchList.length}</span>
             <span className="delivery-stat-label">total deliveries</span>
           </div>
         </div>
@@ -288,7 +425,6 @@ export default function Deliveries() {
                   <label htmlFor="delivery-supplier">Supplier</label>
                   <select
                     id="delivery-supplier"
-                    name="supplierId"
                     className="select"
                     value={form.supplierId}
                     onChange={e => setForm({ ...form, supplierId: e.target.value })}
@@ -301,60 +437,9 @@ export default function Deliveries() {
                   </select>
                 </div>
                 <div className="input-group">
-                  <label htmlFor="delivery-egg-size">Egg Size</label>
-                  <select
-                    id="delivery-egg-size"
-                    name="eggSizeId"
-                    className="select"
-                    value={form.eggSizeId}
-                    onChange={e => setForm({ ...form, eggSizeId: e.target.value })}
-                    required
-                  >
-                    <option value="">Select size...</option>
-                    {inventory
-                      .sort((a, b) => (a.egg_sizes?.sort_order || 0) - (b.egg_sizes?.sort_order || 0))
-                      .map(item => (
-                        <option key={item.egg_size_id} value={item.egg_size_id}>
-                          {item.egg_sizes?.name}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-
-                <div className="input-group">
-                  <label htmlFor="delivery-quantity">Quantity</label>
-                  <input
-                    id="delivery-quantity"
-                    name="quantity"
-                    type="number"
-                    className="input"
-                    min="1"
-                    placeholder="Number of trays"
-                    value={form.quantity}
-                    onChange={e => setForm({ ...form, quantity: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="input-group">
-                  <label htmlFor="delivery-cost">Cost per Tray (₱)</label>
-                  <input
-                    id="delivery-cost"
-                    name="costPerTray"
-                    type="number"
-                    className="input"
-                    min="0"
-                    step="0.01"
-                    placeholder="0.00"
-                    value={form.costPerTray}
-                    onChange={e => setForm({ ...form, costPerTray: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="input-group">
                   <label htmlFor="delivery-date">Date</label>
                   <input
                     id="delivery-date"
-                    name="date"
                     type="date"
                     className="input"
                     value={form.date}
@@ -365,7 +450,6 @@ export default function Deliveries() {
                   <label htmlFor="delivery-payment">Payment Status</label>
                   <select
                     id="delivery-payment"
-                    name="paymentStatus"
                     className="select"
                     value={form.paymentStatus}
                     onChange={e => setForm({ ...form, paymentStatus: e.target.value })}
@@ -375,25 +459,62 @@ export default function Deliveries() {
                     ))}
                   </select>
                 </div>
-                <div className="input-group" style={{ gridColumn: '1 / -1' }}>
-                  <label htmlFor="delivery-notes">Notes</label>
-                  <input
-                    id="delivery-notes"
-                    name="notes"
-                    type="text"
-                    className="input"
-                    placeholder="e.g. Good quality, some cracked eggs"
-                    value={form.notes}
-                    onChange={e => setForm({ ...form, notes: e.target.value })}
-                  />
-                </div>
               </div>
 
-              {/* Cost preview */}
-              {form.quantity && form.costPerTray && (
+              {/* Egg size inputs */}
+              <div className="delivery-sizes-grid">
+                <div className="delivery-sizes-header">
+                  <span className="delivery-sizes-label">Egg Size</span>
+                  <span className="delivery-sizes-label">Qty (trays)</span>
+                  <span className="delivery-sizes-label">Cost/Tray</span>
+                  <span className="delivery-sizes-label num">Subtotal</span>
+                </div>
+                {form.sizes.map((size, i) => (
+                  <div key={size.eggSizeId} className="delivery-size-row">
+                    <span className="delivery-size-name">{size.name}</span>
+                    <input
+                      type="number"
+                      className="input delivery-size-input"
+                      min="0"
+                      placeholder="0"
+                      value={size.quantity}
+                      onChange={e => updateSize(i, 'quantity', e.target.value)}
+                    />
+                    <input
+                      type="number"
+                      className="input delivery-size-input"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={size.costPerTray}
+                      onChange={e => updateSize(i, 'costPerTray', e.target.value)}
+                    />
+                    <span className="delivery-size-subtotal num">
+                      {(parseInt(size.quantity, 10) || 0) * (parseFloat(size.costPerTray) || 0) > 0
+                        ? formatPeso((parseInt(size.quantity, 10) || 0) * (parseFloat(size.costPerTray) || 0))
+                        : '—'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="input-group" style={{ marginTop: '0.75rem' }}>
+                <label htmlFor="delivery-notes">Notes</label>
+                <input
+                  id="delivery-notes"
+                  type="text"
+                  className="input"
+                  placeholder="e.g. Good quality, some cracked eggs"
+                  value={form.notes}
+                  onChange={e => setForm({ ...form, notes: e.target.value })}
+                />
+              </div>
+
+              {/* Batch total preview */}
+              {activeSizes().length > 0 && (
                 <div className="delivery-cost-preview">
-                  <span>Total Cost:</span>
-                  <strong>{formatPeso(calculateTotalCost())}</strong>
+                  <span>Total Cost ({activeSizes().length} size{activeSizes().length > 1 ? 's' : ''}):</span>
+                  <strong>{formatPeso(calculateBatchTotal())}</strong>
                 </div>
               )}
 
@@ -424,12 +545,53 @@ export default function Deliveries() {
         </div>
       )}
 
+      {/* Search and controls */}
+      <div className="delivery-controls">
+        <div className="search-input-wrapper">
+          <Search size={16} className="search-icon" />
+          <input
+            type="text"
+            className="input"
+            placeholder="Search supplier..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
+        </div>
+        <span className="delivery-count">Showing {filteredBatchList.length} {filteredBatchList.length === 1 ? 'batch' : 'batches'}</span>
+      </div>
+
+      {selectedBatches.size > 0 && (
+        <div className="bulk-delete-bar">
+          <span className="bulk-delete-label">{selectedBatches.size} selected</span>
+          <button className="btn btn-sm btn-danger" onClick={() => setConfirmBulkDelete(true)}>
+            <Trash2 size={14} />
+            Delete Selected ({selectedBatches.size})
+          </button>
+          <button className="btn btn-sm btn-secondary" onClick={() => setSelectedBatches(new Set())}>
+            Clear Selection
+          </button>
+        </div>
+      )}
+
       {/* Delivery list */}
       <div className="card" style={{ padding: 0 }}>
         <div className="delivery-table-header">
+          <span className="checkbox-col">
+            <input
+              type="checkbox"
+              checked={filteredBatchList.length > 0 && selectedBatches.size === filteredBatchList.length}
+              onChange={e => {
+                if (e.target.checked) {
+                  setSelectedBatches(new Set(filteredBatchList.map(b => b.batchId)));
+                } else {
+                  setSelectedBatches(new Set());
+                }
+              }}
+            />
+          </span>
           <span>Date</span>
           <span>Supplier</span>
-          <span>Size</span>
+          <span>Sizes</span>
           <span>Qty</span>
           <span>Cost</span>
           <span>Payment</span>
@@ -443,80 +605,170 @@ export default function Deliveries() {
               </div>
             ))}
           </div>
-        ) : deliveries.length === 0 ? (
+        ) : batchList.length === 0 ? (
           <div className="empty-state">
             <Truck size={36} />
             <p>No deliveries recorded yet</p>
+            <p style={{ fontSize: '0.8125rem', marginTop: '-0.25rem' }}>Click "Record Delivery" to log a supplier delivery with all egg sizes</p>
+          </div>
+        ) : filteredBatchList.length === 0 ? (
+          <div className="empty-state">
+            <Search size={36} />
+            <p>No deliveries match your search</p>
+            <p style={{ fontSize: '0.8125rem', marginTop: '-0.25rem' }}>Try a different supplier name</p>
           </div>
         ) : (
-          deliveries.map((delivery, i) => (
-            <div
-              key={delivery.id}
-              className="delivery-row"
-              style={{ animationDelay: `${i * 0.025}s` }}
-            >
-              <span className="delivery-date">{formatDate(delivery.delivery_date)}</span>
-              <span className="delivery-supplier">{delivery.suppliers?.name || 'Unknown'}</span>
-              <span className="delivery-size">{delivery.egg_sizes?.name || 'Unknown'}</span>
-              <span className="delivery-qty">{formatQuantity(delivery)}</span>
-              <span className="delivery-cost">{formatPeso(delivery.total_cost)}</span>
-              <span className="delivery-payment">
-                <span
-                  className="delivery-payment-badge"
-                  style={{
-                    background: paymentColors[delivery.payment_status]?.bg,
-                    color: paymentColors[delivery.payment_status]?.color,
-                  }}
+          filteredBatchList.map((batch) => {
+            const isExpanded = expandedBatches[batch.batchId];
+            const bpStatus = batch.isSingle
+              ? batch.items[0]?.payment_status
+              : batchPaymentStatus(batch.items);
+            const bpStyle = paymentColors[bpStatus] || paymentColors.unpaid;
+            return (
+              <div key={batch.batchId} className="delivery-batch">
+                <div
+                  className="delivery-row delivery-batch-header"
+                  onClick={() => !batch.isSingle && setExpandedBatches(prev => ({ ...prev, [batch.batchId]: !prev[batch.batchId] }))}
+                  style={{ cursor: batch.isSingle ? 'default' : 'pointer' }}
                 >
-                  {delivery.payment_status}
-                </span>
-              </span>
-              <span className="num">
-                <div className="delivery-actions">
-                  <button
-                    className="btn-icon"
-                    onClick={() => setEditingPayment(editingPayment === delivery.id ? null : delivery.id)}
-                    title="Update payment"
-                  >
-                    <Edit3 size={14} />
-                  </button>
-                  <button
-                    className="btn-icon btn-icon-danger"
-                    onClick={() => setDeleteTarget(delivery)}
-                    title="Delete delivery"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  <span className="checkbox-col" onClick={e => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={selectedBatches.has(batch.batchId)}
+                      onChange={e => {
+                        const newSet = new Set(selectedBatches);
+                        if (e.target.checked) {
+                          newSet.add(batch.batchId);
+                        } else {
+                          newSet.delete(batch.batchId);
+                        }
+                        setSelectedBatches(newSet);
+                      }}
+                    />
+                  </span>
+                  {!batch.isSingle && (
+                    <span className="delivery-batch-chevron">
+                      {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    </span>
+                  )}
+                  <span className="delivery-date">{formatDate(batch.items[0]?.delivery_date)}</span>
+                  <span className="delivery-supplier">{batch.items[0]?.suppliers?.name || 'Unknown'}</span>
+                  <span className="delivery-sizes-summary">
+                    {batch.items.length} size{batch.items.length > 1 ? 's' : ''}
+                  </span>
+                  <span className="delivery-qty">{batchTotalQty(batch.items)} trays</span>
+                  <span className="delivery-cost">{formatPeso(batchTotalCost(batch.items))}</span>
+                  <span className="delivery-payment">
+                    {batch.isSingle ? (
+                      <span
+                        className="delivery-payment-badge"
+                        style={{ background: bpStyle.bg, color: bpStyle.color }}
+                      >
+                        {bpStatus}
+                      </span>
+                    ) : (
+                      <span
+                        className="delivery-payment-badge"
+                        style={{ background: bpStyle.bg, color: bpStyle.color }}
+                      >
+                        {bpStatus}
+                      </span>
+                    )}
+                  </span>
+                  <span className="num">
+                    <div className="delivery-actions">
+                      <button
+                        className="btn-icon"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingPayment(editingPayment === batch.batchId ? null : batch.batchId);
+                        }}
+                        title="Update payment"
+                      >
+                        <Edit3 size={14} />
+                      </button>
+                      <button
+                        className="btn-icon btn-icon-danger"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteTarget(batch);
+                        }}
+                        title="Delete delivery"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </span>
                 </div>
-              </span>
 
-              {/* Payment update dropdown */}
-              {editingPayment === delivery.id && (
-                <div className="delivery-payment-dropdown">
-                  {PAYMENT_STATUSES.map(status => (
-                    <button
-                      key={status}
-                      className={`delivery-payment-option ${delivery.payment_status === status ? 'active' : ''}`}
-                      onClick={() => handlePaymentUpdate(delivery.id, status)}
-                    >
-                      {status === 'paid' && <CheckCircle size={14} />}
-                      {status === 'partial' && <Clock size={14} />}
-                      {status === 'unpaid' && <AlertTriangle size={14} />}
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))
+                {/* Expanded size details */}
+                {isExpanded && batch.items.length > 1 && (
+                  <div className="delivery-batch-details">
+                    {batch.items
+                      .sort((a, b) => (a.egg_sizes?.sort_order || 0) - (b.egg_sizes?.sort_order || 0))
+                      .map(item => (
+                        <div key={item.id} className="delivery-batch-item">
+                          <span className="delivery-batch-item-size">{item.egg_sizes?.name}</span>
+                          <span className="delivery-batch-item-qty">{formatQuantity(item)}</span>
+                          <span className="delivery-batch-item-cost">{formatPeso(item.total_cost)}</span>
+                          <span
+                            className="delivery-payment-badge"
+                            style={{
+                              background: paymentColors[item.payment_status]?.bg,
+                              color: paymentColors[item.payment_status]?.color,
+                            }}
+                          >
+                            {item.payment_status}
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                )}
+
+                {/* Payment update dropdown */}
+                {editingPayment === batch.batchId && (
+                  <div className="delivery-payment-dropdown">
+                    {PAYMENT_STATUSES.map(status => (
+                      <button
+                        key={status}
+                        className={`delivery-payment-option ${bpStatus === status ? 'active' : ''}`}
+                        onClick={() => {
+                          const items = batch.items;
+                          Promise.all(items.map(item => handlePaymentUpdate(item.id, status)));
+                        }}
+                      >
+                        {status === 'paid' && <CheckCircle size={14} />}
+                        {status === 'partial' && <Clock size={14} />}
+                        {status === 'unpaid' && <AlertTriangle size={14} />}
+                        {status.charAt(0).toUpperCase() + status.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })
         )}
       </div>
+
+      {hasMore && !searchQuery && (
+        <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+          <button className="btn btn-secondary" onClick={loadMore}>
+            Load More
+          </button>
+        </div>
+      )}
 
       <ConfirmDialog
         open={!!confirmItem}
         title="Record this delivery?"
         message={confirmItem
-          ? `Record ${confirmItem.quantity} tray(s) of ${inventory.find(i => i.egg_size_id === parseInt(confirmItem.eggSizeId, 10))?.egg_sizes?.name || 'Unknown'} from ${suppliers.find(s => s.id === parseInt(confirmItem.supplierId, 10))?.name || 'Unknown'}?`
+          ? (() => {
+              const active = activeSizes();
+              const sName = suppliers.find(s => s.id === parseInt(confirmItem.supplierId, 10))?.name || 'Unknown';
+              const lines = active.map(s => `${s.quantity} trays of ${s.name}`);
+              return `Delivery from ${sName}:\n${lines.join('\n')}`;
+            })()
           : ''}
         confirmLabel="Record"
         variant="primary"
@@ -530,15 +782,34 @@ export default function Deliveries() {
       />
 
       <ConfirmDialog
+        open={confirmBulkDelete}
+        title="Delete selected deliveries?"
+        message={`Delete ${selectedBatches.size} delivery(ies)? This cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        icon={Trash2}
+        onConfirm={handleBulkDeleteConfirmed}
+        onCancel={() => setConfirmBulkDelete(false)}
+      />
+
+      <ConfirmDialog
         open={!!deleteTarget}
         title="Delete this delivery?"
         message={deleteTarget
-          ? `Delete the ${deleteTarget.suppliers?.name || 'Unknown'} delivery of ${deleteTarget.egg_sizes?.name || 'Unknown'} eggs? This cannot be undone.`
+          ? `Delete the ${deleteTarget.items[0]?.suppliers?.name || 'Unknown'} delivery of ${deleteTarget.items.length} size(s)? This cannot be undone.`
           : ''}
         confirmLabel="Delete"
         variant="danger"
         icon={Trash2}
-        onConfirm={() => handleDeleteDelivery(deleteTarget.id)}
+        onConfirm={() => {
+          const target = deleteTarget;
+          setDeleteTarget(null);
+          if (target.isSingle) {
+            handleDeleteSingle(target.items[0].id);
+          } else {
+            handleDeleteBatch(target.batchId);
+          }
+        }}
         onCancel={() => setDeleteTarget(null)}
       />
 
@@ -623,6 +894,55 @@ export default function Deliveries() {
           color: var(--color-text-muted);
         }
 
+        .delivery-sizes-grid {
+          margin-top: 1rem;
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-md);
+          overflow: hidden;
+        }
+
+        .delivery-sizes-header {
+          display: grid;
+          grid-template-columns: 1fr 90px 110px 100px;
+          gap: 0.5rem;
+          padding: 0.5rem 0.75rem;
+          background: var(--color-bg);
+          border-bottom: 1px solid var(--color-border);
+          font-size: 0.7rem;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          color: var(--color-text-muted);
+        }
+
+        .delivery-size-row {
+          display: grid;
+          grid-template-columns: 1fr 90px 110px 100px;
+          gap: 0.5rem;
+          align-items: center;
+          padding: 0.5rem 0.75rem;
+          border-bottom: 1px solid var(--color-border);
+        }
+
+        .delivery-size-row:last-child { border-bottom: none; }
+
+        .delivery-size-name {
+          font-size: 0.875rem;
+          font-weight: 500;
+        }
+
+        .delivery-size-input {
+          height: 2rem !important;
+          font-size: 0.8125rem !important;
+          padding: 0 0.5rem !important;
+        }
+
+        .delivery-size-subtotal {
+          font-size: 0.8125rem;
+          font-weight: 600;
+          color: var(--color-primary);
+        }
+
         .delivery-cost-preview {
           display: flex;
           justify-content: space-between;
@@ -641,7 +961,7 @@ export default function Deliveries() {
 
         .delivery-table-header {
           display: grid;
-          grid-template-columns: 70px 1fr 80px 80px 90px 80px 60px;
+          grid-template-columns: 36px 70px 1fr 60px 80px 90px 80px 60px;
           padding: 0.625rem 1rem;
           font-size: 0.75rem;
           font-weight: 600;
@@ -652,21 +972,98 @@ export default function Deliveries() {
           border-bottom: 1px solid var(--color-border);
         }
 
-        .delivery-row {
-          display: grid;
-          grid-template-columns: 70px 1fr 80px 80px 90px 80px 60px;
-          align-items: center;
-          padding: 0.75rem 1rem;
+        .delivery-batch {
           border-bottom: 1px solid var(--color-border);
           animation: fadeIn 0.3s ease-out forwards;
           opacity: 0;
+        }
+
+        .delivery-batch:last-child { border-bottom: none; }
+
+        .delivery-row {
+          display: grid;
+          grid-template-columns: 36px 70px 1fr 60px 80px 90px 80px 60px;
+          align-items: center;
+          padding: 0.75rem 0.5rem 0.75rem 0.25rem;
           transition: background 0.2s;
           font-size: 0.9375rem;
           position: relative;
         }
 
-        .delivery-row:last-child { border-bottom: none; }
-        .delivery-row:hover { background: var(--color-bg); }
+        .delivery-batch-header:hover { background: var(--color-bg); }
+
+        .delivery-batch-chevron {
+          position: absolute;
+          left: 2rem;
+          color: var(--color-text-muted);
+        }
+
+        .checkbox-col {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .checkbox-col input[type="checkbox"] {
+          width: 1rem;
+          height: 1rem;
+          cursor: pointer;
+          accent-color: var(--color-primary);
+        }
+
+        .delivery-controls {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.75rem;
+          margin-bottom: 0.75rem;
+          flex-wrap: wrap;
+        }
+
+        .search-input-wrapper {
+          position: relative;
+          flex: 1;
+          min-width: 200px;
+          max-width: 320px;
+        }
+
+        .search-input-wrapper .input {
+          padding-left: 2rem;
+          height: 2.25rem;
+          font-size: 0.875rem;
+        }
+
+        .search-icon {
+          position: absolute;
+          left: 0.625rem;
+          top: 50%;
+          transform: translateY(-50%);
+          color: var(--color-text-muted);
+          pointer-events: none;
+        }
+
+        .delivery-count {
+          font-size: 0.8125rem;
+          color: var(--color-text-muted);
+          white-space: nowrap;
+        }
+
+        .bulk-delete-bar {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.5rem 0.75rem;
+          margin-bottom: 0.75rem;
+          background: #FFF3E0;
+          border: 1px solid #FFB74D;
+          border-radius: var(--radius-md);
+          font-size: 0.8125rem;
+        }
+
+        .bulk-delete-label {
+          font-weight: 600;
+          color: #E65100;
+        }
 
         .delivery-date {
           font-size: 0.8125rem;
@@ -677,9 +1074,9 @@ export default function Deliveries() {
           font-weight: 500;
         }
 
-        .delivery-size {
-          font-size: 0.875rem;
-          color: var(--color-text-secondary);
+        .delivery-sizes-summary {
+          font-size: 0.8125rem;
+          color: var(--color-text-muted);
         }
 
         .delivery-qty {
@@ -707,6 +1104,25 @@ export default function Deliveries() {
           gap: 0.25rem;
           justify-content: flex-end;
         }
+
+        .delivery-batch-details {
+          background: var(--color-bg);
+          border-top: 1px dashed var(--color-border);
+          padding: 0.5rem 1rem 0.5rem 2rem;
+        }
+
+        .delivery-batch-item {
+          display: grid;
+          grid-template-columns: 1fr 80px 90px 80px;
+          gap: 0.5rem;
+          align-items: center;
+          padding: 0.35rem 0;
+          font-size: 0.8125rem;
+        }
+
+        .delivery-batch-item-size { font-weight: 500; }
+        .delivery-batch-item-qty { font-variant-numeric: tabular-nums; }
+        .delivery-batch-item-cost { color: var(--color-primary); font-weight: 600; }
 
         .delivery-payment-dropdown {
           position: absolute;
@@ -760,10 +1176,14 @@ export default function Deliveries() {
 
         @media (max-width: 640px) {
           .delivery-table-header { display: none; }
+          .checkbox-col { display: none; }
           .delivery-row {
             grid-template-columns: 1fr auto;
             gap: 0.1rem 0.5rem;
             padding: 0.625rem 0.75rem;
+          }
+          .delivery-batch-chevron {
+            left: 0.25rem;
           }
           .delivery-date {
             grid-column: 1; grid-row: 1;
@@ -773,7 +1193,7 @@ export default function Deliveries() {
           .delivery-supplier {
             grid-column: 2; grid-row: 1;
           }
-          .delivery-size {
+          .delivery-sizes-summary {
             grid-column: 1; grid-row: 2;
             font-size: 0.8125rem;
           }
@@ -795,6 +1215,17 @@ export default function Deliveries() {
           }
           .delivery-actions { justify-content: flex-end; }
           .delivery-stats { grid-template-columns: 1fr; }
+          .delivery-sizes-header {
+            grid-template-columns: 1fr 70px 85px 80px;
+            font-size: 0.6rem;
+          }
+          .delivery-size-row {
+            grid-template-columns: 1fr 70px 85px 80px;
+          }
+          .delivery-batch-item {
+            grid-template-columns: 1fr 60px 70px 60px;
+            font-size: 0.75rem;
+          }
         }
 
         @media (min-width: 640px) {

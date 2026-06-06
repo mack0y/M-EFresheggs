@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   AlertTriangle,
   Plus,
@@ -11,6 +11,7 @@ import { fetchSpoilageWithCost, recordSpoilage, fetchInventory, SPOILAGE_REASONS
 import { toast } from './Toast';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
+import { supabase } from '../lib/supabaseClient';
 
 export default function Spoilage() {
   const [spoilage, setSpoilage] = useState([]);
@@ -19,6 +20,13 @@ export default function Spoilage() {
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortField, setSortField] = useState('date');
+  const [sortDir, setSortDir] = useState('desc');
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const lastSpoilageRef = useRef(null);
 
   const today = getLocalDate();
 
@@ -30,6 +38,8 @@ export default function Spoilage() {
   });
   const [confirmItem, setConfirmItem] = useState(null);
 
+  const PAGE_SIZE = 50;
+
   useEffect(() => {
     loadData();
   }, []);
@@ -38,17 +48,36 @@ export default function Spoilage() {
     try {
       setLoading(true);
       setError(null);
+      setPage(0);
       const [spoilageData, invData] = await Promise.all([
-        fetchSpoilageWithCost({ limit: 1000 }),
+        fetchSpoilageWithCost({ limit: PAGE_SIZE, offset: 0 }),
         fetchInventory(),
       ]);
       setSpoilage(spoilageData || []);
       setInventory(invData || []);
+      setHasMore(spoilageData && spoilageData.length >= PAGE_SIZE);
     } catch (err) {
       console.error('Spoilage load error:', err);
       setError(err);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadMore() {
+    try {
+      const nextOffset = (page + 1) * PAGE_SIZE;
+      const data = await fetchSpoilageWithCost({ limit: PAGE_SIZE, offset: nextOffset });
+      if (data && data.length > 0) {
+        setSpoilage(prev => [...prev, ...data]);
+        setPage(prev => prev + 1);
+        setHasMore(data.length >= PAGE_SIZE);
+      } else {
+        setHasMore(false);
+      }
+    } catch (err) {
+      console.error('Spoilage load more error:', err);
+      toast('Failed to load more spoilage', 'error');
     }
   }
 
@@ -79,13 +108,26 @@ export default function Spoilage() {
   async function executeSpoilage(data) {
     setSubmitting(true);
     try {
-      await recordSpoilage({
+      const result = await recordSpoilage({
         eggSizeId: parseInt(data.eggSizeId, 10),
         quantity: data.quantity,
         reason: data.reason,
         spoilageDate: data.date,
       });
-      toast('Spoilage recorded!');
+      lastSpoilageRef.current = result;
+      toast('Spoilage recorded!', 'success', {
+        label: 'Undo',
+        onClick: async () => {
+          if (!lastSpoilageRef.current) return;
+          try {
+            await supabase.from('spoilage').delete().eq('id', lastSpoilageRef.current.id);
+            lastSpoilageRef.current = null;
+            loadData();
+          } catch (err) {
+            toast('Failed to undo spoilage', 'error');
+          }
+        },
+      });
       setForm({ eggSizeId: '', quantity: '', reason: 'Cracked', date: today });
       setShowForm(false);
       loadData();
@@ -123,6 +165,79 @@ export default function Spoilage() {
     yesterday.setDate(yesterday.getDate() - 1);
     if (dateStr === getLocalDate(yesterday)) return 'Yesterday';
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
+  const filteredSpoilage = spoilage.filter(s => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    const sizeName = (s.egg_sizes?.name || '').toLowerCase();
+    const reason = (s.reason || '').toLowerCase();
+    return sizeName.includes(q) || reason.includes(q);
+  });
+
+  const sortedSpoilage = [...filteredSpoilage].sort((a, b) => {
+    let cmp = 0;
+    switch (sortField) {
+      case 'size_name':
+        cmp = (a.egg_sizes?.name || '').localeCompare(b.egg_sizes?.name || '');
+        break;
+      case 'quantity':
+        cmp = a.quantity - b.quantity;
+        break;
+      case 'date':
+        cmp = (a.spoilage_date || '').localeCompare(b.spoilage_date || '');
+        break;
+      case 'reason':
+        cmp = (a.reason || '').localeCompare(b.reason || '');
+        break;
+    }
+    return sortDir === 'desc' ? -cmp : cmp;
+  });
+
+  const allVisibleSelected = sortedSpoilage.length > 0 && sortedSpoilage.every(s => selectedIds.has(s.id));
+
+  function handleSort(field) {
+    if (sortField === field) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+  }
+
+  function toggleSelectAll() {
+    if (allVisibleSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(sortedSpoilage.map(s => s.id)));
+    }
+  }
+
+  function toggleSelect(id) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleBulkDelete() {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    try {
+      await supabase.from('spoilage').delete().in('id', ids);
+      setSelectedIds(new Set());
+      loadData();
+      toast(`Deleted ${ids.length} spoilage entr${ids.length === 1 ? 'y' : 'ies'}`, 'success');
+    } catch (err) {
+      console.error('Bulk delete error:', err);
+      toast('Failed to delete selected entries', 'error');
+    }
+  }
+
+  function sortIndicator(field) {
+    if (sortField !== field) return '';
+    return sortDir === 'asc' ? ' ▲' : ' ▼';
   }
 
   return (
@@ -280,13 +395,50 @@ export default function Spoilage() {
         </div>
       )}
 
+      {/* Search & toolbar */}
+      <div className="spoilage-toolbar">
+        <input
+          type="text"
+          className="input spoilage-search-input"
+          placeholder="Search by size or reason..."
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+        />
+        <span className="spoilage-count">
+          Showing {sortedSpoilage.length} of {spoilage.length} spoilage entries
+        </span>
+        <button
+          className="btn btn-sm btn-danger"
+          disabled={selectedIds.size === 0}
+          onClick={handleBulkDelete}
+          title="Delete selected entries"
+        >
+          Delete Selected ({selectedIds.size})
+        </button>
+      </div>
+
       {/* Spoilage list */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <div className="spoilage-table-header">
-          <span>Date</span>
-          <span>Size</span>
-          <span>Qty</span>
-          <span>Reason</span>
+          <span className="spoilage-header-check">
+            <input
+              type="checkbox"
+              checked={allVisibleSelected && sortedSpoilage.length > 0}
+              onChange={toggleSelectAll}
+            />
+          </span>
+          <span className="spoilage-header-sortable" onClick={() => handleSort('date')}>
+            Date{sortIndicator('date')}
+          </span>
+          <span className="spoilage-header-sortable" onClick={() => handleSort('size_name')}>
+            Size{sortIndicator('size_name')}
+          </span>
+          <span className="spoilage-header-sortable" onClick={() => handleSort('quantity')}>
+            Qty{sortIndicator('quantity')}
+          </span>
+          <span className="spoilage-header-sortable" onClick={() => handleSort('reason')}>
+            Reason{sortIndicator('reason')}
+          </span>
         </div>
         {loading ? (
           <div className="loading-list">
@@ -300,14 +452,22 @@ export default function Spoilage() {
           <div className="empty-state">
             <Egg size={36} />
             <p>No spoilage recorded yet</p>
+            <p style={{ fontSize: '0.8125rem', marginTop: '-0.25rem' }}>Record cracked or damaged eggs to track waste</p>
           </div>
         ) : (
-          spoilage.map((entry, i) => (
+          sortedSpoilage.map((entry, i) => (
             <div
               key={entry.id}
               className="spoilage-row"
               style={{ animationDelay: `${i * 0.025}s` }}
             >
+              <span className="spoilage-row-check">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(entry.id)}
+                  onChange={() => toggleSelect(entry.id)}
+                />
+              </span>
               <span className="spoilage-date">{formatDate(entry.spoilage_date)}</span>
               <span className="spoilage-size">{entry.egg_sizes?.name || 'Unknown'}</span>
               <span className="spoilage-qty">{entry.quantity.toLocaleString()} eggs</span>
@@ -320,6 +480,14 @@ export default function Spoilage() {
           ))
         )}
       </div>
+
+      {hasMore && (
+        <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+          <button className="btn btn-secondary" onClick={loadMore}>
+            Load More
+          </button>
+        </div>
+      )}
 
       <ConfirmDialog
         open={!!confirmItem}
@@ -442,7 +610,7 @@ export default function Spoilage() {
 
         .spoilage-table-header {
           display: grid;
-          grid-template-columns: 70px 1fr 100px 1fr;
+          grid-template-columns: 40px 70px 1fr 100px 1fr;
           padding: 0.625rem 1rem;
           font-size: 0.75rem;
           font-weight: 600;
@@ -455,7 +623,7 @@ export default function Spoilage() {
 
         .spoilage-row {
           display: grid;
-          grid-template-columns: 70px 1fr 100px 1fr;
+          grid-template-columns: 40px 70px 1fr 100px 1fr;
           align-items: center;
           padding: 0.75rem 1rem;
           border-bottom: 1px solid var(--color-border);
@@ -497,6 +665,44 @@ export default function Spoilage() {
         .spoilage-reason-damaged { background: #E0F2F1; color: #00695C; }
         .spoilage-reason-other { background: #F5F5F5; color: #616161; }
 
+        .spoilage-toolbar {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          margin-bottom: 0.75rem;
+          flex-wrap: wrap;
+        }
+
+        .spoilage-search-input {
+          flex: 1;
+          min-width: 180px;
+          padding: 0.5rem 0.75rem;
+          font-size: 0.875rem;
+        }
+
+        .spoilage-count {
+          font-size: 0.8125rem;
+          color: var(--color-text-muted);
+          white-space: nowrap;
+        }
+
+        .spoilage-header-check,
+        .spoilage-row-check {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .spoilage-header-sortable {
+          cursor: pointer;
+          user-select: none;
+          transition: color 0.15s;
+        }
+
+        .spoilage-header-sortable:hover {
+          color: var(--color-text);
+        }
+
         .empty-state {
           display: flex;
           flex-direction: column;
@@ -510,25 +716,29 @@ export default function Spoilage() {
         @media (max-width: 640px) {
           .spoilage-table-header { display: none; }
           .spoilage-row {
-            grid-template-columns: 1fr auto;
+            grid-template-columns: auto 1fr auto;
             gap: 0.1rem 0.5rem;
             padding: 0.625rem 0.75rem;
           }
+          .spoilage-row-check {
+            grid-column: 1; grid-row: 1 / 4;
+            padding-right: 0.25rem;
+          }
           .spoilage-date {
-            grid-column: 1; grid-row: 1;
+            grid-column: 2; grid-row: 1;
             font-size: 0.6875rem;
             color: var(--color-text-muted);
           }
           .spoilage-size {
-            grid-column: 1; grid-row: 2;
+            grid-column: 2; grid-row: 2;
           }
           .spoilage-qty {
-            grid-column: 2; grid-row: 1 / 3;
+            grid-column: 3; grid-row: 1 / 3;
             align-self: center;
             text-align: right;
           }
           .spoilage-reason {
-            grid-column: 1 / -1; grid-row: 3;
+            grid-column: 2 / -1; grid-row: 3;
           }
           .spoilage-stats { grid-template-columns: 1fr; }
         }
