@@ -34,7 +34,7 @@ export default function ConfirmDialog({ open, title, message, confirmLabel = 'Co
           display: flex;
           align-items: center;
           justify-content: center;
-          z-index: 2000;
+          z-index: 6000;
           padding: 1rem;
           animation: fadeIn 0.15s ease-out;
         }
