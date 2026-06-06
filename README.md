@@ -1,17 +1,69 @@
-# React + Vite
+# M&E Fresh Eggs
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A mobile-first progressive web app for tracking egg inventory, sales, expenses, spoilage, pricing, suppliers, deliveries, and customers. Built for small-scale egg retail operations.
 
-Currently, two official plugins are available:
+**Live:** https://mack0y.github.io/M-EFresheggs/
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Features
 
-## React Compiler
+- **Dashboard** — today's revenue, profit, stock levels, recent deliveries and sales at a glance
+- **Inventory** — add/remove stock by trays or pieces across 7 egg sizes
+- **Pricing** — set per-piece and per-tray selling prices per size
+- **Sales Log** — record sales with stock validation, filter by date, sort and search
+- **Expenses** — track costs by category (Feed, Labor, Transport, etc.)
+- **Spoilage** — record egg wastage by size and reason with automatic cost calculation
+- **Customers & Suppliers** — contact directories
+- **Deliveries** — batch record multi-size deliveries with cost and payment status tracking
+- **Analytics** — 6 chart views: sales by size, hourly trends, revenue timeline, pie distribution, margin analysis
+- **Reports** — shift-based reporting (Morning/Afternoon/Whole Day/Custom) with full financial breakdown and CSV export
+- **Profits** — real-time profit dashboard with per-size breakdown
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Tech Stack
 
-## Expanding the ESLint configuration
+| Layer | Technology |
+|---|---|
+| Framework | React 19 |
+| Bundler | Vite 8 |
+| Routing | React Router v7 |
+| Charts | Recharts 3 |
+| Icons | Lucide React |
+| Backend | Supabase (PostgreSQL) |
+| PWA | vite-plugin-pwa + Workbox |
+| Deployment | GitHub Actions → GitHub Pages |
+| Mobile | Capacitor (Android APK) |
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Setup
 
+```bash
+# Clone
+git clone https://github.com/mack0y/M-EFresheggs.git
+cd M-EFresheggs
+
+# Install
+npm install
+
+# Environment
+cp .env.example .env
+# Edit .env with your Supabase project URL and anon key
+
+# Dev
+npm run dev
+
+# Build
+npm run build
+```
+
+## Environment Variables
+
+| Variable | Description |
+|---|---|
+| `VITE_SUPABASE_URL` | Supabase project URL |
+| `VITE_SUPABASE_ANON_KEY` | Supabase anonymous key |
+
+## Deployment
+
+Pushes to `main` auto-deploy to GitHub Pages via `.github/workflows/deploy.yml`. Supabase secrets are injected via GitHub Secrets.
+
+## Database
+
+PostgreSQL on Supabase with 9 tables: `egg_sizes`, `inventory`, `price_settings`, `sales`, `expenses`, `spoilage`, `customers`, `suppliers`, `deliveries`. Schema is in `database_schema.sql`.
