@@ -8,11 +8,9 @@ import {
   ClipboardCheck,
   Egg,
   TrendingUp,
-  Trash2,
 } from 'lucide-react';
 import { fetchSales, recordSale, fetchInventory, fetchPriceSettings, getEggCount, formatPeso, formatInventory, getLocalDate, TRAY_SIZE } from '../lib/api';
 import { toast } from './Toast';
-import { supabase } from '../lib/supabaseClient';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
 
@@ -48,8 +46,6 @@ export default function SalesLog() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState('created_at');
   const [sortDir, setSortDir] = useState('desc');
-  const [selectedIds, setSelectedIds] = useState(new Set());
-
   useEffect(() => { loadData(); }, [startDate, endDate, filter]);
 
   async function loadData() {
@@ -152,39 +148,7 @@ export default function SalesLog() {
     }
   }
 
-  function toggleSelect(id) {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
 
-  function toggleSelectAll() {
-    if (selectedIds.size === filteredSales.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(filteredSales.map(s => s.id)));
-    }
-  }
-
-  async function handleBulkDelete() {
-    const ids = [...selectedIds];
-    if (!confirm(`Delete ${ids.length} selected sale(s)? This cannot be undone.`)) return;
-    try {
-      const { error } = await supabase.from('sales').delete().in('id', ids);
-      if (error) throw error;
-      toast(`Deleted ${ids.length} sale(s)`);
-      setSelectedIds(new Set());
-      loadData();
-    } catch (err) {
-      console.error('Bulk delete error:', err);
-      toast('Failed to delete selected sales', 'error');
-    }
-  }
-
-  const allSelected = filteredSales.length > 0 && selectedIds.size === filteredSales.length;
 
   function sortIcon(field) {
     if (sortField !== field) return ' ↕';
@@ -463,15 +427,6 @@ export default function SalesLog() {
           Showing {filteredSales.length} of {hasMore ? `${sales.length}+` : sales.length} sales
         </div>
 
-        {selectedIds.size > 0 && (
-          <div className="sl-bulk-bar">
-            <span className="sl-bulk-count">{selectedIds.size} selected</span>
-            <button className="btn btn-danger btn-sm" onClick={handleBulkDelete}>
-              <Trash2 size={16} /> Delete Selected ({selectedIds.size})
-            </button>
-          </div>
-        )}
-
         {/* Sales List */}
       {loading ? (
         <div className="sl-skeleton-list">
@@ -492,9 +447,6 @@ export default function SalesLog() {
         <div className="sl-list">
           {filteredSales.length > 0 && (
             <div className="sl-column-headers">
-              <div className="sl-col-check">
-                <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} />
-              </div>
               <div className="sl-col-size" onClick={() => handleSort('egg_size_name')} style={{cursor:'pointer'}}>
                 Size Name<span className="sl-sort-icon">{sortIcon('egg_size_name')}</span>
               </div>
@@ -520,9 +472,6 @@ export default function SalesLog() {
               {(!expandedDate || expandedDate === group.label) && group.sales.map(sale => (
                 <div key={sale.id} className="sl-sale-item">
                   <div className="sl-sale-left">
-                    <div className="sl-sale-check">
-                      <input type="checkbox" checked={selectedIds.has(sale.id)} onChange={() => toggleSelect(sale.id)} />
-                    </div>
                     <span className="sl-sale-size">{sale.egg_sizes?.name || 'Unknown'}</span>
                     <span className="sl-sale-qty">
                       {sale.quantity} {sale.unit === 'tray' ? `tray${sale.quantity > 1 ? 's' : ''}` : `egg${sale.quantity > 1 ? 's' : ''}`}
