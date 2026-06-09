@@ -11,6 +11,15 @@
     <link rel="apple-touch-icon" href="%BASE_URL%logo.png" />
     <meta name="description" content="Egg store inventory and sales monitoring" />
     <title>M&E Fresh Eggs</title>
+    <script>
+      (function() {
+        var theme = localStorage.getItem('theme');
+        if (!theme) {
+          theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

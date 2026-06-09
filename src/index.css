@@ -515,6 +515,7 @@ input, select, textarea { font-family: inherit; }
   justify-content: space-between;
   margin-bottom: var(--space-xl);
   gap: var(--space-lg);
+  flex-wrap: wrap;
 }
 
 .page-subtitle {

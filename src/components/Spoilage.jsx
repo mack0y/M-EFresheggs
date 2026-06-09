@@ -225,10 +225,45 @@ export default function Spoilage() {
     const ids = [...selectedIds];
     if (ids.length === 0) return;
     try {
-      await supabase.from('spoilage').delete().in('id', ids);
+      // First, fetch the spoilage records to know what to restore
+      const { data: spoilageRecords, error: fetchErr } = await supabase
+        .from('spoilage')
+        .select('egg_size_id, quantity')
+        .in('id', ids);
+      if (fetchErr) throw fetchErr;
+
+      // Delete the records
+      const { error: delErr } = await supabase
+        .from('spoilage')
+        .delete()
+        .in('id', ids);
+      if (delErr) throw delErr;
+
+      // Restore inventory: aggregate quantities by egg_size_id and add back
+      const restoreMap = {};
+      (spoilageRecords || []).forEach(s => {
+        restoreMap[s.egg_size_id] = (restoreMap[s.egg_size_id] || 0) + s.quantity;
+      });
+
+      for (const [eggSizeId, qty] of Object.entries(restoreMap)) {
+        const { data: invItem, error: invFetchErr } = await supabase
+          .from('inventory')
+          .select('quantity_on_hand')
+          .eq('egg_size_id', eggSizeId)
+          .single();
+        if (invFetchErr) throw invFetchErr;
+
+        const newQty = (invItem?.quantity_on_hand || 0) + qty;
+        const { error: updateErr } = await supabase
+          .from('inventory')
+          .update({ quantity_on_hand: newQty, updated_at: new Date().toISOString() })
+          .eq('egg_size_id', eggSizeId);
+        if (updateErr) throw updateErr;
+      }
+
       setSelectedIds(new Set());
       loadData();
-      toast(`Deleted ${ids.length} spoilage entr${ids.length === 1 ? 'y' : 'ies'}`, 'success');
+      toast(`${ids.length} spoilage entr${ids.length === 1 ? 'y' : 'ies'} deleted — eggs restored to inventory`, 'success');
     } catch (err) {
       console.error('Bulk delete error:', err);
       toast('Failed to delete selected entries', 'error');
@@ -507,20 +542,6 @@ export default function Spoilage() {
       />
 
       <style>{`
-        .page-header-row {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          margin-bottom: 1.5rem;
-          gap: 1rem;
-        }
-
-        .page-subtitle {
-          color: var(--color-text-secondary);
-          font-size: 0.9375rem;
-          margin-top: 0.25rem;
-        }
-
         .spoilage-stats {
           display: grid;
           grid-template-columns: 1fr 1fr;

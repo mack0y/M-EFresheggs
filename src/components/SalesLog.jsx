@@ -241,6 +241,7 @@ export default function SalesLog() {
 
   function changeFilter(key) {
     setFilter(key);
+    setExpandedDate(null);
     setSelectedIds([]);
     if (key === 'today') { setStartDate(today); setEndDate(today); }
     else if (key === 'yesterday') {
@@ -259,6 +260,7 @@ export default function SalesLog() {
     setStartDate(customStart);
     setEndDate(customEnd);
     setFilter('custom');
+    setExpandedDate(null);
     setSelectedIds([]);
   }
 
@@ -659,7 +661,6 @@ export default function SalesLog() {
         .sl-page { max-width: 100%; }
 
         .sl-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: var(--space-xl); gap: var(--space-lg); }
-        .page-subtitle { color: var(--color-text-secondary); font-size: 0.9375rem; margin-top: 0.25rem; }
 
         .sl-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem; }
         .sl-stat { display: flex; align-items: center; gap: 0.75rem; padding: 0.875rem 1rem; background: var(--color-card); border: 1px solid var(--color-border); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); }

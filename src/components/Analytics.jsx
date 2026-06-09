@@ -535,21 +535,6 @@ export default function Analytics() {
       )}
 
       <style>{`
-        .page-header-row {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          margin-bottom: 1.5rem;
-          gap: 1rem;
-          flex-wrap: wrap;
-        }
-
-        .page-subtitle {
-          color: var(--color-text-secondary);
-          font-size: 0.9375rem;
-          margin-top: 0.25rem;
-        }
-
         .days-selector {
           display: flex;
           align-items: center;

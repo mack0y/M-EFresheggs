@@ -480,20 +480,6 @@ export default function Expenses() {
       />
 
       <style>{`
-        .page-header-row {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          margin-bottom: 1.5rem;
-          gap: 1rem;
-        }
-
-        .page-subtitle {
-          color: var(--color-text-secondary);
-          font-size: 0.9375rem;
-          margin-top: 0.25rem;
-        }
-
         .expense-stats {
           display: grid;
           grid-template-columns: 1fr 1fr;

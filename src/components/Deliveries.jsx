@@ -16,7 +16,6 @@ import {
   Edit3,
   Search,
 } from 'lucide-react';
-import { supabase } from '../lib/supabaseClient';
 import {
   fetchDeliveries,
   recordDeliveryBatch,

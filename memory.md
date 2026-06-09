@@ -44,8 +44,7 @@ M-EFresheggs/
 │   └── icons/
 │       ├── icon.svg
 │       ├── icon-192.png
-│       └── icon-512.png
-└── src/
+│       └── icon-512.png    └── src/
     ├── main.jsx                # Entry point
     ├── App.jsx                 # Router + Layout + Suspense
     ├── index.css               # Design system (CSS variables, dark mode, animations)
@@ -54,9 +53,6 @@ M-EFresheggs/
     │   ├── api.js              # All data operations, pagination, exportAllData, APP_VERSION
     │   ├── errors.js           # User-friendly error messages
     │   └── salesUtils.js       # Sale calculations, validation, grouping, quick qty chips
-    ├── hooks/
-    │   ├── useSalesForm.js     # Sale form state + submission flow (unused — inline)
-    │   └── useSalesList.js     # Sale list loading, period filter, grouping (unused — inline)
     └── components/
         ├── Layout.jsx          # Sidebar nav + mobile bottom nav + keyboard shortcuts + version badge
         ├── Dashboard.jsx       # Auto-refresh (30s), stat cards, stock alerts, today's feed
@@ -531,7 +527,7 @@ npm run dev
 - **Design system v2** lives in `src/index.css` with CSS custom properties
 - **All form fields have `id` and `name` attributes** for accessibility
 - **Client-side inventory validation** before sales and spoilage recording
-- **Keyboard shortcuts** — Ctrl+N for primary action, Escape to close forms (handled in Layout.jsx)
+- **Keyboard shortcuts** — Ctrl+N for primary action, Escape to close forms (prioritizes sale modal → confirm dialog → Cancel button, handled in Layout.jsx)
 - **Auto-refresh** — Dashboard refreshes every 30 seconds
 - **Undo toasts** — Use `toast(msg, type, { label, onClick })` for reversible actions (5s duration)
 - **Pagination** — All list components load 50 items at a time with "Load More" button
@@ -539,6 +535,7 @@ npm run dev
 - **Delivery batches** — Multiple egg sizes per delivery linked by `batch_id` UUID
 - **ESLint clean** — 0 errors, 0 warnings
 - **npm audit clean** — 0 vulnerabilities
+- **Dark mode flash prevention** — Synchronous `<script>` in index.html sets `data-theme` before React renders, matching Layout.jsx's initialization logic
 
 ---
 
@@ -728,6 +725,26 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - Fixed missing `Edit3` import in web Deliveries.jsx
 - `npm audit` — 0 vulnerabilities confirmed
 
+### Spoilage Bulk Delete Inventory Restore (June 2026)
+- **handleBulkDelete()** — Now fetches spoilage records before deleting, aggregates quantities by `egg_size_id`, deletes records, then adds egg counts back to each size's inventory. Previously bulk-deleting spoilage permanently lost inventory tracking without restoring eggs.
+
+### Escape Key Modal Prioritization (June 2026)
+- Layout.jsx keyboard handler now checks for open sale modal (`.sl-modal-overlay`) first and clicks its close button, then checks for confirm dialogs (`.confirm-overlay`) and dismisses them, then falls back to page header Cancel buttons. Previously used broken selector logic.
+
+### SalesLog Expanded Date Reset (June 2026)
+- `changeFilter()` and `applyCustom()` in SalesLog.jsx now reset `expandedDate` to `null` on filter change, preventing stale group labels from a previous filter from hiding the current filter's groups.
+
+### Unused Hook Files Removed (June 2026)
+- Deleted `src/hooks/useSalesForm.js` and `src/hooks/useSalesList.js` — both were fully written but never imported anywhere. All sale form and list logic is inlined directly in SalesLog.jsx.
+
+### Unused Import Cleanup (June 2026)
+- Removed unused `supabase` import from Deliveries.jsx (component exclusively uses API functions from `../lib/api`). Verified no other unused imports exist via automated scan.
+
+### CSS Deduplication (June 2026)
+- Removed duplicate `.page-header-row` and `.page-subtitle` inline CSS blocks from 6 components (Customers, Expenses, Spoilage, Analytics, PriceSettings, SalesLog)
+- Added `flex-wrap: wrap` to the global `.page-header-row` in index.css
+- ~50 lines of duplicate CSS removed
+
 ### Sale Deletion & Refund (June 2026)
 - **New `deleteSale(id)` API function** — Deletes sale record and restores inventory (adds back egg count). Order: delete sale first, then restore inventory (safer — avoids double-counting if restore fails).
 - **SalesLog.jsx** — Added checkbox selection (select-all + per-row), individual delete button (trash icon on each row), bulk delete bar ("Delete Selected (X)"), and confirmation dialogs.
@@ -735,4 +752,4 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - **UX** — `selectedIds` resets when filter/dates change. Delete confirmation dialog warns "Stock will be restored." Toast says "Sale deleted — stock restored" with 5s undo button.
 - **Note** — Undo uses current prices for `total_amount`, so if prices changed since the original sale, the restored amount may differ slightly.
 
-# Last updated: Sat Jun 7 2026
+# Last updated: Mon Jun 9 2026

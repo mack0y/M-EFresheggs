@@ -71,9 +71,21 @@ export default function Layout({ children }) {
         const btn = document.querySelector('.page-header-row .btn-primary');
         if (btn) btn.click();
       }
-      // Escape: click Cancel button if form is open
+      // Escape: close modals or dismiss forms
       if (e.key === 'Escape') {
-        const cancelBtn = document.querySelector('.btn-primary')?.closest('.page-header-row')?.querySelector('.btn-primary');
+        // Close sale modal (SalesLog)
+        const modalOverlay = document.querySelector('.sl-modal-overlay');
+        if (modalOverlay) {
+          const closeBtn = modalOverlay.querySelector('.sl-modal-close');
+          if (closeBtn) { closeBtn.click(); return; }
+        }
+        // Close confirm dialog (ConfirmDialog — overlay click triggers onCancel)
+        const confirmOverlay = document.querySelector('.confirm-overlay');
+        if (confirmOverlay) {
+          confirmOverlay.click();
+          return;
+        }
+        // Fallback: click page header Cancel button (e.g. Expenses, Spoilage, Customers, Suppliers)
         const headerBtn = document.querySelector('.page-header-row .btn-primary');
         if (headerBtn && headerBtn.textContent.includes('Cancel')) {
           headerBtn.click();

@@ -198,20 +198,6 @@ export default function PriceSettings() {
       )}
 
       <style>{`
-        .page-header-row {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          margin-bottom: 1.25rem;
-          gap: 1rem;
-        }
-
-        .page-subtitle {
-          color: var(--color-text-secondary);
-          font-size: 0.875rem;
-          margin-top: 0.15rem;
-        }
-
         .price-list {
           display: flex;
           flex-direction: column;
