@@ -137,6 +137,47 @@ export async function fetchTodaySales() {
   return data;
 }
 
+export async function deleteSale(id) {
+  // Fetch the sale first so we can restore inventory
+  const { data: sale, error: fetchErr } = await supabase
+    .from('sales')
+    .select('*')
+    .eq('id', id)
+    .single();
+  if (fetchErr) throw fetchErr;
+  if (!sale) throw new Error('Sale not found');
+
+  // Delete the sale record first (safe — no trigger on DELETE)
+  const { error: delErr } = await supabase
+    .from('sales')
+    .delete()
+    .eq('id', id);
+  if (delErr) throw delErr;
+
+  // Calculate egg count to restore
+  const eggCount = sale.unit === 'tray'
+    ? sale.quantity * (sale.tray_size || TRAY_SIZE)
+    : sale.quantity;
+
+  // Fetch current inventory quantity
+  const { data: invItem, error: invFetchErr } = await supabase
+    .from('inventory')
+    .select('quantity_on_hand')
+    .eq('egg_size_id', sale.egg_size_id)
+    .single();
+  if (invFetchErr) throw invFetchErr;
+
+  // Restore inventory by adding back the egg count
+  const newQty = (invItem?.quantity_on_hand || 0) + eggCount;
+  const { error: updateErr } = await supabase
+    .from('inventory')
+    .update({ quantity_on_hand: newQty, updated_at: new Date().toISOString() })
+    .eq('egg_size_id', sale.egg_size_id);
+  if (updateErr) throw updateErr;
+
+  return sale;
+}
+
 // ===== Analytics =====
 export async function fetchSalesBySize(startDate, endDate) {
   let query = supabase

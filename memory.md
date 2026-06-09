@@ -728,4 +728,11 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - Fixed missing `Edit3` import in web Deliveries.jsx
 - `npm audit` — 0 vulnerabilities confirmed
 
-# Last updated: Sat Jun 6 2026
+### Sale Deletion & Refund (June 2026)
+- **New `deleteSale(id)` API function** — Deletes sale record and restores inventory (adds back egg count). Order: delete sale first, then restore inventory (safer — avoids double-counting if restore fails).
+- **SalesLog.jsx** — Added checkbox selection (select-all + per-row), individual delete button (trash icon on each row), bulk delete bar ("Delete Selected (X)"), and confirmation dialogs.
+- **Undo support** — Single delete saves the sale record and re-inserts via `recordSale()` on undo. Bulk delete saves all selected sales before deletion and re-inserts them all on undo.
+- **UX** — `selectedIds` resets when filter/dates change. Delete confirmation dialog warns "Stock will be restored." Toast says "Sale deleted — stock restored" with 5s undo button.
+- **Note** — Undo uses current prices for `total_amount`, so if prices changed since the original sale, the restored amount may differ slightly.
+
+# Last updated: Sat Jun 7 2026

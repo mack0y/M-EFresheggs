@@ -8,8 +8,10 @@ import {
   ClipboardCheck,
   Egg,
   TrendingUp,
+  Trash2,
 } from 'lucide-react';
-import { fetchSales, recordSale, fetchInventory, fetchPriceSettings, getEggCount, formatPeso, formatInventory, getLocalDate, TRAY_SIZE } from '../lib/api';
+import { fetchSales, recordSale, deleteSale, fetchInventory, fetchPriceSettings, getEggCount, formatPeso, formatInventory, getLocalDate, TRAY_SIZE } from '../lib/api';
+
 import { toast } from './Toast';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
@@ -46,6 +48,8 @@ export default function SalesLog() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState('created_at');
   const [sortDir, setSortDir] = useState('desc');
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [confirmDelete, setConfirmDelete] = useState(null);
   useEffect(() => { loadData(); }, [startDate, endDate, filter]);
 
   async function loadData() {
@@ -237,6 +241,7 @@ export default function SalesLog() {
 
   function changeFilter(key) {
     setFilter(key);
+    setSelectedIds([]);
     if (key === 'today') { setStartDate(today); setEndDate(today); }
     else if (key === 'yesterday') {
       const y = new Date(); y.setDate(y.getDate() - 1);
@@ -254,6 +259,85 @@ export default function SalesLog() {
     setStartDate(customStart);
     setEndDate(customEnd);
     setFilter('custom');
+    setSelectedIds([]);
+  }
+
+  function handleToggleSelect(id) {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  }
+
+  function handleToggleSelectAll() {
+    if (selectedIds.length === filteredSales.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredSales.map(s => s.id));
+    }
+  }
+
+  async function handleDeleteSale(id) {
+    try {
+      const deletedSale = await deleteSale(id);
+      toast('Sale deleted — stock restored', 'success', {
+        label: 'Undo',
+        onClick: async () => {
+          try {
+            await recordSale({
+              eggSizeId: deletedSale.egg_size_id,
+              quantity: deletedSale.quantity,
+              unit: deletedSale.unit,
+              traySize: deletedSale.tray_size || TRAY_SIZE,
+            });
+            toast('Sale restored');
+            loadData();
+          } catch (err) {
+            console.error('Undo restore error:', err);
+            toast('Failed to restore sale', 'error');
+          }
+        },
+      });
+      loadData();
+    } catch (err) {
+      console.error('Delete sale error:', err);
+      toast('Failed to delete sale', 'error');
+    }
+  }
+
+  async function handleBulkDelete() {
+    if (selectedIds.length === 0) return;
+    // Save the sale records before deleting so we can restore them on undo
+    const salesToDelete = sales.filter(s => selectedIds.includes(s.id));
+    try {
+      for (const id of selectedIds) {
+        await deleteSale(id);
+      }
+      toast(`Deleted ${selectedIds.length} sale(s) — stock restored`, 'success', {
+        label: 'Undo',
+        onClick: async () => {
+          try {
+            for (const sale of salesToDelete) {
+              await recordSale({
+                eggSizeId: sale.egg_size_id,
+                quantity: sale.quantity,
+                unit: sale.unit,
+                traySize: sale.tray_size || TRAY_SIZE,
+              });
+            }
+            toast('Sales restored');
+            loadData();
+          } catch (err) {
+            console.error('Undo bulk error:', err);
+            toast('Failed to restore sales', 'error');
+          }
+        },
+      });
+      setSelectedIds([]);
+      loadData();
+    } catch (err) {
+      console.error('Bulk delete error:', err);
+      toast('Failed to delete sales', 'error');
+    }
   }
 
   return (
@@ -426,6 +510,22 @@ export default function SalesLog() {
           Showing {filteredSales.length} of {hasMore ? `${sales.length}+` : sales.length} sales
         </div>
 
+        {/* Bulk delete bar */}
+        {selectedIds.length > 0 && (
+          <div className="sl-bulk-bar">
+            <span className="sl-bulk-count">{selectedIds.length} selected</span>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button className="btn btn-danger btn-sm" onClick={() => setConfirmDelete({ type: 'bulk' })}>
+                <Trash2 size={14} />
+                Delete Selected ({selectedIds.length})
+              </button>
+              <button className="btn btn-secondary btn-sm" onClick={() => setSelectedIds([])}>
+                Clear
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Sales List */}
       {loading ? (
         <div className="sl-skeleton-list">
@@ -446,6 +546,14 @@ export default function SalesLog() {
         <div className="sl-list">
           {filteredSales.length > 0 && (
             <div className="sl-column-headers">
+              <div className="sl-col-check">
+                <input
+                  type="checkbox"
+                  checked={filteredSales.length > 0 && selectedIds.length === filteredSales.length}
+                  onChange={handleToggleSelectAll}
+                  title="Select all"
+                />
+              </div>
               <div className="sl-col-size" onClick={() => handleSort('egg_size_name')} style={{cursor:'pointer'}}>
                 Size Name<span className="sl-sort-icon">{sortIcon('egg_size_name')}</span>
               </div>
@@ -457,6 +565,7 @@ export default function SalesLog() {
                 Amount<span className="sl-sort-icon">{sortIcon('amount')}</span>
               </div>
               <div className="sl-col-time">Time</div>
+              <div className="sl-col-actions"></div>
             </div>
           )}
           {groupedSales.map(group => (
@@ -470,6 +579,14 @@ export default function SalesLog() {
               </div>
               {(!expandedDate || expandedDate === group.label) && group.sales.map(sale => (
                 <div key={sale.id} className="sl-sale-item">
+                  <span className="sl-sale-check">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(sale.id)}
+                      onChange={() => handleToggleSelect(sale.id)}
+                      title={`Select ${sale.egg_sizes?.name || 'Unknown'} sale`}
+                    />
+                  </span>
                   <div className="sl-sale-left">
                     <span className="sl-sale-size">{sale.egg_sizes?.name || 'Unknown'}</span>
                     <span className="sl-sale-qty">
@@ -480,6 +597,13 @@ export default function SalesLog() {
                   <div className="sl-sale-right">
                     <span className="sl-sale-amount">{formatPeso(sale.total_amount)}</span>
                     <span className="sl-sale-time">{sale.sale_time?.slice(0, 5)}</span>
+                    <button
+                      className="sl-delete-btn"
+                      onClick={() => setConfirmDelete({ type: 'single', id: sale.id, name: sale.egg_sizes?.name || 'Unknown' })}
+                      title="Delete sale"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
                 </div>
               ))}
@@ -493,6 +617,26 @@ export default function SalesLog() {
           <button className="btn btn-secondary" onClick={loadMore}>Load More</button>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title={confirmDelete?.type === 'bulk' ? `Delete ${selectedIds.length} sale(s)?` : 'Delete this sale?'}
+        message={confirmDelete?.type === 'bulk'
+          ? `Delete ${selectedIds.length} sale(s)? Stock will be restored. This cannot be undone.`
+          : `Delete this sale of ${confirmDelete?.name}? Stock will be restored.`}
+        confirmLabel="Delete"
+        variant="danger"
+        icon={Trash2}
+        onConfirm={() => {
+          if (confirmDelete?.type === 'bulk') {
+            handleBulkDelete();
+          } else {
+            handleDeleteSale(confirmDelete.id);
+          }
+          setConfirmDelete(null);
+        }}
+        onCancel={() => setConfirmDelete(null)}
+      />
 
       <ConfirmDialog
         open={!!confirmSale}
@@ -612,10 +756,19 @@ export default function SalesLog() {
         .sl-col-eggs { width: 60px; flex-shrink: 0; }
         .sl-col-amount { width: 90px; flex-shrink: 0; text-align: right; }
         .sl-col-time { width: 50px; flex-shrink: 0; text-align: right; }
+        .sl-col-actions { width: 36px; flex-shrink: 0; }
         .sl-sort-icon { font-size: 0.625rem; margin-left: 0.25rem; }
 
-        .sl-sale-check { display: flex; align-items: center; }
+        .sl-sale-check { display: flex; align-items: center; flex-shrink: 0; }
         .sl-sale-check input { width: 16px; height: 16px; cursor: pointer; }
+
+        .sl-delete-btn {
+          display: flex; align-items: center; justify-content: center;
+          width: 28px; height: 28px; border: none; border-radius: var(--radius-sm);
+          background: transparent; color: var(--color-text-muted); cursor: pointer;
+          transition: all 0.15s; flex-shrink: 0; margin-left: 0.25rem;
+        }
+        .sl-delete-btn:hover { background: var(--color-danger-bg); color: var(--color-danger); }
 
         /* Mobile */
         @media (max-width: 640px) {
@@ -627,6 +780,7 @@ export default function SalesLog() {
           .sl-column-headers { display: none; }
           .sl-sale-check { position: absolute; left: 0.25rem; }
           .sl-sale-item { position: relative; padding-left: 2rem; }
+          .sl-delete-btn { position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%); }
         }
       `}</style>
     </div>
