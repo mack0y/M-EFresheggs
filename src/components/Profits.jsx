@@ -411,13 +411,13 @@ export default function Profits() {
               </div>
               <div className="profit-net-op"><TrendingDown size={14} /></div>
               <div className="profit-net-item">
-                <span>COGS</span>
-                <span className="profit-net-amount" style={{ color: '#E65100' }}>{formatPeso(profitData.totalCOGS)}</span>
+                <span>Expenses</span>
+                <span className="profit-net-amount" style={{ color: '#C62828' }}>{formatPeso(profitData.totalExpenses)}</span>
               </div>
               <div className="profit-net-op"><TrendingDown size={14} /></div>
               <div className="profit-net-item">
-                <span>Expenses</span>
-                <span className="profit-net-amount" style={{ color: '#C62828' }}>{formatPeso(profitData.totalExpenses)}</span>
+                <span>COGS</span>
+                <span className="profit-net-amount" style={{ color: '#E65100' }}>{formatPeso(profitData.totalCOGS)}</span>
               </div>
               <div className="profit-net-op profit-net-op-eq"><span>=</span></div>
               <div className={`profit-net-item profit-net-final ${profitData.netProfit >= 0 ? 'profit-positive' : 'profit-negative'}`}>

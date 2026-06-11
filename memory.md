@@ -59,7 +59,7 @@ M-EFresheggs/
         ├── Inventory.jsx       # Add/remove stock by trays or pieces
         ├── SalesLog.jsx        # Search, sort, bulk delete, pagination, date filter, modal form
         ├── PriceSettings.jsx   # Per-piece & per-tray prices per egg size
-        ├── Profits.jsx         # Revenue → COGS → Expenses = Net Profit with per-size breakdown
+        ├── Profits.jsx         # Revenue → Expenses → COGS = Net Profit with per-size breakdown
         ├── Analytics.jsx       # 6 chart tabs (by size, hour, trend, revenue, pie, margins)
         ├── Reports.jsx         # Shift-based reports, CSV export, Backup (JSON), deliveries
         ├── Expenses.jsx        # Search, sort, bulk delete, pagination, undo toast
@@ -688,7 +688,7 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - **Profits.jsx** — Loads data automatically with period selector (Today / This Week / This Month / Custom)
 - **6 summary cards** — Revenue, COGS, Expenses, Gross Profit, Net Profit, Eggs Sold
 - **Per egg size table** with color-coded margins
-- **Net profit breakdown strip** — Revenue → COGS → Expenses = Net Profit
+- **Net profit breakdown strip** — Revenue → Expenses → COGS = Net Profit
 
 ### Mobile PWA Merged into Web App (June 2026)
 - `mobile/` directory deleted; web app is now the single installable PWA
@@ -752,4 +752,9 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - **UX** — `selectedIds` resets when filter/dates change. Delete confirmation dialog warns "Stock will be restored." Toast says "Sale deleted — stock restored" with 5s undo button.
 - **Note** — Undo uses current prices for `total_amount`, so if prices changed since the original sale, the restored amount may differ slightly.
 
-# Last updated: Mon Jun 9 2026
+### Profit Formula Reorder (June 2026)
+- **Profits.jsx** — Reordered the net profit breakdown strip from `Revenue → COGS → Expenses = Net Profit` to `Revenue → Expenses → COGS = Net Profit` so expenses are visually shown deducted from revenue first
+- **Reports.jsx** — Reordered the profit breakdown in the reports footer to match: Revenue → Expenses → COGS → Net Profit
+- Math is unchanged (`Revenue - Expenses - COGS = Revenue - COGS - Expenses`), only visual presentation updated
+
+# Last updated: Wed Jun 11 2026

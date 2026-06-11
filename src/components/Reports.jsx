@@ -605,12 +605,12 @@ export default function Reports() {
                             <span className="revenue">{formatPeso(processed.totals.revenue)}</span>
                           </span>
                           <span style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
-                            <span>COGS:</span>
-                            <span style={{ color: 'var(--color-danger)' }}>{formatPeso(profitData.totalCOGS)}</span>
-                          </span>
-                          <span style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
                             <span>Expenses:</span>
                             <span style={{ color: 'var(--color-danger)' }}>{formatPeso(profitData.totalExpenses)}</span>
+                          </span>
+                          <span style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
+                            <span>COGS:</span>
+                            <span style={{ color: 'var(--color-danger)' }}>{formatPeso(profitData.totalCOGS)}</span>
                           </span>
                           <span style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', borderTop: '1px solid var(--color-border)', paddingTop: '0.25rem' }}>
                             <span style={{ fontWeight: 800 }}>Net Profit:</span>
