@@ -291,6 +291,25 @@ export async function recordExpense({ category, description, amount }) {
   return data;
 }
 
+export async function deleteExpense(id) {
+  const { data, error } = await supabase
+    .from('expenses')
+    .delete()
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteExpenses(ids) {
+  const { error } = await supabase
+    .from('expenses')
+    .delete()
+    .in('id', ids);
+  if (error) throw error;
+}
+
 // ===== Spoilage =====
 
 export const SPOILAGE_REASONS = [
@@ -316,6 +335,8 @@ export async function fetchSpoilage({ startDate, endDate, limit = 100, offset = 
   return data;
 }
 
+// ===== Spoilage =====
+
 export async function recordSpoilage({ eggSizeId, quantity, reason, spoilageDate }) {
   const { data, error } = await supabase
     .from('spoilage')
@@ -327,6 +348,25 @@ export async function recordSpoilage({ eggSizeId, quantity, reason, spoilageDate
     })
     .select()
     .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteSpoilageRecords(ids) {
+  const { data, error } = await supabase
+    .from('spoilage')
+    .delete()
+    .in('id', ids)
+    .select();
+  if (error) throw error;
+  return data;
+}
+
+export async function fetchSpoilageByIds(ids) {
+  const { data, error } = await supabase
+    .from('spoilage')
+    .select('*')
+    .in('id', ids);
   if (error) throw error;
   return data;
 }
@@ -393,7 +433,7 @@ export async function deleteSupplier(id) {
 
 export const PAYMENT_STATUSES = ['unpaid', 'partial', 'paid'];
 
-export async function fetchDeliveries({ limit = 200, offset = 0, startDate, endDate } = {}) {
+export async function fetchDeliveries({ limit = 50, offset = 0, startDate, endDate } = {}) {
   let query = supabase
     .from('deliveries')
     .select('*, suppliers(name), egg_sizes(name, sort_order)')
@@ -654,11 +694,30 @@ export async function deleteOperationalFund(id) {
   if (error) throw error;
 }
 
-export async function getOperationalBalance() {
-  // Total funds added minus total expenses
+export async function getOperationalBalance(startDate) {
+  // Total funds added minus expenses since tracking started
+  // When no startDate is given, auto-detect from the earliest fund entry (or today if none)
+
+  let effectiveStartDate = startDate;
+
+  if (!effectiveStartDate) {
+    const { data: earliestFund, error: fundDateErr } = await supabase
+      .from('operational_funds')
+      .select('fund_date')
+      .order('fund_date', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (fundDateErr) throw fundDateErr;
+    effectiveStartDate = earliestFund?.fund_date || getLocalDate();
+  }
+
   const [fundsData, expensesData] = await Promise.all([
     supabase.from('operational_funds').select('amount'),
-    supabase.from('expenses').select('amount'),
+    supabase
+      .from('expenses')
+      .select('amount')
+      .gte('expense_date', effectiveStartDate),
   ]);
 
   if (fundsData.error) throw fundsData.error;
@@ -671,13 +730,14 @@ export async function getOperationalBalance() {
     totalFunds: Math.round(totalFunds * 100) / 100,
     totalExpenses: Math.round(totalExpenses * 100) / 100,
     balance: Math.round((totalFunds - totalExpenses) * 100) / 100,
+    startDate: effectiveStartDate,
   };
 }
 
 export const APP_VERSION = import.meta.env.VITE_APP_VERSION || '1.1.0';
 
 export async function exportAllData() {
-  const tables = [
+  const tableFns = [
     { name: 'sales', fn: () => supabase.from('sales').select('*').order('created_at') },
     { name: 'deliveries', fn: () => supabase.from('deliveries').select('*, suppliers(name), egg_sizes(name)').order('delivery_date') },
     { name: 'expenses', fn: () => supabase.from('expenses').select('*').order('expense_date') },
@@ -687,17 +747,26 @@ export async function exportAllData() {
     { name: 'suppliers', fn: () => supabase.from('suppliers').select('*').order('name') },
     { name: 'customers', fn: () => supabase.from('customers').select('*').order('name') },
   ];
-  const results = {};
-  for (const { name, fn } of tables) {
-    const { data, error } = await fn();
-    if (error) {
-      console.error(`Export error for ${name}:`, error);
-      results[name] = { error: error.message };
+  const results = await Promise.allSettled(
+    tableFns.map(async ({ name, fn }) => {
+      const { data, error } = await fn();
+      if (error) {
+        console.error(`Export error for ${name}:`, error);
+        return { name, data: { error: error.message } };
+      }
+      return { name, data: data || [] };
+    })
+  );
+  const merged = {};
+  results.forEach(r => {
+    if (r.status === 'fulfilled') {
+      merged[r.value.name] = r.value.data;
     } else {
-      results[name] = data || [];
+      console.error('Export table rejected:', r.reason);
+      merged['error'] = merged['error'] || [];
     }
-  }
-  return { exportedAt: new Date().toISOString(), appVersion: APP_VERSION, data: results };
+  });
+  return { exportedAt: new Date().toISOString(), appVersion: APP_VERSION, data: merged };
 }
 
 /** Convert a sale record to total egg count */

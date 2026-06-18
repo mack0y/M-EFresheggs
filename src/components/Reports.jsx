@@ -9,7 +9,7 @@ import {
   Download,
 } from 'lucide-react';
 import { fetchSalesReport, fetchExpenses, fetchSpoilageWithCost, fetchCustomers, fetchDeliveries, fetchCostsPerEgg, fetchPriceSettings, formatPeso, EGG_SIZES, TRAY_SIZE, getLocalDate, exportAllData } from '../lib/api';
-import { toast } from './Toast';
+import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 
 const SHIFTS = [

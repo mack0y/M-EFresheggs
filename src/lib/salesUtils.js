@@ -53,7 +53,7 @@ export function groupSalesByDate(sales, today) {
 
   sales.forEach(sale => {
     const date = sale.sale_date;
-    let label = date;
+    let label;
     if (date === today) label = 'Today';
     else if (date === yesterdayStr) label = 'Yesterday';
     else {

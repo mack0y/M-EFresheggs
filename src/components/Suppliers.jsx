@@ -8,7 +8,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { fetchSuppliers, addSupplier, deleteSupplier } from '../lib/api';
-import { toast } from './Toast';
+import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
 

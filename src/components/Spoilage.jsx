@@ -7,8 +7,8 @@ import {
   Calendar,
   DollarSign,
 } from 'lucide-react';
-import { fetchSpoilageWithCost, recordSpoilage, fetchInventory, SPOILAGE_REASONS, formatPeso, getLocalDate } from '../lib/api';
-import { toast } from './Toast';
+import { fetchSpoilageWithCost, recordSpoilage, deleteSpoilageRecords, fetchSpoilageByIds, fetchInventory, SPOILAGE_REASONS, formatPeso, getLocalDate } from '../lib/api';
+import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
 import { supabase } from '../lib/supabaseClient';
@@ -120,10 +120,10 @@ export default function Spoilage() {
         onClick: async () => {
           if (!lastSpoilageRef.current) return;
           try {
-            await supabase.from('spoilage').delete().eq('id', lastSpoilageRef.current.id);
+            await deleteSpoilageRecords([lastSpoilageRef.current.id]);
             lastSpoilageRef.current = null;
             loadData();
-          } catch (err) {
+          } catch {
             toast('Failed to undo spoilage', 'error');
           }
         },
@@ -226,18 +226,10 @@ export default function Spoilage() {
     if (ids.length === 0) return;
     try {
       // First, fetch the spoilage records to know what to restore
-      const { data: spoilageRecords, error: fetchErr } = await supabase
-        .from('spoilage')
-        .select('egg_size_id, quantity')
-        .in('id', ids);
-      if (fetchErr) throw fetchErr;
+      const spoilageRecords = await fetchSpoilageByIds(ids);
 
       // Delete the records
-      const { error: delErr } = await supabase
-        .from('spoilage')
-        .delete()
-        .in('id', ids);
-      if (delErr) throw delErr;
+      await deleteSpoilageRecords(ids);
 
       // Restore inventory: aggregate quantities by egg_size_id and add back
       const restoreMap = {};

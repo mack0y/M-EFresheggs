@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   TrendingUp,
   TrendingDown,
@@ -76,7 +76,7 @@ export default function Profits() {
     setPeriod('custom');
   }
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -98,11 +98,12 @@ export default function Profits() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [startDate, endDate]);
 
   useEffect(() => {
-    loadData();
-  }, [startDate, endDate]);
+    const id = setTimeout(() => loadData(), 0);
+    return () => clearTimeout(id);
+  }, [loadData]);
 
   // Process profit data
   const profitData = (() => {

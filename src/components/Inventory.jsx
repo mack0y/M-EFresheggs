@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Minus, AlertTriangle, RefreshCw, Trash2, PackagePlus } from 'lucide-react';
 import { fetchInventory, updateInventory, formatInventory, EGG_SIZES, TRAY_SIZE } from '../lib/api';
-import { toast } from './Toast';
+import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
 

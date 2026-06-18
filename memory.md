@@ -828,4 +828,22 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 
 ### APP_VERSION Bumped to 1.1.0
 
-# Last updated: Mon Jun 22 2026
+## ESLint Cleanup & Index Standardization (June 18, 2026)
+
+### Index Consistency
+- **database_schema.sql** — All 11 `CREATE INDEX` statements now use `IF NOT EXISTS` for safe re-runs
+- **migration_operational_expenses.sql** — Updated to `IF NOT EXISTS`
+- **migration_suppliers_deliveries.sql** — All 4 index statements updated to `IF NOT EXISTS`
+- Ran all 14 index statements in Supabase SQL Editor (0 errors)
+
+### ESLint Fixes (8 errors → 0 errors, 2 warnings → 0 warnings)
+- **Deliveries.jsx** — Moved form size initialization from `useEffect` into `loadData()`, removed unused `inventory` state
+- **Expenses.jsx** — Removed unused `lastRecordedId` state variable
+- **Profits.jsx** — Wrapped `loadData` in `useCallback`, deferred effect call with `setTimeout` to avoid `react-hooks/set-state-in-effect`
+- **SalesLog.jsx** — Fixed useless `cmp`/`label` initial values, wrapped `loadData` in `useCallback`, restored `useEffect` with proper deps
+- **Spoilage.jsx** — Changed `catch (err)` to `catch`
+- **Toast.jsx** — Extracted `toast()` function to `src/lib/toastFn.js` to satisfy `react-refresh/only-export-components`
+- **salesUtils.js** — Fixed useless `label` initial value
+- **11 components** — Updated `toast` import paths from `'./Toast'` to `'../lib/toastFn'`
+
+# Last updated: Wed Jun 18 2026

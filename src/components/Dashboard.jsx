@@ -17,7 +17,7 @@ import {
   Plus,
 } from 'lucide-react';
 import { fetchInventory, fetchTodaySales, fetchTodayExpenses, fetchInventoryValue, fetchDeliveries, fetchCostsPerEgg, getOperationalBalance, fetchSales, fetchSalesTrend, updateInventory, getEggCount, formatInventory, formatPeso, getLocalDate, TRAY_SIZE } from '../lib/api';
-import { toast } from './Toast';
+import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 
 function getGreeting() {
@@ -517,7 +517,7 @@ export default function Dashboard() {
                         <button
                           className="btn-icon btn-icon-quick stock-add-btn"
                           onClick={() => handleQuickAdd(item)}
-                          disabled={isAdding || qty === 0}
+                          disabled={isAdding}
                           title="Add 1 tray"
                         >
                           <Plus size={14} />

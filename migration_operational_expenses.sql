@@ -20,4 +20,4 @@ CREATE POLICY "Allow all on operational_funds" ON operational_funds
   FOR ALL USING (true) WITH CHECK (true);
 
 -- 4. Create indexes for faster queries
-CREATE INDEX idx_operational_funds_date ON operational_funds(fund_date);
+CREATE INDEX IF NOT EXISTS idx_operational_funds_date ON operational_funds(fund_date);

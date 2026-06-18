@@ -165,11 +165,14 @@ CREATE POLICY "Allow all on customers" ON customers
   FOR ALL USING (true) WITH CHECK (true);
 
 -- 7. Create indexes for faster queries
-CREATE INDEX idx_sales_date ON sales(sale_date);
-CREATE INDEX idx_sales_time ON sales(sale_time);
-CREATE INDEX idx_sales_egg_size ON sales(egg_size_id);
-CREATE INDEX idx_inventory_egg_size ON inventory(egg_size_id);
-CREATE INDEX idx_price_settings_egg_size ON price_settings(egg_size_id);
-CREATE INDEX idx_spoilage_date ON spoilage(spoilage_date);
-CREATE INDEX idx_spoilage_egg_size ON spoilage(egg_size_id);
-CREATE INDEX idx_customers_name ON customers(name);
+CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(sale_date);
+CREATE INDEX IF NOT EXISTS idx_sales_time ON sales(sale_time);
+CREATE INDEX IF NOT EXISTS idx_sales_egg_size ON sales(egg_size_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_egg_size ON inventory(egg_size_id);
+CREATE INDEX IF NOT EXISTS idx_price_settings_egg_size ON price_settings(egg_size_id);
+CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(expense_date);
+CREATE INDEX IF NOT EXISTS idx_spoilage_date ON spoilage(spoilage_date);
+CREATE INDEX IF NOT EXISTS idx_spoilage_egg_size ON spoilage(egg_size_id);
+CREATE INDEX IF NOT EXISTS idx_deliveries_date ON deliveries(delivery_date);
+CREATE INDEX IF NOT EXISTS idx_operational_funds_date ON operational_funds(fund_date);
+CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name);

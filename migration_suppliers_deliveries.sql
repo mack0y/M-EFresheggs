@@ -40,7 +40,7 @@ CREATE POLICY "Allow all on deliveries" ON deliveries
   FOR ALL USING (true) WITH CHECK (true);
 
 -- 5. Create indexes for faster queries
-CREATE INDEX idx_suppliers_name ON suppliers(name);
-CREATE INDEX idx_deliveries_supplier ON deliveries(supplier_id);
-CREATE INDEX idx_deliveries_egg_size ON deliveries(egg_size_id);
-CREATE INDEX idx_deliveries_date ON deliveries(delivery_date);
+CREATE INDEX IF NOT EXISTS idx_suppliers_name ON suppliers(name);
+CREATE INDEX IF NOT EXISTS idx_deliveries_supplier ON deliveries(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_deliveries_egg_size ON deliveries(egg_size_id);
+CREATE INDEX IF NOT EXISTS idx_deliveries_date ON deliveries(delivery_date);

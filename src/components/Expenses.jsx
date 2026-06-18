@@ -9,9 +9,8 @@ import {
   Trash2,
   Search,
 } from 'lucide-react';
-import { fetchExpenses, recordExpense, formatPeso, EXPENSE_CATEGORIES, getLocalDate } from '../lib/api';
-import { supabase } from '../lib/supabaseClient';
-import { toast } from './Toast';
+import { fetchExpenses, recordExpense, deleteExpense, deleteExpenses, formatPeso, EXPENSE_CATEGORIES, getLocalDate } from '../lib/api';
+import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
 
@@ -28,7 +27,6 @@ export default function Expenses() {
   const [sortField, setSortField] = useState('expense_date');
   const [sortDir, setSortDir] = useState('desc');
   const [selectedIds, setSelectedIds] = useState([]);
-  const [lastRecordedId, setLastRecordedId] = useState(null);
 
   const [form, setForm] = useState({
     category: '',
@@ -104,8 +102,7 @@ export default function Expenses() {
   async function handleDeleteSelected() {
     if (selectedIds.length === 0) return;
     try {
-      const { error } = await supabase.from('expenses').delete().in('id', selectedIds);
-      if (error) throw error;
+      await deleteExpenses(selectedIds);
       toast(`Deleted ${selectedIds.length} expense(s)`, 'success');
       setSelectedIds([]);
       loadExpenses();
@@ -134,13 +131,11 @@ export default function Expenses() {
     setSubmitting(true);
     try {
       const result = await recordExpense(data);
-      setLastRecordedId(result.id);
       toast('Expense recorded!', 'success', {
         label: 'Undo',
         onClick: async () => {
           try {
-            const { error } = await supabase.from('expenses').delete().eq('id', result.id);
-            if (error) throw error;
+            await deleteExpense(result.id);
             toast('Expense undone', 'success');
             loadExpenses();
           } catch (err) {

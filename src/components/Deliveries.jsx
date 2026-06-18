@@ -30,7 +30,7 @@ import {
   TRAY_SIZE,
   getLocalDate,
 } from '../lib/api';
-import { toast } from './Toast';
+import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
 
@@ -38,7 +38,6 @@ export default function Deliveries() {
   const navigate = useNavigate();
   const [deliveries, setDeliveries] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
-  const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -68,22 +67,6 @@ export default function Deliveries() {
     loadData();
   }, []);
 
-  useEffect(() => {
-    if (inventory.length > 0) {
-      setForm(prev => ({
-        ...prev,
-        sizes: inventory
-          .sort((a, b) => (a.egg_sizes?.sort_order || 0) - (b.egg_sizes?.sort_order || 0))
-          .map(item => ({
-            eggSizeId: item.egg_size_id,
-            name: item.egg_sizes?.name || 'Unknown',
-            quantity: '',
-            costPerTray: '',
-          })),
-      }));
-    }
-  }, [inventory]);
-
   async function loadData() {
     try {
       setLoading(true);
@@ -97,7 +80,21 @@ export default function Deliveries() {
       setPage(0);
       setHasMore(delData && delData.length === PAGE_SIZE);
       setSuppliers(suppData || []);
-      setInventory(invData || []);
+
+      // Initialize form sizes when inventory loads
+      if (invData && invData.length > 0) {
+        setForm(prev => ({
+          ...prev,
+          sizes: invData
+            .sort((a, b) => (a.egg_sizes?.sort_order || 0) - (b.egg_sizes?.sort_order || 0))
+            .map(item => ({
+              eggSizeId: item.egg_size_id,
+              name: item.egg_sizes?.name || 'Unknown',
+              quantity: '',
+              costPerTray: '',
+            })),
+        }));
+      }
     } catch (err) {
       console.error('Deliveries load error:', err);
       setError(err);
@@ -183,14 +180,15 @@ export default function Deliveries() {
       const batchId = result?.[0]?.batch_id;
       toast('Delivery recorded!', 'success', {
         label: 'Undo',
-        onClick: () => {
+        onClick: async () => {
           if (batchId) {
-            deleteDeliveryBatch(batchId).then(() => {
+            try {
+              await deleteDeliveryBatch(batchId);
               toast('Delivery undone');
               loadData();
-            }).catch(() => {
+            } catch {
               toast('Failed to undo delivery', 'error');
-            });
+            }
           }
         },
       });

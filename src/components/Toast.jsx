@@ -1,10 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-
-let addToastFn = null;
-
-export function toast(message, type = 'success', action = null) {
-  if (addToastFn) addToastFn(message, type, action);
-}
+import { setToastHandler } from '../lib/toastFn';
 
 export function ToastContainer() {
   const [toasts, setToasts] = useState([]);
@@ -20,8 +15,8 @@ export function ToastContainer() {
   }, []);
 
   useEffect(() => {
-    addToastFn = addToast;
-    return () => { addToastFn = null; };
+    setToastHandler(addToast);
+    return () => { setToastHandler(null); };
   }, [addToast]);
 
   return (

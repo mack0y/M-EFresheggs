@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { DollarSign, Save, RefreshCw, AlertTriangle } from 'lucide-react';
 import { fetchPriceSettings, updatePriceSetting, formatPeso, EGG_SIZES } from '../lib/api';
-import { toast } from './Toast';
+import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 
 export default function PriceSettings() {

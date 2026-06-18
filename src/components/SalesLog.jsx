@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   ShoppingCart,
   Plus,
@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { fetchSales, recordSale, deleteSale, fetchInventory, fetchPriceSettings, getEggCount, formatPeso, formatInventory, getLocalDate, TRAY_SIZE } from '../lib/api';
 
-import { toast } from './Toast';
+import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
 
@@ -51,9 +51,7 @@ export default function SalesLog() {
   const [sortDir, setSortDir] = useState('desc');
   const [selectedIds, setSelectedIds] = useState([]);
   const [confirmDelete, setConfirmDelete] = useState(null);
-  useEffect(() => { loadData(); }, [startDate, endDate, filter]);
-
-  async function loadData() {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -74,7 +72,12 @@ export default function SalesLog() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [startDate, endDate, filter]);
+
+  useEffect(() => {
+    const id = setTimeout(() => loadData(), 0);
+    return () => clearTimeout(id);
+  }, [loadData]);
 
   async function loadMore() {
     try {
@@ -100,7 +103,7 @@ export default function SalesLog() {
       );
     }
     result.sort((a, b) => {
-      let cmp = 0;
+      let cmp;
       if (sortField === 'egg_size_name') {
         cmp = (a.egg_sizes?.name || '').localeCompare(b.egg_sizes?.name || '');
       } else if (sortField === 'quantity') {
@@ -126,7 +129,7 @@ export default function SalesLog() {
     const yesterdayStr = getLocalDate(yesterday);
     salesList.forEach(sale => {
       const d = sale.sale_date;
-      let label = d;
+      let label;
       if (d === todayStr) label = 'Today';
       else if (d === yesterdayStr) label = 'Yesterday';
       else {
