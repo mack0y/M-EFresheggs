@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { APP_VERSION } from '../lib/api';
 import {
   LayoutDashboard,
@@ -18,21 +18,48 @@ import {
   Truck,
   Building,
   Tag,
+  Wallet,
 } from 'lucide-react';
 
-const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/profits', icon: TrendingUp, label: 'Profits' },
-  { to: '/inventory', icon: Package, label: 'Inventory' },
-  { to: '/prices', icon: DollarSign, label: 'Pricing' },
-  { to: '/sales', icon: ShoppingCart, label: 'Sales' },
-  { to: '/spoilage', icon: AlertTriangle, label: 'Spoilage' },
-  { to: '/customers', icon: Users, label: 'Customers' },
-  { to: '/suppliers', icon: Building, label: 'Suppliers' },
-  { to: '/deliveries', icon: Truck, label: 'Deliveries' },
-  { to: '/expenses', icon: TrendingDown, label: 'Expenses' },
-  { to: '/analytics', icon: TrendingUp, label: 'Analytics' },
-  { to: '/reports', icon: FileText, label: 'Reports' },
+const navSections = [
+  {
+    label: 'OVERVIEW',
+    items: [
+      { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+      { to: '/profits', icon: TrendingUp, label: 'Profits' },
+    ],
+  },
+  {
+    label: 'STOCK & SALES',
+    items: [
+      { to: '/inventory', icon: Package, label: 'Inventory' },
+      { to: '/sales', icon: ShoppingCart, label: 'Sales' },
+      { to: '/deliveries', icon: Truck, label: 'Deliveries' },
+    ],
+  },
+  {
+    label: 'FINANCIAL',
+    items: [
+      { to: '/expenses', icon: TrendingDown, label: 'Expenses' },
+      { to: '/operational-expenses', icon: Wallet, label: 'Operational' },
+      { to: '/prices', icon: DollarSign, label: 'Pricing' },
+    ],
+  },
+  {
+    label: 'DIRECTORY',
+    items: [
+      { to: '/spoilage', icon: AlertTriangle, label: 'Spoilage' },
+      { to: '/customers', icon: Users, label: 'Customers' },
+      { to: '/suppliers', icon: Building, label: 'Suppliers' },
+    ],
+  },
+  {
+    label: 'REPORTS',
+    items: [
+      { to: '/analytics', icon: TrendingUp, label: 'Analytics' },
+      { to: '/reports', icon: FileText, label: 'Reports' },
+    ],
+  },
 ];
 
 // Bottom nav items (most frequently used - 5 max)
@@ -47,6 +74,7 @@ const bottomNavItems = [
 export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
   const [darkMode, setDarkMode] = useState(() => {
     const stored = localStorage.getItem('theme');
     if (stored) return stored === 'dark';
@@ -141,18 +169,23 @@ export default function Layout({ children }) {
           </button>
         </div>
         <nav className="sidebar-nav">
-          {navItems.map(item => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === '/'}
-              className={({ isActive }) =>
-                `nav-link ${isActive ? 'active' : ''}`
-              }
-            >
-              <item.icon size={18} />
-              <span>{item.label}</span>
-            </NavLink>
+          {navSections.map(section => (
+            <div key={section.label} className="nav-section">
+              <div className="nav-section-label">{section.label}</div>
+              {section.items.map(item => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.to === '/'}
+                  className={({ isActive }) =>
+                    `nav-link ${isActive ? 'active' : ''}`
+                  }
+                >
+                  <item.icon size={18} />
+                  <span>{item.label}</span>
+                </NavLink>
+              ))}
+            </div>
           ))}
         </nav>
 
@@ -179,6 +212,16 @@ export default function Layout({ children }) {
       <main className="main-content">
         {children}
       </main>
+
+      {/* FAB - Quick action to Sales */}
+      <button
+        className="btn-fab"
+        onClick={() => navigate('/sales')}
+        aria-label="Record a sale"
+        title="Quick Sale"
+      >
+        <ShoppingCart size={22} />
+      </button>
 
       {/* Mobile Bottom Navigation */}
       <nav className="bottom-nav">
@@ -328,8 +371,29 @@ export default function Layout({ children }) {
           flex: 1;
           display: flex;
           flex-direction: column;
-          gap: 2px;
+          gap: 0.25rem;
           overflow-y: auto;
+        }
+
+        .nav-section {
+          display: flex;
+          flex-direction: column;
+          gap: 1px;
+          margin-bottom: 0.5rem;
+        }
+
+        .nav-section:last-child {
+          margin-bottom: 0;
+        }
+
+        .nav-section-label {
+          font-size: 0.6rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: var(--color-text-muted);
+          padding: 0.5rem 0.875rem 0.25rem;
+          opacity: 0.6;
         }
 
         .sidebar-footer {
@@ -493,6 +557,36 @@ export default function Layout({ children }) {
         }
 
         /* Desktop styles */
+        /* FAB - Floating Action Button */
+        .btn-fab {
+          display: none;
+          position: fixed;
+          bottom: 5.5rem;
+          right: 1.25rem;
+          z-index: 85;
+          width: 56px;
+          height: 56px;
+          border: none;
+          border-radius: 50%;
+          background: var(--color-primary);
+          color: white;
+          box-shadow: var(--shadow-lg);
+          cursor: pointer;
+          align-items: center;
+          justify-content: center;
+          transition: all var(--transition-spring);
+        }
+
+        .btn-fab:hover {
+          background: var(--color-primary-hover);
+          transform: scale(1.08);
+          box-shadow: var(--shadow-xl);
+        }
+
+        .btn-fab:active {
+          transform: scale(0.95);
+        }
+
         @media (min-width: 768px) {
           .mobile-header {
             display: none;
@@ -518,6 +612,16 @@ export default function Layout({ children }) {
             padding: 1.5rem 2rem;
             padding-top: 1.5rem;
             padding-bottom: 1.5rem;
+          }
+
+          .btn-fab {
+            display: none !important;
+          }
+        }
+
+        @media (max-width: 767px) {
+          .btn-fab {
+            display: flex;
           }
         }
 

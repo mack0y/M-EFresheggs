@@ -618,7 +618,63 @@ export async function fetchSpoilageWithCost({ startDate, endDate, limit = 200, o
   return withCost;
 }
 
-export const APP_VERSION = import.meta.env.VITE_APP_VERSION || '1.0.6';
+// ===== Operational Expenses / Funds =====
+
+export async function fetchOperationalFunds({ limit = 100, offset = 0 } = {}) {
+  let query = supabase
+    .from('operational_funds')
+    .select('*')
+    .order('fund_date', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  const { data, error } = await query.range(offset, offset + limit - 1);
+  if (error) throw error;
+  return data;
+}
+
+export async function addOperationalFund({ amount, description, fundDate }) {
+  const { data, error } = await supabase
+    .from('operational_funds')
+    .insert({
+      amount,
+      description: description || '',
+      fund_date: fundDate,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteOperationalFund(id) {
+  const { error } = await supabase
+    .from('operational_funds')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
+
+export async function getOperationalBalance() {
+  // Total funds added minus total expenses
+  const [fundsData, expensesData] = await Promise.all([
+    supabase.from('operational_funds').select('amount'),
+    supabase.from('expenses').select('amount'),
+  ]);
+
+  if (fundsData.error) throw fundsData.error;
+  if (expensesData.error) throw expensesData.error;
+
+  const totalFunds = (fundsData.data || []).reduce((sum, f) => sum + parseFloat(f.amount || 0), 0);
+  const totalExpenses = (expensesData.data || []).reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
+
+  return {
+    totalFunds: Math.round(totalFunds * 100) / 100,
+    totalExpenses: Math.round(totalExpenses * 100) / 100,
+    balance: Math.round((totalFunds - totalExpenses) * 100) / 100,
+  };
+}
+
+export const APP_VERSION = import.meta.env.VITE_APP_VERSION || '1.1.0';
 
 export async function exportAllData() {
   const tables = [

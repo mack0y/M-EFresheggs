@@ -9,6 +9,7 @@ import {
   Egg,
   TrendingUp,
   Trash2,
+  Check,
 } from 'lucide-react';
 import { fetchSales, recordSale, deleteSale, fetchInventory, fetchPriceSettings, getEggCount, formatPeso, formatInventory, getLocalDate, TRAY_SIZE } from '../lib/api';
 
@@ -423,20 +424,44 @@ export default function SalesLog() {
             </div>
             <form onSubmit={handleSubmit}>
               <div className="sl-form-grid">
-                <div className="sl-field">
+                <div className="sl-field sl-field-sizes">
                   <label>Egg Size</label>
-                  <select value={form.eggSizeId}
-                    onChange={e => setForm({ ...form, eggSizeId: e.target.value })} required>
-                    <option value="">Select size...</option>
-                    {inventory.sort((a, b) => (a.egg_sizes?.sort_order || 0) - (b.egg_sizes?.sort_order || 0))
-                      .map(item => (
-                        <option key={item.egg_size_id} value={item.egg_size_id}>
-                          {item.egg_sizes?.name} (Stock: {item.quantity_on_hand})
-                        </option>
-                      ))}
-                  </select>
+                  <div className="sl-size-grid">
+                    {inventory
+                      .slice()
+                      .sort((a, b) => (a.egg_sizes?.sort_order || 0) - (b.egg_sizes?.sort_order || 0))
+                      .map(item => {
+                        const selected = form.eggSizeId === String(item.egg_size_id);
+                        const qty = item.quantity_on_hand || 0;
+                        let stockClass = 'sl-size-stock-ok';
+                        let stockLabel = 'In Stock';
+                        if (qty === 0) { stockClass = 'sl-size-stock-out'; stockLabel = 'Out'; }
+                        else if (qty <= 50) { stockClass = 'sl-size-stock-low'; stockLabel = 'Low'; }
+                        return (
+                          <button
+                            key={item.egg_size_id}
+                            type="button"
+                            className={`sl-size-card ${selected ? 'selected' : ''} ${qty === 0 ? 'out-of-stock' : ''}`}
+                            onClick={() => {
+                              if (qty > 0) {
+                                setForm({ ...form, eggSizeId: String(item.egg_size_id), quantity: '' });
+                              }
+                            }}
+                          >
+                            {selected && (
+                              <span className="sl-size-check">
+                                <Check size={16} />
+                              </span>
+                            )}
+                            <span className="sl-size-name">{item.egg_sizes?.name || 'Unknown'}</span>
+                            <span className="sl-size-stock">{qty.toLocaleString()} eggs</span>
+                            <span className={`sl-size-badge ${stockClass}`}>{stockLabel}</span>
+                          </button>
+                        );
+                      })}
+                  </div>
                   {form.eggSizeId && getFormPriceDisplay() && (
-                    <span className="sl-price-hint">{getFormPriceDisplay()}</span>
+                    <span className="sl-price-hint" style={{ marginTop: '0.375rem' }}>{getFormPriceDisplay()}</span>
                   )}
                 </div>
                 <div className="sl-field">
@@ -661,6 +686,108 @@ export default function SalesLog() {
         .sl-page { max-width: 100%; }
 
         .sl-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: var(--space-xl); gap: var(--space-lg); }
+
+        /* Size Cards */
+        .sl-field-sizes {
+          grid-column: 1 / -1;
+        }
+
+        .sl-size-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 0.5rem;
+        }
+
+        @media (max-width: 500px) {
+          .sl-size-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+
+        .sl-size-card {
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.2rem;
+          padding: 0.75rem 0.5rem;
+          border: 1.5px solid var(--color-border);
+          border-radius: var(--radius-md);
+          background: var(--color-card);
+          cursor: pointer;
+          transition: all var(--transition-fast);
+          min-height: 72px;
+        }
+
+        .sl-size-card:hover {
+          border-color: var(--color-primary-200);
+          background: var(--color-primary-50);
+          transform: translateY(-1px);
+          box-shadow: var(--shadow-sm);
+        }
+
+        .sl-size-card.selected {
+          border-color: var(--color-primary);
+          border-width: 2px;
+          background: var(--color-primary-light);
+          box-shadow: 0 0 0 2px var(--color-primary-200);
+        }
+
+        .sl-size-check {
+          position: absolute;
+          top: 4px;
+          right: 4px;
+          width: 20px;
+          height: 20px;
+          border-radius: 50%;
+          background: var(--color-primary);
+          color: white;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .sl-size-name {
+          font-weight: 700;
+          font-size: 0.875rem;
+          color: var(--color-text);
+        }
+
+        .sl-size-card.selected .sl-size-name {
+          color: var(--color-primary);
+        }
+
+        .sl-size-stock {
+          font-size: 0.6875rem;
+          color: var(--color-text-muted);
+          font-variant-numeric: tabular-nums;
+        }
+
+        .sl-size-badge {
+          display: inline-block;
+          padding: 0.1rem 0.4rem;
+          border-radius: var(--radius-full);
+          font-size: 0.6rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.03em;
+        }
+
+        .sl-size-stock-ok { background: var(--color-success-bg); color: var(--color-success); }
+        .sl-size-stock-low { background: var(--color-warning-bg); color: var(--color-warning); }
+        .sl-size-stock-out { background: var(--color-danger-bg); color: var(--color-danger); }
+
+        .sl-size-card.out-of-stock {
+          opacity: 0.45;
+          cursor: not-allowed;
+        }
+
+        .sl-size-card.out-of-stock:hover {
+          transform: none;
+          box-shadow: none;
+          border-color: var(--color-border);
+          background: var(--color-card);
+        }
 
         .sl-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem; }
         .sl-stat { display: flex; align-items: center; gap: 0.75rem; padding: 0.875rem 1rem; background: var(--color-card); border: 1px solid var(--color-border); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); }

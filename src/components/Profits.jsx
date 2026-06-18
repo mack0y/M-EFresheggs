@@ -247,17 +247,7 @@ export default function Profits() {
             <span className="profit-card-value">{loading ? '—' : formatPeso(profitData.totalExpenses)}</span>
           </div>
         </div>
-        <div className="profit-summary-card profit-card-gross">
-          <div className="profit-card-icon-wrap" style={{ background: '#E8F5E9', color: '#2E7D32' }}>
-            <TrendingUp size={20} />
-          </div>
-          <div className="profit-card-info">
-            <span className="profit-card-label">Gross Profit</span>
-            <span className="profit-card-value" style={{ color: profitData.grossProfit >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
-              {loading ? '—' : formatPeso(profitData.grossProfit)}
-            </span>
-          </div>
-        </div>
+
         <div className="profit-summary-card profit-card-net">
           <div className="profit-card-icon-wrap" style={{
             background: profitData.netProfit >= 0 ? '#E8F5E9' : '#FFEBEE',

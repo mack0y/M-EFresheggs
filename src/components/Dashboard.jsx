@@ -11,8 +11,13 @@ import {
   TrendingDown,
   Clock,
   Truck,
+  Wallet,
+  Award,
+  BarChart3,
+  Plus,
 } from 'lucide-react';
-import { fetchInventory, fetchTodaySales, fetchTodayExpenses, fetchInventoryValue, fetchDeliveries, fetchCostsPerEgg, getEggCount, formatInventory, formatPeso, getLocalDate } from '../lib/api';
+import { fetchInventory, fetchTodaySales, fetchTodayExpenses, fetchInventoryValue, fetchDeliveries, fetchCostsPerEgg, getOperationalBalance, fetchSales, fetchSalesTrend, updateInventory, getEggCount, formatInventory, formatPeso, getLocalDate, TRAY_SIZE } from '../lib/api';
+import { toast } from './Toast';
 import { getUserFriendlyError } from '../lib/errors';
 
 function getGreeting() {
@@ -37,6 +42,10 @@ export default function Dashboard() {
   const [inventoryValue, setInventoryValue] = useState(0);
   const [todayDeliveries, setTodayDeliveries] = useState([]);
   const [costsPerEgg, setCostsPerEgg] = useState({});
+  const [opexBalance, setOpexBalance] = useState({ totalFunds: 0, totalExpenses: 0, balance: 0 });
+  const [yesterdaySales, setYesterdaySales] = useState([]);
+  const [trendData, setTrendData] = useState([]);
+  const [quickAdding, setQuickAdding] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -45,13 +54,19 @@ export default function Dashboard() {
       setLoading(true);
       setError(null);
       const today = getLocalDate();
-      const [inv, sales, expenses, invValue, deliveries, costs] = await Promise.all([
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = getLocalDate(yesterday);
+      const [inv, sales, expenses, invValue, deliveries, costs, opex, ySales, trend] = await Promise.all([
         fetchInventory(),
         fetchTodaySales(),
         fetchTodayExpenses(),
         fetchInventoryValue(),
         fetchDeliveries({ startDate: today, endDate: today }),
         fetchCostsPerEgg(),
+        getOperationalBalance(),
+        fetchSales({ startDate: yesterdayStr, endDate: yesterdayStr, limit: 500 }),
+        fetchSalesTrend(7),
       ]);
       setInventory(inv || []);
       setTodaySales(sales || []);
@@ -59,6 +74,9 @@ export default function Dashboard() {
       setInventoryValue(invValue);
       setTodayDeliveries(deliveries || []);
       setCostsPerEgg(costs || {});
+      setOpexBalance(opex || { totalFunds: 0, totalExpenses: 0, balance: 0 });
+      setYesterdaySales(ySales || []);
+      setTrendData(trend || []);
     } catch (err) {
       console.error('Dashboard load error:', err);
       setError(err);
@@ -100,6 +118,58 @@ export default function Dashboard() {
   const totalStock = inventory.reduce(
     (sum, item) => sum + (item.quantity_on_hand || 0), 0
   );
+
+  // Yesterday comparison
+  const yesterdayRevenue = yesterdaySales.reduce(
+    (sum, s) => sum + parseFloat(s.total_amount || 0), 0
+  );
+  const revenueChange = yesterdayRevenue > 0
+    ? Math.round(((todayRevenue - yesterdayRevenue) / yesterdayRevenue) * 100)
+    : todayRevenue > 0 ? 100 : 0;
+
+  // Best-selling size today
+  const sizeSalesMap = {};
+  todaySales.forEach(s => {
+    const name = s.egg_sizes?.name || 'Unknown';
+    const eggs = getEggCount(s);
+    sizeSalesMap[name] = (sizeSalesMap[name] || 0) + eggs;
+  });
+  const bestSellerEntries = Object.entries(sizeSalesMap).sort((a, b) => b[1] - a[1]);
+  const bestSeller = bestSellerEntries[0] || null;
+  const bestSellerPercent = bestSeller && totalEggsSoldToday > 0
+    ? Math.round((bestSeller[1] / totalEggsSoldToday) * 100)
+    : 0;
+
+  // Profit margin
+  const marginPercent = todayRevenue > 0
+    ? Math.round((netProfit / todayRevenue) * 100)
+    : 0;
+
+  // 7-day sparkline data
+  const dailyMap = {};
+  trendData.forEach(s => {
+    dailyMap[s.sale_date] = (dailyMap[s.sale_date] || 0) + getEggCount(s);
+  });
+  const sparklineValues = Object.entries(dailyMap)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, eggs]) => eggs);
+  const maxSpark = Math.max(...sparklineValues, 1);
+
+  // Quick-add tray to inventory
+  async function handleQuickAdd(item) {
+    setQuickAdding(item.egg_size_id);
+    try {
+      const currentQty = item.quantity_on_hand || 0;
+      await updateInventory(item.egg_size_id, currentQty + TRAY_SIZE);
+      toast(`Added 1 tray to ${item.egg_sizes?.name}`);
+      loadData();
+    } catch (err) {
+      console.error('Quick add error:', err);
+      toast('Failed to add stock', 'error');
+    } finally {
+      setQuickAdding(null);
+    }
+  }
 
   const lowStockItems = inventory.filter(
     item => item.quantity_on_hand <= 50 && item.quantity_on_hand > 0
@@ -144,6 +214,26 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Quick Action Bar */}
+      <div className="quick-actions">
+        <button className="qa-btn qa-sale" onClick={() => navigate('/sales')}>
+          <ShoppingCart size={18} />
+          <span>Record Sale</span>
+        </button>
+        <button className="qa-btn qa-stock" onClick={() => navigate('/inventory')}>
+          <Package size={18} />
+          <span>Add Stock</span>
+        </button>
+        <button className="qa-btn qa-expense" onClick={() => navigate('/expenses')}>
+          <TrendingDown size={18} />
+          <span>Add Expense</span>
+        </button>
+        <button className="qa-btn qa-delivery" onClick={() => navigate('/deliveries')}>
+          <Truck size={18} />
+          <span>New Delivery</span>
+        </button>
+      </div>
+
       {/* Primary Stats */}
       <div className="primary-stats">
         <div className="primary-stat primary-stat-revenue">
@@ -153,6 +243,12 @@ export default function Dashboard() {
           <div className="primary-stat-info">
             <span className="primary-stat-label">Today's Revenue</span>
             <span className="primary-stat-value">{loading ? <span className="skeleton" style={{ display: 'inline-block', width: 80, height: 28 }}>&nbsp;</span> : formatPeso(todayRevenue)}</span>
+            {!loading && (
+              <span className={`primary-stat-change ${revenueChange >= 0 ? 'change-up' : 'change-down'}`}>
+                {revenueChange >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                {Math.abs(revenueChange)}% vs yesterday
+              </span>
+            )}
           </div>
         </div>
         <div className="primary-stat primary-stat-profit" data-positive={netProfit >= 0}>
@@ -204,6 +300,31 @@ export default function Dashboard() {
           </div>
         </div>
 
+        <div className="stat-card-item stat-card-opex">
+          <div className="stat-card-icon" style={{ background: opexBalance.balance >= 0 ? '#E8F5E9' : '#FFEBEE', color: opexBalance.balance >= 0 ? '#2E7D32' : '#C62828' }}>
+            <Wallet size={18} />
+          </div>
+          <div className="stat-card-content">
+            <span className="stat-card-value" style={{ color: opexBalance.balance >= 0 ? 'inherit' : 'var(--color-danger)' }}>
+              {loading ? '—' : formatPeso(opexBalance.balance)}
+            </span>
+            <span className="stat-card-label">Operational Funds</span>
+            {!loading && opexBalance.totalFunds > 0 && (
+              <div className="opex-bar-wrap">
+                <div className="opex-bar">
+                  <div
+                    className="opex-bar-fill"
+                    style={{
+                      width: `${Math.max(0, Math.min(100, (opexBalance.balance / opexBalance.totalFunds) * 100))}%`,
+                      background: opexBalance.balance >= 0 ? 'var(--color-success)' : 'var(--color-danger)',
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
         <div className="stat-card-item">
           <div className="stat-card-icon" style={{ background: todayExpenseTotal > 0 ? '#FFEBEE' : '#E8F5E9', color: todayExpenseTotal > 0 ? '#C62828' : '#2E7D32' }}>
             <TrendingDown size={18} />
@@ -237,6 +358,82 @@ export default function Dashboard() {
               {loading ? '—' : formatPeso(todayDeliveryCost)}
             </span>
             <span className="stat-card-label">{todayDeliveries.length > 0 ? formatPeso(todayDeliveryCost / (todayDeliveries.length || 1)) + '/avg' : 'delivery cost'}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Insight Cards Row */}
+      <div className="insight-row">
+        {/* Best Seller */}
+        <div className="insight-card">
+          <div className="insight-icon-box" style={{ background: '#F3E5F5', color: '#7B1FA2' }}>
+            <Award size={18} />
+          </div>
+          <div className="insight-content">
+            <span className="insight-label">Best Seller Today</span>
+            {loading ? (
+              <span className="skeleton" style={{ display: 'inline-block', width: 80, height: 20 }}>&nbsp;</span>
+            ) : bestSeller ? (
+              <span className="insight-value">{bestSeller[0]}</span>
+            ) : (
+              <span className="insight-value" style={{ color: 'var(--color-text-muted)', fontSize: '0.8125rem' }}>No sales yet</span>
+            )}
+            {bestSeller && !loading && (
+              <span className="insight-sub">{bestSeller[1].toLocaleString()} eggs ({bestSellerPercent}%)</span>
+            )}
+          </div>
+        </div>
+
+        {/* Profit Margin */}
+        <div className="insight-card">
+          <div className="insight-icon-box" style={{ background: marginPercent >= 0 ? '#E8F5E9' : '#FFEBEE', color: marginPercent >= 0 ? '#2E7D32' : '#C62828' }}>
+            <BarChart3 size={18} />
+          </div>
+          <div className="insight-content">
+            <span className="insight-label">Profit Margin</span>
+            {loading ? (
+              <span className="skeleton" style={{ display: 'inline-block', width: 60, height: 20 }}>&nbsp;</span>
+            ) : (
+              <span className="insight-value" style={{ color: marginPercent >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                {marginPercent > 0 ? '+' : ''}{marginPercent}%
+              </span>
+            )}
+            {!loading && (
+              <span className="insight-sub">{formatPeso(netProfit)} on {formatPeso(todayRevenue)}</span>
+            )}
+          </div>
+        </div>
+
+        {/* 7-Day Sparkline */}
+        <div className="insight-card insight-spark-card">
+          <div className="insight-icon-box" style={{ background: '#E3F2FD', color: '#1565C0' }}>
+            <TrendingUp size={18} />
+          </div>
+          <div className="insight-content">
+            <span className="insight-label">7-Day Sales Trend</span>
+            {loading ? (
+              <span className="skeleton" style={{ display: 'inline-block', width: '100%', height: 32 }}>&nbsp;</span>
+            ) : sparklineValues.length > 1 ? (
+              <div className="sparkline-wrap">
+                <svg width="100%" height="32" viewBox={`0 0 ${sparklineValues.length * 24} 32`} preserveAspectRatio="none">
+                  <polyline
+                    fill="none"
+                    stroke="var(--color-primary)"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    points={sparklineValues.map((v, i) => `${i * 24 + 4},${32 - (v / maxSpark) * 28}`).join(' ')}
+                  />
+                  <polyline
+                    fill="var(--color-primary-100)"
+                    stroke="none"
+                    points={`0,32 ${sparklineValues.map((v, i) => `${i * 24 + 4},${32 - (v / maxSpark) * 28}`).join(' ')} ${(sparklineValues.length - 1) * 24 + 4},32`}
+                  />
+                </svg>
+              </div>
+            ) : (
+              <span className="insight-sub" style={{ fontSize: '0.8125rem' }}>Not enough data</span>
+            )}
           </div>
         </div>
       </div>
@@ -302,6 +499,7 @@ export default function Dashboard() {
                     statusClass = 'badge-warning';
                     label = 'Low';
                   }
+                  const isAdding = quickAdding === item.egg_size_id;
                   return (
                     <div
                       key={item.id || i}
@@ -316,6 +514,14 @@ export default function Dashboard() {
                           {formatInventory(qty)}
                         </span>
                         <span className={`badge ${statusClass}`}>{label}</span>
+                        <button
+                          className="btn-icon btn-icon-quick stock-add-btn"
+                          onClick={() => handleQuickAdd(item)}
+                          disabled={isAdding || qty === 0}
+                          title="Add 1 tray"
+                        >
+                          <Plus size={14} />
+                        </button>
                       </div>
                     </div>
                   );
@@ -792,6 +998,218 @@ export default function Dashboard() {
 
           .welcome-title {
             font-size: 1.35rem;
+          }
+        }
+
+        /* Quick Action Bar */
+        .quick-actions {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 0.5rem;
+          margin-bottom: var(--space-lg);
+        }
+
+        .qa-btn {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 0.3rem;
+          padding: 0.625rem 0.25rem;
+          border: 1.5px solid var(--color-border);
+          border-radius: var(--radius-md);
+          background: var(--color-card);
+          color: var(--color-text-secondary);
+          font-size: 0.65rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all var(--transition-fast);
+          min-height: 64px;
+          text-decoration: none;
+        }
+
+        .qa-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: var(--shadow-md);
+        }
+
+        .qa-btn svg {
+          transition: transform var(--transition-spring);
+        }
+
+        .qa-btn:hover svg {
+          transform: scale(1.15);
+        }
+
+        .qa-sale { border-color: var(--color-primary); color: var(--color-primary); }
+        .qa-sale:hover { background: var(--color-primary-light); border-color: var(--color-primary); }
+        .qa-stock { border-color: #1565C0; color: #1565C0; }
+        .qa-stock:hover { background: #E3F2FD; border-color: #1565C0; }
+        .qa-expense { border-color: var(--color-danger); color: var(--color-danger); }
+        .qa-expense:hover { background: var(--color-danger-bg); border-color: var(--color-danger); }
+        .qa-delivery { border-color: #00695C; color: #00695C; }
+        .qa-delivery:hover { background: #E0F2F1; border-color: #00695C; }
+
+        /* Primary Stat Change Badge */
+        .primary-stat-change {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.2rem;
+          font-size: 0.6875rem;
+          font-weight: 600;
+          margin-top: 0.125rem;
+          padding: 0.1rem 0.4rem;
+          border-radius: var(--radius-full);
+        }
+
+        .primary-stat-change.change-up {
+          color: var(--color-success);
+          background: var(--color-success-bg);
+        }
+
+        .primary-stat-change.change-down {
+          color: var(--color-danger);
+          background: var(--color-danger-bg);
+        }
+
+        /* Insight Cards Row */
+        .insight-row {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 0.625rem;
+          margin-bottom: var(--space-xl);
+        }
+
+        @media (min-width: 640px) {
+          .insight-row {
+            grid-template-columns: repeat(3, 1fr);
+          }
+        }
+
+        .insight-card {
+          display: flex;
+          align-items: flex-start;
+          gap: 0.75rem;
+          padding: 0.875rem 1rem;
+          background: var(--color-card);
+          border: 1px solid var(--color-border-light);
+          border-radius: var(--radius-md);
+          box-shadow: var(--shadow-xs);
+          transition: all var(--transition-base);
+        }
+
+        .insight-card:hover {
+          box-shadow: var(--shadow-sm);
+        }
+
+        .insight-icon-box {
+          width: 36px;
+          height: 36px;
+          border-radius: var(--radius-sm);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          margin-top: 2px;
+        }
+
+        .insight-content {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .insight-label {
+          font-size: 0.6875rem;
+          font-weight: var(--font-weight-medium);
+          color: var(--color-text-muted);
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          display: block;
+          margin-bottom: 0.125rem;
+        }
+
+        .insight-value {
+          font-weight: var(--font-weight-bold);
+          font-size: 1.0625rem;
+          display: block;
+          line-height: 1.3;
+        }
+
+        .insight-sub {
+          font-size: 0.75rem;
+          color: var(--color-text-muted);
+          display: block;
+          margin-top: 0.0625rem;
+        }
+
+        .insight-spark-card .insight-content {
+          display: flex;
+          flex-direction: column;
+        }
+
+        /* Sparkline */
+        .sparkline-wrap {
+          width: 100%;
+          margin-top: 0.25rem;
+        }
+
+        .sparkline-wrap svg {
+          display: block;
+        }
+
+        /* Opex Progress Bar */
+        .opex-bar-wrap {
+          margin-top: 0.375rem;
+        }
+
+        .opex-bar {
+          height: 4px;
+          background: var(--color-border);
+          border-radius: var(--radius-full);
+          overflow: hidden;
+        }
+
+        .opex-bar-fill {
+          height: 100%;
+          border-radius: var(--radius-full);
+          transition: width 0.5s ease;
+        }
+
+        .stock-add-btn {
+          width: 28px !important;
+          height: 28px !important;
+          border: 1px solid var(--color-border) !important;
+          border-radius: var(--radius-sm) !important;
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .stock-add-btn:hover {
+          border-color: var(--color-primary) !important;
+          background: var(--color-primary-light) !important;
+          color: var(--color-primary) !important;
+        }
+
+        .stock-add-btn:disabled {
+          opacity: 0.35;
+          cursor: not-allowed;
+        }
+
+        @media (max-width: 640px) {
+          .quick-actions {
+            gap: 0.375rem;
+          }
+
+          .qa-btn {
+            min-height: 56px;
+            font-size: 0.6rem;
+            padding: 0.5rem 0.125rem;
+          }
+
+          .insight-row {
+            gap: 0.5rem;
           }
         }
       `}</style>

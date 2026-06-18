@@ -35,6 +35,7 @@ M-EFresheggs/
 ├── database_schema.sql
 ├── migration_pricing.sql
 ├── migration_suppliers_deliveries.sql
+├── migration_operational_expenses.sql
 ├── memory.md
 ├── eslint.config.js
 ├── .github/workflows/deploy.yml
@@ -67,6 +68,7 @@ M-EFresheggs/
         ├── Customers.jsx       # Customer directory
         ├── Suppliers.jsx       # Supplier directory
         ├── Deliveries.jsx      # Multi-size batch form, search, bulk delete, pagination, undo
+        ├── OperationalExpenses.jsx  # Track funds added to the business, running balance
         ├── Toast.jsx           # Global notifications (undo action support, 5s duration)
         ├── ConfirmDialog.jsx   # Reusable confirmation modal (backdrop blur, scale-in)
         └── ErrorBoundary.jsx   # React error fallback UI
@@ -154,6 +156,15 @@ M-EFresheggs/
 | notes | TEXT | Optional |
 | created_at | TIMESTAMPTZ | Auto |
 
+#### `operational_funds` — Funds added to the business for operations
+| Column | Type | Notes |
+|--------|------|-------|
+| id | BIGINT PK | Auto-generated |
+| amount | NUMERIC(10,2) | > 0 |
+| description | TEXT | Optional note |
+| fund_date | DATE | Default today |
+| created_at | TIMESTAMPTZ | Auto |
+
 #### `deliveries` — Supplier delivery records (multi-size batches)
 | Column | Type | Notes |
 |--------|------|-------|
@@ -193,8 +204,10 @@ All tables use permissive policies (`ALL USING true`) since this is a single-use
 | `/suppliers` | Suppliers | Supplier directory (name, phone, notes) |
 | `/deliveries` | Deliveries | Track supplier deliveries with cost & payment status |
 | `/expenses` | Expenses | Record expenses by category, filter & view breakdown |
+| `/operational-expenses` | OperationalExpenses | Track funds added to business, running balance (Total Funds − Expenses) |
 | `/analytics` | Analytics | 5 chart views (by size, by hour, trend, revenue, distribution) |
 | `/reports` | Reports | Shift-based sales reports with CSV export + revenue vs expenses + deliveries |
+| `/profits` | Profits | Real-time profit dashboard with per-size breakdown, Net Profit focus |
 
 ---
 
@@ -234,7 +247,8 @@ The design system lives in `src/index.css` with CSS custom properties.
 ## Layout & Navigation
 
 ### Desktop (≥768px)
-- Fixed sidebar (260px) with logo, 11 nav items, and dark mode toggle
+- Fixed sidebar (260px) with logo, 13 nav items in 5 labeled sections, and dark mode toggle
+- Nav sections: OVERVIEW, STOCK & SALES, FINANCIAL, DIRECTORY, REPORTS
 - Main content area fills remaining width
 
 ### Mobile (<768px)
@@ -251,13 +265,16 @@ The design system lives in `src/index.css` with CSS custom properties.
 
 ### Dashboard
 - **Welcome greeting** with time-of-day emoji (🌅/☀️/🌙) and date
-- **Primary stat cards** — Today's Revenue, Net Profit (green/red based on positive/negative)
-- **Secondary stat grid** — Total Stock, Stock Value, Eggs Sold, Expenses, Deliveries count, Delivery Cost
+- **Quick Action Bar** — 4 color-coded shortcut buttons: Record Sale, Add Stock, Add Expense, New Delivery
+- **Primary stat cards** — Today's Revenue (with ▲▼ % change vs yesterday), Net Profit (green/red based on positive/negative)
+- **Insight cards row** — Best Seller Today (name, eggs, %), Profit Margin (%, green/red), 7-Day Sales Trend (SVG sparkline)
+- **Secondary stat grid** — Total Stock, Stock Value, Eggs Sold, Operational Funds (with health progress bar), Expenses, Deliveries count, Delivery Cost
 - **Low stock alert card** — Shows out-of-stock sizes count with "Restock immediately" message
-- **Stock levels list** with trays/pieces breakdown and status badges
+- **Stock levels list** with trays/pieces breakdown, status badges, and quick-restock (+1 tray) buttons
 - **Today's sales feed** with amounts and times
 - **Today's deliveries feed** with supplier, egg size, quantity, cost, and payment status
 - Loading skeletons for all data
+- Auto-refresh every 30 seconds
 
 ### Inventory Management
 - Each egg size card shows total stock in trays + pieces format (e.g., "2 trays + 15 pcs")
@@ -268,7 +285,9 @@ The design system lives in `src/index.css` with CSS custom properties.
 - Quick stock status badges: In Stock (green), Low Stock ≤50 (yellow), Out of Stock (red)
 
 ### Sales Recording
-- Modal form with egg size selector, unit (piece/tray), quantity input
+- Modal form with **visual egg size cards** (grid of tappable cards with stock status badges, out-of-stock grayed out)
+- Selected size gets green border + checkmark — impossible to mis-select
+- Unit toggle (piece/tray), quantity input
 - Quick quantity chips (+1, +5, +10, +30 for pieces; +1, +2, +5, +10 for trays)
 - Live price display and egg count conversion (e.g., "= 2 trays + 15 pcs")
 - Auto-calculates total amount from current price settings
@@ -311,6 +330,13 @@ The design system lives in `src/index.css` with CSS custom properties.
 - Empty state with quick-add button
 - Mobile-responsive layout (same pattern as Customers)
 
+### Operational Expenses (`/operational-expenses`)
+- Track funds added to the business (capital injections)
+- 3 summary cards: Total Funds Added, Total Expenses Spent, Available Balance
+- Add funds form with amount, date, description
+- Fund list with delete, confirmation dialogs
+- Balance calculated as: SUM(funds) − SUM(all expenses)
+
 ### Delivery Tracking (`/deliveries`)
 - **Multi-size batch form** — All egg sizes shown in a grid with qty + cost per tray inputs; fill in only the sizes received
 - Single submission creates one DB row per size linked by a shared `batch_id`
@@ -333,6 +359,13 @@ The design system lives in `src/index.css` with CSS custom properties.
 - **Revenue vs Expenses** — net profit calculation including delivery costs, with expense breakdown by category
 - **CSV Export** button with sales, spoilage, deliveries, and customer data
 - Print-friendly layout
+
+### Profits Page (`/profits`)
+- Real-time profit dashboard separate from Reports
+- Loads data automatically with period selector (Today / This Week / This Month / Custom)
+- Summary cards: Revenue, COGS, Expenses, **Net Profit** (Gross Profit removed)
+- Per egg size table with color-coded margins
+- Net profit breakdown strip: Revenue → Expenses → COGS = Net Profit
 
 ### Analytics
 - 6 chart tabs using Recharts: By Size, By Time, Trend, Revenue, Distribution (Pie), Profit Margins
@@ -757,4 +790,42 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - **Reports.jsx** — Reordered the profit breakdown in the reports footer to match: Revenue → Expenses → COGS → Net Profit
 - Math is unchanged (`Revenue - Expenses - COGS = Revenue - COGS - Expenses`), only visual presentation updated
 
-# Last updated: Wed Jun 11 2026
+## Recent Changes (June 22, 2026)
+
+### Sidebar Reorganization
+- **Layout.jsx** — Sidebar reorganized into 5 labeled sections: OVERVIEW, STOCK & SALES, FINANCIAL, DIRECTORY, REPORTS
+- Added "Operational" nav item under FINANCIAL section (Wallet icon)
+- Added Floating Action Button (FAB) on mobile — quick access to Sales page
+- Removed icon duplicate: TrendingUp used for both Profits and Analytics
+
+### Operational Expenses Feature
+- **New `/operational-expenses` route** — Track funds added to the business
+- **New DB table `operational_funds`** — stores fund addition records
+- **New API functions** — `fetchOperationalFunds`, `addOperationalFund`, `deleteOperationalFund`, `getOperationalBalance`
+- **New component `OperationalExpenses.jsx`** — Balance cards (Total Funds, Total Expenses, Available), add form, fund list with delete
+- **Dashboard** — Operational balance shown in secondary stat grid with health progress bar
+- SQL migration: `migration_operational_expenses.sql`
+
+### Sales Log Visual Size Cards
+- **SalesLog.jsx** — Replaced egg size dropdown with visual card grid
+- Cards show: size name, stock count, status badge (In Stock/Low/Out)
+- Selected card: green border + checkmark badge
+- Out-of-stock cards: grayed out, not clickable
+- Quantity resets when switching sizes to prevent errors
+
+### Profits Page Cleanup
+- **Profits.jsx** — Removed Gross Profit summary card; only Net Profit remains
+
+### Dashboard Enhancement Pass
+- **Quick Action Bar** — 4 color-coded buttons: Record Sale (green), Add Stock (blue), Add Expense (red), New Delivery (teal)
+- **Yesterday comparison** — Revenue card shows ▲▼ % change badge vs yesterday
+- **Best Seller Today** — Insight card showing top-selling egg size with eggs and percentage
+- **Profit Margin** — Insight card showing real-time margin % with green/red coloring
+- **7-Day Sparkline** — SVG polyline chart showing daily sales trend with area fill
+- **Operational health bar** — Progress bar on the opex card showing remaining funds vs total
+- **Quick-restock buttons** — "+1 tray" button on each stock item in Dashboard stock list, calls updateInventory directly
+- Added `fetchSales`, `fetchSalesTrend`, `updateInventory` imports to Dashboard
+
+### APP_VERSION Bumped to 1.1.0
+
+# Last updated: Mon Jun 22 2026
