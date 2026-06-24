@@ -52,7 +52,7 @@ CREATE TABLE sales (
   egg_size_id BIGINT NOT NULL REFERENCES egg_sizes(id) ON DELETE CASCADE,
   quantity INTEGER NOT NULL CHECK (quantity > 0),
   unit TEXT NOT NULL DEFAULT 'piece' CHECK (unit IN ('piece', 'tray')),
-  tray_size INTEGER CHECK (tray_size IN (12, 30)),
+  tray_size INTEGER CHECK (tray_size IS NULL OR tray_size = 30),
   total_amount NUMERIC(10, 2) NOT NULL DEFAULT 0 CHECK (total_amount >= 0),
   sale_date DATE NOT NULL DEFAULT CURRENT_DATE,
   sale_time TIME NOT NULL DEFAULT CURRENT_TIME,

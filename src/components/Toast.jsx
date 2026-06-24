@@ -53,7 +53,7 @@ export function ToastContainer() {
           position: fixed;
           bottom: 5rem;
           right: 1rem;
-          z-index: 1000;
+          z-index: 9999;
           display: flex;
           flex-direction: column;
           gap: 0.5rem;

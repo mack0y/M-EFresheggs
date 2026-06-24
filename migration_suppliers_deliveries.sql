@@ -19,7 +19,7 @@ CREATE TABLE deliveries (
   egg_size_id BIGINT NOT NULL REFERENCES egg_sizes(id) ON DELETE CASCADE,
   quantity INTEGER NOT NULL CHECK (quantity > 0),
   unit TEXT NOT NULL DEFAULT 'tray' CHECK (unit IN ('piece', 'tray')),
-  tray_size INTEGER DEFAULT 30 CHECK (tray_size IN (12, 30)),
+  tray_size INTEGER NOT NULL DEFAULT 30 CHECK (tray_size = 30),
   cost_per_egg NUMERIC(10, 2) NOT NULL DEFAULT 0 CHECK (cost_per_egg >= 0),
   total_cost NUMERIC(10, 2) NOT NULL DEFAULT 0 CHECK (total_cost >= 0),
   payment_status TEXT NOT NULL DEFAULT 'unpaid' CHECK (payment_status IN ('unpaid', 'partial', 'paid')),

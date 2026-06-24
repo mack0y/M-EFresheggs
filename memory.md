@@ -846,4 +846,14 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - **salesUtils.js** — Fixed useless `label` initial value
 - **11 components** — Updated `toast` import paths from `'./Toast'` to `'../lib/toastFn'`
 
-# Last updated: Wed Jun 18 2026
+### Toast Z-index Fix (June 2026)
+- **Toast.jsx** — Increased toast container z-index from `1000` to `9999` so error/success toasts appear above modal overlays (`z-index: 5000-6000`). Previously, stock validation errors during sale recording were hidden behind the sale modal.
+
+### Tray Size Simplified to 30 (June 2026)
+- **SalesLog.jsx** — Removed "Eggs per Tray" selector (12/30 toggle) from the sale modal form; all tray sales now default to 30-egg trays via the `TRAY_SIZE` constant
+- Removed `traySize` from form state; all references use `TRAY_SIZE` directly
+- **database_schema.sql** — Changed sales `tray_size` CHECK constraint from `IN (12, 30)` to `IS NULL OR tray_size = 30` (allows NULL for piece sales)
+- **migration_suppliers_deliveries.sql** — Changed deliveries `tray_size` CHECK from `IN (12, 30)` to `= 30` with `NOT NULL DEFAULT 30`
+- **Supabase DB** — Applied ALTER TABLE statements to update both constraints (0 errors)
+
+# Last updated: June 2026

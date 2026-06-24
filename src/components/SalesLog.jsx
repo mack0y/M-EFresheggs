@@ -39,7 +39,6 @@ export default function SalesLog() {
     eggSizeId: '',
     quantity: '',
     unit: 'piece',
-    traySize: 30,
   });
   const [confirmSale, setConfirmSale] = useState(null);
   const [expandedDate, setExpandedDate] = useState(null);
@@ -181,7 +180,7 @@ export default function SalesLog() {
     const qty = parseInt(form.quantity, 10);
     if (isNaN(qty) || qty <= 0) return null;
     if (form.unit === 'tray') {
-      return qty * (parseInt(form.traySize, 10) || TRAY_SIZE);
+      return qty * TRAY_SIZE;
     }
     return qty;
   }
@@ -213,7 +212,7 @@ export default function SalesLog() {
       return;
     }
     const eggSizeId = parseInt(form.eggSizeId, 10);
-    const ts = form.unit === 'tray' ? parseInt(form.traySize, 10) : 1;
+    const ts = form.unit === 'tray' ? TRAY_SIZE : 1;
     const totalEggs = form.unit === 'tray' ? qty * ts : qty;
     const invItem = inventory.find(i => i.egg_size_id === eggSizeId);
     const stock = invItem?.quantity_on_hand || 0;
@@ -223,7 +222,7 @@ export default function SalesLog() {
     }
     setConfirmSale({
       eggSizeId, quantity: qty, unit: form.unit,
-      traySize: form.unit === 'tray' ? parseInt(form.traySize, 10) : null,
+      traySize: form.unit === 'tray' ? TRAY_SIZE : null,
     });
   }
 
@@ -232,7 +231,7 @@ export default function SalesLog() {
     try {
       await recordSale(saleData);
       toast('Sale recorded!');
-      setForm({ eggSizeId: '', quantity: '', unit: 'piece', traySize: 30 });
+      setForm({ eggSizeId: '', quantity: '', unit: 'piece' });
       setShowForm(false);
       loadData();
     } catch (err) {
@@ -487,17 +486,7 @@ export default function SalesLog() {
                     ))}
                   </div>
                 </div>
-                {form.unit === 'tray' && (
-                  <div className="sl-field">
-                    <label>Eggs per Tray</label>
-                    <div className="sl-unit-tabs">
-                      <button type="button" className={`sl-unit-tab ${form.traySize === 12 ? 'active' : ''}`}
-                        onClick={() => setForm({ ...form, traySize: 12 })}>12 eggs</button>
-                      <button type="button" className={`sl-unit-tab ${form.traySize === 30 ? 'active' : ''}`}
-                        onClick={() => setForm({ ...form, traySize: 30 })}>30 eggs</button>
-                    </div>
-                  </div>
-                )}
+
               </div>
 
               {getFormEggCount() !== null && (
