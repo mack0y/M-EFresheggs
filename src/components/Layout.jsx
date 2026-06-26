@@ -18,7 +18,6 @@ import {
   Truck,
   Building,
   Tag,
-  Wallet,
 } from 'lucide-react';
 
 const navSections = [
@@ -40,8 +39,7 @@ const navSections = [
   {
     label: 'FINANCIAL',
     items: [
-      { to: '/expenses', icon: TrendingDown, label: 'Expenses' },
-      { to: '/operational-expenses', icon: Wallet, label: 'Operational' },
+      { to: '/expenses-funds', icon: TrendingDown, label: 'Finances' },
       { to: '/prices', icon: DollarSign, label: 'Pricing' },
     ],
   },
@@ -67,7 +65,7 @@ const bottomNavItems = [
   { to: '/', icon: LayoutDashboard, label: 'Home' },
   { to: '/inventory', icon: Package, label: 'Stock' },
   { to: '/sales', icon: ShoppingCart, label: 'Sales' },
-  { to: '/expenses', icon: TrendingDown, label: 'Costs' },
+  { to: '/expenses-funds', icon: TrendingDown, label: 'Costs' },
   { to: '/analytics', icon: TrendingUp, label: 'Stats' },
 ];
 

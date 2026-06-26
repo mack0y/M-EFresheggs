@@ -794,17 +794,20 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 
 ### Sidebar Reorganization
 - **Layout.jsx** — Sidebar reorganized into 5 labeled sections: OVERVIEW, STOCK & SALES, FINANCIAL, DIRECTORY, REPORTS
-- Added "Operational" nav item under FINANCIAL section (Wallet icon)
 - Added Floating Action Button (FAB) on mobile — quick access to Sales page
 - Removed icon duplicate: TrendingUp used for both Profits and Analytics
 
-### Operational Expenses Feature
-- **New `/operational-expenses` route** — Track funds added to the business
-- **New DB table `operational_funds`** — stores fund addition records
-- **New API functions** — `fetchOperationalFunds`, `addOperationalFund`, `deleteOperationalFund`, `getOperationalBalance`
-- **New component `OperationalExpenses.jsx`** — Balance cards (Total Funds, Total Expenses, Available), add form, fund list with delete
-- **Dashboard** — Operational balance shown in secondary stat grid with health progress bar
-- SQL migration: `migration_operational_expenses.sql`
+### Expenses & Funds Page (Combined)
+- **New `/expenses-funds` route** — Single page combining expenses and operational funds
+- **New component `ExpensesFunds.jsx`** — Merged `Expenses.jsx` and `OperationalExpenses.jsx` into one page
+- **Balance summary cards** — Funds Added, Expenses Spent, Available Balance (with health progress bar)
+- **Expenses section** — Category filters, search, bulk delete, sort, undo toast, today's total
+- **Operational Funds section** — Fund list with date/time, add form, delete with confirmation
+- **1% Daily Revenue Cut** — Green "Daily Cut (₱X)" button in the Funds section header that records 1% of today's revenue as a fund entry. Shows "Cut recorded today" badge once recorded. Undo support via toast.
+- **Time display** — Fund entries now show recorded time (from `created_at`) alongside the date (e.g., "Today 11:45 PM")
+- **Routing** — `/expenses` and `/operational-expenses` redirect to `/expenses-funds`
+- **Nav** — Sidebar shows single "Finances" link; bottom nav "Costs" tab updated
+- **Old components deleted** — `Expenses.jsx` and `OperationalExpenses.jsx` removed
 
 ### Sales Log Visual Size Cards
 - **SalesLog.jsx** — Replaced egg size dropdown with visual card grid
@@ -815,6 +818,9 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 
 ### Profits Page Cleanup
 - **Profits.jsx** — Removed Gross Profit summary card; only Net Profit remains
+- **1% Revenue Cut** — Net profit formula deducts 1% of revenue before computing net income: `Net Profit = (Revenue - 1% cut) - Expenses - COGS`
+- **Summary card** — Shows "Adjusted Revenue" with sub-label "After 1% cut (₱X)"
+- **Net profit strip** — Shows: Gross Revenue → 1% Cut → Adjusted Revenue → Expenses → COGS → Net Profit
 
 ### Dashboard Enhancement Pass
 - **Quick Action Bar** — 4 color-coded buttons: Record Sale (green), Add Stock (blue), Add Expense (red), New Delivery (teal)
@@ -824,6 +830,7 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - **7-Day Sparkline** — SVG polyline chart showing daily sales trend with area fill
 - **Operational health bar** — Progress bar on the opex card showing remaining funds vs total
 - **Quick-restock buttons** — "+1 tray" button on each stock item in Dashboard stock list, calls updateInventory directly
+- **1% Daily Revenue Cut** — Dedicated stat card showing the cut amount; revenue card shows gross revenue with "After 1% cut: adjustedRevenue" sub-label
 - Added `fetchSales`, `fetchSalesTrend`, `updateInventory` imports to Dashboard
 
 ### APP_VERSION Bumped to 1.1.0
@@ -855,5 +862,17 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - **database_schema.sql** — Changed sales `tray_size` CHECK constraint from `IN (12, 30)` to `IS NULL OR tray_size = 30` (allows NULL for piece sales)
 - **migration_suppliers_deliveries.sql** — Changed deliveries `tray_size` CHECK from `IN (12, 30)` to `= 30` with `NOT NULL DEFAULT 30`
 - **Supabase DB** — Applied ALTER TABLE statements to update both constraints (0 errors)
+
+### API Layer — 1% Daily Revenue Cut (June 2026)
+- `getDailyRevenueCutPreview()` — Fetches today's total revenue, calculates 1% cut amount, checks if already recorded
+- `recordDailyRevenueCut()` — Records the cut as an operational fund entry with description "1% Daily Revenue Cut"
+- `deleteDailyRevenueCut(date)` — Removes the cut entry for a given date (used for undo)
+
+### Net Profit Formula (June 2026)
+- **Dashboard:** `netProfit = adjustedRevenue - todayExpenseTotal - todayCOGS` where `adjustedRevenue = todayRevenue - dailyRevenueCut`
+- **Profits page:** `netProfit = adjustedRevenue - totalExpensesAmount - totalCOGS` where `adjustedRevenue = totalRevenue - revenueCut`
+- Revenue card on Dashboard shows gross revenue with sub-label showing adjusted amount
+- Profits summary card shows "Adjusted Revenue" with cut detail
+- Net profit strip shows full chain: Gross Revenue → 1% Cut → Adjusted Revenue → Expenses → COGS → Net Profit
 
 # Last updated: June 2026

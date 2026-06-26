@@ -694,6 +694,89 @@ export async function deleteOperationalFund(id) {
   if (error) throw error;
 }
 
+// ===== 1% Daily Revenue Cut =====
+
+const DAILY_CUT_PERCENT = 0.01; // 1%
+
+/**
+ * Calculate 1% of today's total sales revenue.
+ * Returns { revenue, cutAmount, alreadyRecorded, fundId }.
+ */
+export async function getDailyRevenueCutPreview() {
+  const today = getLocalDate();
+
+  // Fetch today's total revenue
+  const { data: salesData, error: salesErr } = await supabase
+    .from('sales')
+    .select('total_amount')
+    .eq('sale_date', today);
+  if (salesErr) throw salesErr;
+
+  const revenue = (salesData || []).reduce(
+    (sum, s) => sum + parseFloat(s.total_amount || 0), 0
+  );
+  const cutAmount = Math.round(revenue * DAILY_CUT_PERCENT * 100) / 100;
+
+  // Check if already recorded today
+  const { data: existingFund, error: fundErr } = await supabase
+    .from('operational_funds')
+    .select('id')
+    .eq('fund_date', today)
+    .eq('description', '1% Daily Revenue Cut')
+    .maybeSingle();
+  if (fundErr) throw fundErr;
+
+  return {
+    revenue,
+    cutAmount,
+    alreadyRecorded: !!existingFund,
+    fundId: existingFund?.id || null,
+  };
+}
+
+/**
+ * Record today's 1% revenue cut as an operational fund entry.
+ */
+export async function recordDailyRevenueCut() {
+  const today = getLocalDate();
+
+  const preview = await getDailyRevenueCutPreview();
+  if (preview.alreadyRecorded) {
+    throw new Error('Daily revenue cut already recorded today');
+  }
+  if (preview.cutAmount <= 0) {
+    throw new Error('No sales recorded today — nothing to cut');
+  }
+
+  const { data, error } = await supabase
+    .from('operational_funds')
+    .insert({
+      amount: preview.cutAmount,
+      description: '1% Daily Revenue Cut',
+      fund_date: today,
+    })
+    .select()
+       .single();
+  if (error) throw error;
+  return { ...data, revenue: preview.revenue, cutAmount: preview.cutAmount };
+}
+
+/**
+ * Remove the daily revenue cut entry for a given date.
+ * Returns the deleted fund record.
+ */
+export async function deleteDailyRevenueCut(date) {
+  const { data, error } = await supabase
+    .from('operational_funds')
+    .delete()
+    .eq('fund_date', date)
+    .eq('description', '1% Daily Revenue Cut')
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 export async function getOperationalBalance(startDate) {
   // Total funds added minus expenses since tracking started
   // When no startDate is given, auto-detect from the earliest fund entry (or today if none)

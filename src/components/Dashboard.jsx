@@ -113,7 +113,9 @@ export default function Dashboard() {
     const eggCount = getEggCount(s);
     return sum + (cost?.avgCostPerEgg || 0) * eggCount;
   }, 0);
-  const netProfit = todayRevenue - todayExpenseTotal - todayCOGS;
+  const dailyRevenueCut = Math.round(todayRevenue * 0.01 * 100) / 100;
+  const adjustedRevenue = todayRevenue - dailyRevenueCut;
+  const netProfit = adjustedRevenue - todayExpenseTotal - todayCOGS;
 
   const totalStock = inventory.reduce(
     (sum, item) => sum + (item.quantity_on_hand || 0), 0
@@ -224,7 +226,7 @@ export default function Dashboard() {
           <Package size={18} />
           <span>Add Stock</span>
         </button>
-        <button className="qa-btn qa-expense" onClick={() => navigate('/expenses')}>
+        <button className="qa-btn qa-expense" onClick={() => navigate('/expenses-funds')}>
           <TrendingDown size={18} />
           <span>Add Expense</span>
         </button>
@@ -243,6 +245,9 @@ export default function Dashboard() {
           <div className="primary-stat-info">
             <span className="primary-stat-label">Today's Revenue</span>
             <span className="primary-stat-value">{loading ? <span className="skeleton" style={{ display: 'inline-block', width: 80, height: 28 }}>&nbsp;</span> : formatPeso(todayRevenue)}</span>
+            {!loading && (
+              <span className="primary-stat-sub">After 1% cut: {formatPeso(adjustedRevenue)}</span>
+            )}
             {!loading && (
               <span className={`primary-stat-change ${revenueChange >= 0 ? 'change-up' : 'change-down'}`}>
                 {revenueChange >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
@@ -360,6 +365,18 @@ export default function Dashboard() {
             <span className="stat-card-label">{todayDeliveries.length > 0 ? formatPeso(todayDeliveryCost / (todayDeliveries.length || 1)) + '/avg' : 'delivery cost'}</span>
           </div>
         </div>
+
+        <div className="stat-card-item">
+          <div className="stat-card-icon" style={{ background: '#E8F5E9', color: '#2E7D32' }}>
+            <Wallet size={18} />
+          </div>
+          <div className="stat-card-content">
+            <span className="stat-card-value">
+              {loading ? '—' : formatPeso(dailyRevenueCut)}
+            </span>
+            <span className="stat-card-label">1% Daily Cut</span>
+          </div>
+        </div>
       </div>
 
       {/* Insight Cards Row */}
@@ -399,7 +416,7 @@ export default function Dashboard() {
               </span>
             )}
             {!loading && (
-              <span className="insight-sub">{formatPeso(netProfit)} on {formatPeso(todayRevenue)}</span>
+              <span className="insight-sub">{formatPeso(netProfit)} on {formatPeso(adjustedRevenue)}</span>
             )}
           </div>
         </div>
@@ -1070,6 +1087,12 @@ export default function Dashboard() {
         .primary-stat-change.change-down {
           color: var(--color-danger);
           background: var(--color-danger-bg);
+        }
+
+        .primary-stat-sub {
+          font-size: 0.6875rem;
+          color: var(--color-text-muted);
+          margin-top: 0.0625rem;
         }
 
         /* Insight Cards Row */

@@ -11,12 +11,11 @@ const SalesLog = lazy(() => import('./components/SalesLog'));
 const Analytics = lazy(() => import('./components/Analytics'));
 const Reports = lazy(() => import('./components/Reports'));
 const Profits = lazy(() => import('./components/Profits'));
-const Expenses = lazy(() => import('./components/Expenses'));
+const ExpensesFunds = lazy(() => import('./components/ExpensesFunds'));
 const Spoilage = lazy(() => import('./components/Spoilage'));
 const Customers = lazy(() => import('./components/Customers'));
 const Suppliers = lazy(() => import('./components/Suppliers'));
 const Deliveries = lazy(() => import('./components/Deliveries'));
-const OperationalExpenses = lazy(() => import('./components/OperationalExpenses'));
 
 function PageLoading() {
   return (
@@ -38,12 +37,13 @@ export default function App() {
             <Route path="/prices" element={<ErrorBoundary><PriceSettings /></ErrorBoundary>} />
             <Route path="/sales" element={<ErrorBoundary><SalesLog /></ErrorBoundary>} />
             <Route path="/analytics" element={<ErrorBoundary><Analytics /></ErrorBoundary>} />
-            <Route path="/expenses" element={<ErrorBoundary><Expenses /></ErrorBoundary>} />
+            <Route path="/expenses" element={<Navigate to="/expenses-funds" replace />} />
+            <Route path="/expenses-funds" element={<ErrorBoundary><ExpensesFunds /></ErrorBoundary>} />
+            <Route path="/operational-expenses" element={<Navigate to="/expenses-funds" replace />} />
             <Route path="/spoilage" element={<ErrorBoundary><Spoilage /></ErrorBoundary>} />
             <Route path="/customers" element={<ErrorBoundary><Customers /></ErrorBoundary>} />
             <Route path="/suppliers" element={<ErrorBoundary><Suppliers /></ErrorBoundary>} />
             <Route path="/deliveries" element={<ErrorBoundary><Deliveries /></ErrorBoundary>} />
-            <Route path="/operational-expenses" element={<ErrorBoundary><OperationalExpenses /></ErrorBoundary>} />
             <Route path="/reports" element={<ErrorBoundary><Reports /></ErrorBoundary>} />
             <Route path="/profits" element={<ErrorBoundary><Profits /></ErrorBoundary>} />
             <Route path="*" element={<Navigate to="/" replace />} />

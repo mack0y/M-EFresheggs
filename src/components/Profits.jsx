@@ -164,10 +164,12 @@ export default function Profits() {
     const totalCOGS = rows.reduce((s, r) => s + r.cogs, 0);
     const totalExpensesAmount = expenses.reduce((s, e) => s + parseFloat(e.amount || 0), 0);
     const grossProfit = Math.round((totalRevenue - totalCOGS) * 100) / 100;
-    const netProfit = Math.round((totalRevenue - totalExpensesAmount - totalCOGS) * 100) / 100;
+    const revenueCut = Math.round(totalRevenue * 0.01 * 100) / 100;
+    const adjustedRevenue = Math.round((totalRevenue - revenueCut) * 100) / 100;
+    const netProfit = Math.round((adjustedRevenue - totalExpensesAmount - totalCOGS) * 100) / 100;
     const totalEggs = rows.reduce((s, r) => s + r.totalEggs, 0);
 
-    return { rows, totalRevenue, totalCOGS, totalExpenses: totalExpensesAmount, grossProfit, netProfit, salesCount: sales.length, totalEggs };
+    return { rows, totalRevenue, totalCOGS, totalExpenses: totalExpensesAmount, grossProfit, revenueCut, adjustedRevenue, netProfit, salesCount: sales.length, totalEggs };
   })();
 
   return (
@@ -226,8 +228,11 @@ export default function Profits() {
             <DollarSign size={20} />
           </div>
           <div className="profit-card-info">
-            <span className="profit-card-label">Revenue</span>
-            <span className="profit-card-value">{loading ? '—' : formatPeso(profitData.totalRevenue)}</span>
+            <span className="profit-card-label">Adjusted Revenue</span>
+            <span className="profit-card-value">{loading ? '—' : formatPeso(profitData.adjustedRevenue)}</span>
+            {profitData.revenueCut > 0 && !loading && (
+              <span style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)' }}>After 1% cut ({formatPeso(profitData.revenueCut)})</span>
+            )}
           </div>
         </div>
         <div className="profit-summary-card profit-card-cogs">
@@ -397,8 +402,18 @@ export default function Profits() {
           <div className="card profit-net-strip-wrap">
             <div className="profit-net-strip">
               <div className="profit-net-item">
-                <span>Revenue</span>
+                <span>Gross Revenue</span>
                 <span className="profit-net-amount" style={{ color: 'var(--color-primary)' }}>{formatPeso(profitData.totalRevenue)}</span>
+              </div>
+              <div className="profit-net-op"><TrendingDown size={14} /></div>
+              <div className="profit-net-item">
+                <span>1% Cut</span>
+                <span className="profit-net-amount" style={{ color: '#F57F17' }}>{formatPeso(profitData.revenueCut)}</span>
+              </div>
+              <div className="profit-net-op"><TrendingDown size={14} /></div>
+              <div className="profit-net-item">
+                <span>Adjusted Revenue</span>
+                <span className="profit-net-amount" style={{ color: 'var(--color-success)', fontWeight: 700 }}>{formatPeso(profitData.adjustedRevenue)}</span>
               </div>
               <div className="profit-net-op"><TrendingDown size={14} /></div>
               <div className="profit-net-item">
