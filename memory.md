@@ -660,7 +660,8 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 
 ### Profit Margins per Egg Size (June 2026)
 - New `fetchProfitMargins()` API function — calculates average cost per egg from deliveries vs selling price from price_settings
-- New "Margins" tab in Analytics — shows margin summary cards (cost, selling price, profit per size) and grouped bar chart comparing cost vs selling price- Margins load once on mount (not time-dependent)
+- New "Margins" tab in Analytics — shows margin summary cards (cost, selling price, profit per size) and grouped bar chart comparing cost vs selling price
+- Margins load once on mount (not time-dependent)
 - Edge case: sizes with deliveries but no price set are filtered out to avoid misleading 100% margins
 - Browser tested: renders correctly, shows empty state when no delivery/price data
 
@@ -883,4 +884,20 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - All funds (no date filter) are still summed regardless of date
 - Removes async query to auto-detect earliest fund entry — simplifies and improves performance
 
-# Last updated: June 2026
+### MCP SQL Timezone Fix — CRITICAL (June 2026)
+- **Bug:** `CURRENT_DATE` in MCP SQL returns the **server's UTC date**, which is WRONG for PHT between midnight–8AM (UTC is still on the previous day)
+- **Impact:** Sales/deliveries/funds inserted between 12AM–8AM PHT were tagged with yesterday's date, causing them to disappear from web UI "Today" filters and Reports
+- **Real example:** Sale #1066 (9 pcs Pullet, ₱58.50) was tagged as Jun 26 instead of Jun 27
+- **Fix for ALL write operations:** Always compute PHT date first via SQL, then pass as explicit string:
+  ```sql
+  -- Step 1: Get PHT date
+  SELECT (CURRENT_DATE + INTERVAL '8 hours')::date::text as pht_today;
+  -- Step 2: Use the returned string in INSERT
+  INSERT INTO sales (..., sale_date, ...) VALUES (..., '2026-06-27', ...)
+  ```
+- **NEVER** use `CURRENT_DATE` alone in INSERT/UPDATE statements
+- **Affected tables:** sales, deliveries, expenses, spoilage, operational_funds
+- **Cron jobs:** The "1% Daily Revenue Cut" cron must also use PHT-aware date
+- **Web app equivalent:** `getLocalDate()` uses `toLocaleDateString('en-CA', {timeZone: 'Asia/Manila'})` — MCP SQL equivalent is the `+ INTERVAL '8 hours'` pattern
+
+# Last updated: Sat Jun 27 2026
