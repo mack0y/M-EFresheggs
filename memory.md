@@ -63,12 +63,11 @@ M-EFresheggs/
         ├── Profits.jsx         # Revenue → Expenses → COGS = Net Profit with per-size breakdown
         ├── Analytics.jsx       # 6 chart tabs (by size, hour, trend, revenue, pie, margins)
         ├── Reports.jsx         # Shift-based reports, CSV export, Backup (JSON), deliveries
-        ├── Expenses.jsx        # Search, sort, bulk delete, pagination, undo toast
+        ├── ExpensesFunds.jsx   # Combined expenses + operational funds, date filter, 1% daily cut
         ├── Spoilage.jsx        # Search, sort, bulk delete, pagination, undo toast
         ├── Customers.jsx       # Customer directory
         ├── Suppliers.jsx       # Supplier directory
         ├── Deliveries.jsx      # Multi-size batch form, search, bulk delete, pagination, undo
-        ├── OperationalExpenses.jsx  # Track funds added to the business, running balance
         ├── Toast.jsx           # Global notifications (undo action support, 5s duration)
         ├── ConfirmDialog.jsx   # Reusable confirmation modal (backdrop blur, scale-in)
         └── ErrorBoundary.jsx   # React error fallback UI
@@ -203,8 +202,9 @@ All tables use permissive policies (`ALL USING true`) since this is a single-use
 | `/customers` | Customers | Customer directory (name, phone, notes) |
 | `/suppliers` | Suppliers | Supplier directory (name, phone, notes) |
 | `/deliveries` | Deliveries | Track supplier deliveries with cost & payment status |
-| `/expenses` | Expenses | Record expenses by category, filter & view breakdown |
-| `/operational-expenses` | OperationalExpenses | Track funds added to business, running balance (Total Funds − Expenses) |
+| `/expenses-funds` | ExpensesFunds | Combined expenses + operational funds, date filter, 1% daily revenue cut |
+| `/expenses` | → redirects to `/expenses-funds` | Legacy route |
+| `/operational-expenses` | → redirects to `/expenses-funds` | Legacy route |
 | `/analytics` | Analytics | 5 chart views (by size, by hour, trend, revenue, distribution) |
 | `/reports` | Reports | Shift-based sales reports with CSV export + revenue vs expenses + deliveries |
 | `/profits` | Profits | Real-time profit dashboard with per-size breakdown, Net Profit focus |
@@ -876,5 +876,11 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - Revenue card on Dashboard shows gross revenue with sub-label showing adjusted amount
 - Profits summary card shows "Adjusted Revenue" with cut detail
 - Net profit strip shows: Gross Revenue → 1% Cut → Adjusted Revenue → COGS → Net Profit
+
+### Expense Tracking Start Date (June 2026)
+- **`getOperationalBalance()`** now uses hardcoded `EXPENSE_TRACKING_START = '2026-06-19'` as default start date for expense deduction
+- Expenses before June 19, 2026 are NOT deducted from operational fund balance
+- All funds (no date filter) are still summed regardless of date
+- Removes async query to auto-detect earliest fund entry — simplifies and improves performance
 
 # Last updated: June 2026

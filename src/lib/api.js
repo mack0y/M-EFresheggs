@@ -777,23 +777,13 @@ export async function deleteDailyRevenueCut(date) {
   return data;
 }
 
+const EXPENSE_TRACKING_START = '2026-06-19';
+
 export async function getOperationalBalance(startDate) {
-  // Total funds added minus expenses since tracking started
-  // When no startDate is given, auto-detect from the earliest fund entry (or today if none)
+  // Total funds added minus expenses since expense tracking started (June 19, 2026)
+  // Expenses before this date are not deducted from operational funds
 
-  let effectiveStartDate = startDate;
-
-  if (!effectiveStartDate) {
-    const { data: earliestFund, error: fundDateErr } = await supabase
-      .from('operational_funds')
-      .select('fund_date')
-      .order('fund_date', { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (fundDateErr) throw fundDateErr;
-    effectiveStartDate = earliestFund?.fund_date || getLocalDate();
-  }
+  const effectiveStartDate = startDate || EXPENSE_TRACKING_START;
 
   const [fundsData, expensesData] = await Promise.all([
     supabase.from('operational_funds').select('amount'),
