@@ -115,7 +115,9 @@ export default function Dashboard() {
   }, 0);
   const dailyRevenueCut = Math.round(todayRevenue * 0.01 * 100) / 100;
   const adjustedRevenue = todayRevenue - dailyRevenueCut;
-  const netProfit = adjustedRevenue - todayExpenseTotal - todayCOGS;
+  // Net profit = adjusted revenue minus COGS only
+  // (expenses are paid from operational funds, funded by the 1% cut)
+  const netProfit = adjustedRevenue - todayCOGS;
 
   const totalStock = inventory.reduce(
     (sum, item) => sum + (item.quantity_on_hand || 0), 0

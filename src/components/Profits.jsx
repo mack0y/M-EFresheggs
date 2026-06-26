@@ -166,7 +166,9 @@ export default function Profits() {
     const grossProfit = Math.round((totalRevenue - totalCOGS) * 100) / 100;
     const revenueCut = Math.round(totalRevenue * 0.01 * 100) / 100;
     const adjustedRevenue = Math.round((totalRevenue - revenueCut) * 100) / 100;
-    const netProfit = Math.round((adjustedRevenue - totalExpensesAmount - totalCOGS) * 100) / 100;
+    // Net profit = adjusted revenue minus COGS only
+    // (expenses are paid from operational funds, funded by the 1% cut)
+    const netProfit = Math.round((adjustedRevenue - totalCOGS) * 100) / 100;
     const totalEggs = rows.reduce((s, r) => s + r.totalEggs, 0);
 
     return { rows, totalRevenue, totalCOGS, totalExpenses: totalExpensesAmount, grossProfit, revenueCut, adjustedRevenue, netProfit, salesCount: sales.length, totalEggs };
@@ -414,11 +416,6 @@ export default function Profits() {
               <div className="profit-net-item">
                 <span>Adjusted Revenue</span>
                 <span className="profit-net-amount" style={{ color: 'var(--color-success)', fontWeight: 700 }}>{formatPeso(profitData.adjustedRevenue)}</span>
-              </div>
-              <div className="profit-net-op"><TrendingDown size={14} /></div>
-              <div className="profit-net-item">
-                <span>Expenses</span>
-                <span className="profit-net-amount" style={{ color: '#C62828' }}>{formatPeso(profitData.totalExpenses)}</span>
               </div>
               <div className="profit-net-op"><TrendingDown size={14} /></div>
               <div className="profit-net-item">

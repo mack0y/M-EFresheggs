@@ -47,6 +47,9 @@ export default function ExpensesFunds() {
   const [sortField, setSortField] = useState('expense_date');
   const [sortDir, setSortDir] = useState('desc');
   const [selectedIds, setSelectedIds] = useState([]);
+  const [dateStart, setDateStart] = useState(getLocalDate());
+  const [dateEnd, setDateEnd] = useState(getLocalDate());
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   // ===== Daily Cut state =====
   const [cutPreview, setCutPreview] = useState(null);
@@ -76,17 +79,30 @@ export default function ExpensesFunds() {
     loadAll();
   }, []);
 
+  async function loadExpenses(startDate, endDate) {
+    try {
+      setPage(0);
+      const expData = await fetchExpenses({ startDate, endDate, limit: PAGE_SIZE, offset: 0 });
+      setExpenses(expData || []);
+      setHasMore(expData && expData.length >= PAGE_SIZE);
+    } catch (err) {
+      console.error('Expenses load error:', err);
+      toast('Failed to load expenses', 'error');
+    }
+  }
+
   async function loadAll() {
     try {
       setLoading(true);
       setError(null);
       setPage(0);
-      const [expData, balData, fundsData, cutData] = await Promise.all([
-        fetchExpenses({ limit: PAGE_SIZE, offset: 0 }),
+      const [balData, fundsData, cutData] = await Promise.all([
         getOperationalBalance(),
         fetchOperationalFunds(),
         getDailyRevenueCutPreview().catch(() => null),
       ]);
+      // Load expenses separately so we can pass date filters
+      const expData = await fetchExpenses({ startDate: dateStart, endDate: dateEnd, limit: PAGE_SIZE, offset: 0 });
       setExpenses(expData || []);
       setHasMore(expData && expData.length >= PAGE_SIZE);
       setBalance(balData || { totalFunds: 0, totalExpenses: 0, balance: 0 });
@@ -100,11 +116,18 @@ export default function ExpensesFunds() {
     }
   }
 
+  function applyDateFilter(start, end) {
+    setDateStart(start);
+    setDateEnd(end);
+    setShowDatePicker(false);
+    loadExpenses(start, end);
+  }
+
   // ===== Expenses =====
   async function loadMoreExpenses() {
     try {
       const nextOffset = (page + 1) * PAGE_SIZE;
-      const data = await fetchExpenses({ limit: PAGE_SIZE, offset: nextOffset });
+      const data = await fetchExpenses({ startDate: dateStart, endDate: dateEnd, limit: PAGE_SIZE, offset: nextOffset });
       if (data && data.length > 0) {
         setExpenses(prev => [...prev, ...data]);
         setPage(prev => prev + 1);
@@ -504,6 +527,42 @@ export default function ExpensesFunds() {
             </button>
           </div>
         )}
+
+        {/* Date filter */}
+        <div className="ef-date-filter">
+          <div className="ef-date-filter-row">
+            <button
+              className={`ef-date-btn ${dateStart === today && dateEnd === today ? 'active' : ''}`}
+              onClick={() => setDateStart(today) || setDateEnd(today) || loadExpenses(today, today)}
+            >
+              Today
+            </button>
+            <button
+              className={`ef-date-btn ${showDatePicker ? 'active' : ''}`}
+              onClick={() => setShowDatePicker(!showDatePicker)}
+            >
+              {dateStart === today && dateEnd === today ? 'Custom Date' : `${formatDate(dateStart)} — ${formatDate(dateEnd)}`}
+            </button>
+          </div>
+          {showDatePicker && (
+            <div className="ef-date-picker-row">
+              <input
+                type="date"
+                className="input ef-date-input"
+                value={dateStart}
+                onChange={e => setDateStart(e.target.value)}
+              />
+              <span className="ef-date-sep">—</span>
+              <input
+                type="date"
+                className="input ef-date-input"
+                value={dateEnd}
+                onChange={e => setDateEnd(e.target.value)}
+              />
+              <button className="btn btn-primary btn-sm" onClick={() => applyDateFilter(dateStart, dateEnd)}>Go</button>
+            </div>
+          )}
+        </div>
 
         {/* Category filters */}
         <div className="filter-tabs">
@@ -953,6 +1012,26 @@ export default function ExpensesFunds() {
         .ef-search svg { flex-shrink: 0; color: var(--color-text-muted); }
         .ef-search .input { flex: 1; }
         .ef-record-count { font-size: 0.8125rem; color: var(--color-text-muted); white-space: nowrap; }
+
+        .ef-date-filter { margin-bottom: 0.75rem; }
+        .ef-date-filter-row { display: flex; gap: 0.375rem; flex-wrap: wrap; }
+        .ef-date-btn {
+          padding: 0.4rem 0.875rem;
+          border: 1.5px solid var(--color-border);
+          border-radius: var(--radius-sm);
+          background: var(--color-card);
+          color: var(--color-text-secondary);
+          font-size: 0.8125rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .ef-date-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
+        .ef-date-btn.active { background: var(--color-primary); border-color: var(--color-primary); color: white; }
+        .ef-date-picker-row { display: flex; align-items: center; gap: 0.375rem; margin-top: 0.5rem; flex-wrap: wrap; }
+        .ef-date-input { max-width: 160px; padding: 0.35rem 0.5rem; border: 1.5px solid var(--color-border); border-radius: var(--radius-sm); font-size: 0.75rem; color: var(--color-text); background: var(--color-card); }
+        .ef-date-input:focus { border-color: var(--color-primary); outline: none; }
+        .ef-date-sep { color: var(--color-text-muted); font-size: 0.8125rem; }
 
         .bulk-actions { margin-bottom: 0.75rem; }
         .btn-danger { background: var(--color-danger); color: white; border: none; }
