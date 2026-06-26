@@ -143,8 +143,8 @@ export default function Dashboard() {
     : 0;
 
   // Profit margin
-  const marginPercent = todayRevenue > 0
-    ? Math.round((netProfit / todayRevenue) * 100)
+  const marginPercent = adjustedRevenue > 0
+    ? Math.round((netProfit / adjustedRevenue) * 100)
     : 0;
 
   // 7-day sparkline data
