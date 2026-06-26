@@ -807,6 +807,7 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - **Time display** — Fund entries now show recorded time (from `created_at`) alongside the date (e.g., "Today 11:45 PM")
 - **Routing** — `/expenses` and `/operational-expenses` redirect to `/expenses-funds`
 - **Nav** — Sidebar shows single "Finances" link; bottom nav "Costs" tab updated
+- **Date filter for expenses** — Defaults to today's expenses with "Today" button and "Custom Date" toggle. Custom date picker shows start/end date inputs with a "Go" button. Loads filtered expenses via `fetchExpenses({ startDate, endDate })`.
 - **Old components deleted** — `Expenses.jsx` and `OperationalExpenses.jsx` removed
 
 ### Sales Log Visual Size Cards
@@ -869,10 +870,11 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - `deleteDailyRevenueCut(date)` — Removes the cut entry for a given date (used for undo)
 
 ### Net Profit Formula (June 2026)
-- **Dashboard:** `netProfit = adjustedRevenue - todayExpenseTotal - todayCOGS` where `adjustedRevenue = todayRevenue - dailyRevenueCut`
-- **Profits page:** `netProfit = adjustedRevenue - totalExpensesAmount - totalCOGS` where `adjustedRevenue = totalRevenue - revenueCut`
+- **Dashboard:** `netProfit = adjustedRevenue - todayCOGS` where `adjustedRevenue = todayRevenue - dailyRevenueCut`
+- **Profits page:** `netProfit = adjustedRevenue - totalCOGS` where `adjustedRevenue = totalRevenue - revenueCut`
+- **Key:** Expenses are NOT deducted from net profit — they are paid from operational funds (funded by the 1% revenue cut)
 - Revenue card on Dashboard shows gross revenue with sub-label showing adjusted amount
 - Profits summary card shows "Adjusted Revenue" with cut detail
-- Net profit strip shows full chain: Gross Revenue → 1% Cut → Adjusted Revenue → Expenses → COGS → Net Profit
+- Net profit strip shows: Gross Revenue → 1% Cut → Adjusted Revenue → COGS → Net Profit
 
 # Last updated: June 2026
