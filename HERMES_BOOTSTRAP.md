@@ -110,7 +110,97 @@ The MCP server is already configured for you. Ask your agent to "execute some te
 
 ---
 
-## 4. Critical Rules — Copy These Into Agent Memory
+## 4. Agentic Harness — How This Agent Operates
+
+This agent runs as a **GC (Group Chat) agent** in the "M&E Fresh Eggs" Telegram group. It is also referred to as **GC1** (the first GC agent).
+
+### 4.1 Architecture
+
+```
+Group Chat (M&E Fresh Eggs) ← Telegram
+        │
+        ▼
+┌──────────────────────────────┐
+│  Harness Controller          │
+│  ┌────────────────────────┐  │
+│  │ Reliability Wrapper    │  │ ← retry, idempotency, timeout
+│  │ ┌──────────────────┐  │  │
+│  │ │ QA Verification  │  │  │ ← schema, bounds, auth check
+│  │ │ ┌────────────┐  │  │  │
+│  │ │ │ Agent Core │  │  │  │ ← full tool access
+│  │ │ └────────────┘  │  │  │
+│  │ └──────────────────┘  │  │
+│  └────────────────────────┘  │
+│  ┌────────────────────────┐  │
+│  │ Circuit Breaker        │  │ ← fail-open after 3 consecutive failures, 60s cooldown
+│  └────────────────────────┘  │
+│  ┌────────────────────────┐  │
+│  │ Observability Logger   │  │ ← traces, metrics, alerts
+│  └────────────────────────┘  │
+└──────────────────────────────┘
+        │
+        ▼
+   Supabase (source of truth)
+```
+
+### 4.2 OWL / GC Delegation Pattern
+
+This supervisor uses a **two-tier agent structure**:
+
+| Agent | Role | Model | Description |
+|-------|------|-------|-------------|
+| **OWL** (main) | Orchestrator/Supervisor | Current model (flash/free) | Receives user messages, delegates to GC agents, reports back |
+| **GC1** (this agent) | M&E Fresh Eggs Operator | deepseek-v4-flash (default) | Handles all M&E business ops: sales, deliveries, reports, inventory |
+
+**Delegation flow:**
+1. User sends message in group → OWL receives it
+2. OWL identifies intent → delegates to GC1 via `delegate_task` or inline execution
+3. GC1 executes (stock check → MCP SQL insert → report)
+4. Result returns to OWL → OWL responds to user
+
+**When OWL acts directly vs. delegates:**
+- **OWL handles directly:** Simple queries, meta-questions, model switches, cron management
+- **GC1 handles:** All M&E business operations (sales, deliveries, reports, inventory, expenses)
+
+### 4.3 Failure Behavior (Escalation Ladder)
+
+```
+Level 0: Tool call succeeds → return result
+Level 1: Tool call fails (transient) → retry with backoff (max 2)
+Level 2: Tool call fails (persistent) → circuit breaker opens, skip & continue
+Level 3: Agent confused/wrong → self-correct loop (5-step protocol: Analyze → Execute → Fact-Check → Self-Correct → Output)
+Level 4: 3 consecutive failures → alert OWL (main agent)
+Level 5: Agent crashed/stuck → OWL spawns replacement session
+Level 6: All recovery fails → DM user (Flak) as final fallback
+```
+
+### 4.4 Two-Tier Supabase Access
+
+| Operation | Auth Method | Examples |
+|-----------|-------------|---------|
+| **Read/Report** | REST API with anon key | fetchSales, fetchInventory, fetchPriceSettings |
+| **Write/Input** | MCP SQL tool (INSERT/UPDATE/DELETE) | recordSale, updateInventory, recordDelivery, recordExpense |
+
+**CRITICAL:** REST API with anon key is READ-ONLY. All writes go through MCP SQL (`mcp_M_E_Fresh_Eggs_execute_sql`).
+
+### 4.5 Idempotency
+
+```
+idempotency_key = hash(agent_id + tool_name + normalized_params + session_date)
+```
+
+If same key already exists → return cached result, skip execution. Prevents duplicate sales/deliveries.
+
+### 4.6 Scope Lock
+
+**This agent = M&E Fresh Eggs ONLY.**
+- No other projects (TrendWire, etc.)
+- No cross-GC data access
+- All skills serve one business
+
+---
+
+## 5. Critical Rules — Copy These Into Agent Memory
 
 Add these to the agent's persistent memory (via `memory` tool or equivalent):
 
@@ -130,6 +220,8 @@ M&E Supabase: ref=npohyeqnaltpqzmmlmej. anon REST = read-only. MCP SQL = write. 
 Egg size IDs: Peewee=1, Pullet=2, Small=3, Medium=4, Large=5, Extra Large=6, Jumbo=7. TRAY_SIZE=30.
 
 Suppliers: Lilanie Fernandez-Robert (ID=1), renren (ID=2).
+
+Agentic harness: GC1 = M&E Fresh Eggs operator. OWL = supervisor. Escalation: retry → circuit breaker → self-correct → alert OWL → DM user. Two-tier auth: REST anon = read, MCP SQL = write. Idempotency via hash key. Scope lock = M&E ONLY.
 ```
 
 ---
