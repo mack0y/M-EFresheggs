@@ -621,8 +621,7 @@ export default function Deliveries() {
               ? batch.items[0]?.payment_status
               : batchPaymentStatus(batch.items);
             const bpStyle = paymentColors[bpStatus] || paymentColors.unpaid;
-            return (
-              <div key={batch.batchId} className="delivery-batch">
+            return (                <div key={batch.batchId} className="delivery-batch" style={editingPayment === batch.batchId ? { zIndex: 20 } : undefined}>
                 <div
                   className="delivery-row delivery-batch-header"
                   onClick={() => !batch.isSingle && setExpandedBatches(prev => ({ ...prev, [batch.batchId]: !prev[batch.batchId] }))}
@@ -973,6 +972,7 @@ export default function Deliveries() {
           border-bottom: 1px solid var(--color-border);
           animation: fadeIn 0.3s ease-out forwards;
           opacity: 0;
+          position: relative;
         }
 
         .delivery-batch:last-child { border-bottom: none; }
@@ -1129,7 +1129,7 @@ export default function Deliveries() {
           border: 1px solid var(--color-border);
           border-radius: var(--radius-md);
           box-shadow: var(--shadow-lg);
-          z-index: 10;
+          z-index: 20;
           padding: 0.375rem;
           animation: scaleIn 0.15s ease-out;
         }
