@@ -24,6 +24,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { fetchSalesBySize, fetchSalesByHour, fetchSalesTrend, fetchProfitMargins, formatPeso, EGG_SIZES, getLocalDate } from '../lib/api';
+import { formatDateShort } from '../lib/formatters';
 import { getUserFriendlyError } from '../lib/errors';
 
 const COLORS = [
@@ -64,10 +65,7 @@ export default function Analytics() {
   const [days, setDays] = useState(30);
   const [chartTab, setChartTab] = useState('size');
 
-  function formatDate(dateStr) {
-    const d = new Date(dateStr + 'T00:00:00');
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  }
+
 
   function formatHour(h) {
     if (h === 12) return '12 PM';
@@ -161,7 +159,7 @@ export default function Analytics() {
       const sortedTrend = Object.entries(dailyMap)
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([date, eggs]) => ({
-          date: formatDate(date),
+          date: formatDateShort(date),
           eggs,
         }));
 

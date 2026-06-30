@@ -12,6 +12,7 @@ import { fetchCustomers, addCustomer, deleteCustomer } from '../lib/api';
 import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
+import { useConfirmDialog } from '../hooks/useConfirmDialog';
 
 export default function Customers() {
   const [customers, setCustomers] = useState([]);
@@ -19,7 +20,7 @@ export default function Customers() {
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState(null);
+  const { target: deleteTarget, isOpen: isDeleteOpen, openConfirm, closeConfirm } = useConfirmDialog();
 
   const [form, setForm] = useState({
     name: '',
@@ -74,7 +75,7 @@ export default function Customers() {
     try {
       await deleteCustomer(id);
       toast('Customer removed');
-      setDeleteTarget(null);
+      closeConfirm();
       loadCustomers();
     } catch (err) {
       console.error('Delete customer error:', err);
@@ -228,7 +229,7 @@ export default function Customers() {
               <span className="num">
                 <button
                   className="btn-icon btn-icon-danger"
-                  onClick={() => setDeleteTarget(customer)}
+                  onClick={() => openConfirm(customer)}
                   title="Remove customer"
                 >
                   <Trash2 size={16} />
@@ -240,14 +241,14 @@ export default function Customers() {
       </div>
 
       <ConfirmDialog
-        open={!!deleteTarget}
+        open={isDeleteOpen}
         title="Remove this customer?"
         message={deleteTarget ? `Remove "${deleteTarget.name}" from your directory? This cannot be undone.` : ''}
         confirmLabel="Remove"
         variant="danger"
         icon={Trash2}
         onConfirm={() => handleDelete(deleteTarget.id)}
-        onCancel={() => setDeleteTarget(null)}
+        onCancel={closeConfirm}
       />
 
       <style>{`

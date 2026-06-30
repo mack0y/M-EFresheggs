@@ -549,13 +549,47 @@ export async function fetchInventoryValue() {
 }
 
 /**
+ * Find the most recent delivery per egg size from a list of deliveries.
+ * Returns { latestPerSize, totalCountPerSize } where:
+ * - latestPerSize: { [egg_size_id]: delivery } (most recent delivery per size)
+ * - totalCountPerSize: { [egg_size_id]: totalEggs } (sum of all eggs delivered per size)
+ */
+function findLatestDeliveryPerSize(deliveries) {
+  const latestPerSize = {};
+  const totalCountPerSize = {};
+  (deliveries || []).forEach(d => {
+    if (!latestPerSize[d.egg_size_id]) {
+      latestPerSize[d.egg_size_id] = d;
+    }
+    if (!totalCountPerSize[d.egg_size_id]) totalCountPerSize[d.egg_size_id] = 0;
+    const eggCount = d.unit === 'tray' ? d.quantity * (d.tray_size || TRAY_SIZE) : d.quantity;
+    totalCountPerSize[d.egg_size_id] += eggCount;
+  });
+  return { latestPerSize, totalCountPerSize };
+}
+
+/**
+ * Derive cost per egg and cost per tray from a delivery record.
+ * The cost_per_egg column stores cost per tray.
+ */
+function deriveCostPerEgg(delivery) {
+  if (!delivery) return { avgCostPerEgg: 0, avgCostPerTray: 0 };
+  const costPerTray = parseFloat(delivery.cost_per_egg || 0);
+  const traySize = delivery.tray_size || TRAY_SIZE;
+  const costPerEgg = traySize > 0 ? costPerTray / traySize : 0;
+  return {
+    avgCostPerEgg: Math.round(costPerEgg * 100) / 100,
+    avgCostPerTray: Math.round(costPerTray * 100) / 100,
+  };
+}
+
+/**
  * Fetch cost per egg for each egg size based on the MOST RECENT delivery.
  * Uses latest delivery cost instead of historical average, since selling prices
  * are adjusted each time a new delivery arrives.
  * Returns a Map of egg_size_id -> { avgCostPerEgg, avgCostPerTray }
  */
 export async function fetchCostsPerEgg() {
-  // Fetch deliveries sorted by most recent first
   const { data: deliveries, error } = await supabase
     .from('deliveries')
     .select('egg_size_id, cost_per_egg, tray_size')
@@ -563,25 +597,11 @@ export async function fetchCostsPerEgg() {
     .order('created_at', { ascending: false });
   if (error) throw error;
 
-  // Take only the most recent delivery per egg size
-  const latestPerSize = {};
-  (deliveries || []).forEach(d => {
-    if (!latestPerSize[d.egg_size_id]) {
-      latestPerSize[d.egg_size_id] = d;
-    }
-  });
+  const { latestPerSize } = findLatestDeliveryPerSize(deliveries);
 
   const result = {};
   Object.keys(latestPerSize).forEach(id => {
-    const d = latestPerSize[id];
-    // cost_per_egg column stores cost per tray
-    const costPerTray = parseFloat(d.cost_per_egg || 0);
-    const traySize = d.tray_size || TRAY_SIZE;
-    const costPerEgg = traySize > 0 ? costPerTray / traySize : 0;
-    result[id] = {
-      avgCostPerEgg: Math.round(costPerEgg * 100) / 100,
-      avgCostPerTray: Math.round(costPerTray * 100) / 100,
-    };
+    result[id] = deriveCostPerEgg(latestPerSize[id]);
   });
 
   return result;
@@ -601,31 +621,16 @@ export async function fetchProfitMargins() {
       .order('created_at', { ascending: false }),
   ]);
 
-  // Take only the most recent delivery per egg size
-  const latestPerSize = {};
-  const totalCountPerSize = {};
-  (deliveries.data || []).forEach(d => {
-    if (!latestPerSize[d.egg_size_id]) {
-      latestPerSize[d.egg_size_id] = d;
-    }
-    // Count total eggs delivered per size for display
-    if (!totalCountPerSize[d.egg_size_id]) totalCountPerSize[d.egg_size_id] = 0;
-    const eggCount = d.unit === 'tray' ? d.quantity * (d.tray_size || TRAY_SIZE) : d.quantity;
-    totalCountPerSize[d.egg_size_id] += eggCount;
-  });
+  const { latestPerSize, totalCountPerSize } = findLatestDeliveryPerSize(deliveries.data);
 
   // Build margins per egg size
   const margins = EGG_SIZES.map((name, index) => {
     const price = (prices || []).find(p => p.egg_sizes?.sort_order === index + 1);
     const latest = latestPerSize[price?.egg_size_id];
     const totalEggs = totalCountPerSize[price?.egg_size_id] || 0;
-
+    const { avgCostPerEgg } = deriveCostPerEgg(latest);
     const pricePerPiece = parseFloat(price?.price_per_piece || 0);
     const pricePerTray = parseFloat(price?.price_per_tray || 0);
-    // cost_per_egg column stores cost per tray; divide by tray size for per-egg cost
-    const costPerTray = latest ? parseFloat(latest.cost_per_egg || 0) : 0;
-    const traySize = latest?.tray_size || TRAY_SIZE;
-    const avgCostPerEgg = traySize > 0 ? costPerTray / traySize : 0;
     const profitPerEgg = pricePerPiece - avgCostPerEgg;
     const marginPercent = pricePerPiece > 0 ? (profitPerEgg / pricePerPiece) * 100 : 0;
 
@@ -634,7 +639,7 @@ export async function fetchProfitMargins() {
       eggSizeId: price?.egg_size_id,
       pricePerPiece,
       pricePerTray,
-      avgCostPerEgg: Math.round(avgCostPerEgg * 100) / 100,
+      avgCostPerEgg,
       profitPerEgg: Math.round(profitPerEgg * 100) / 100,
       marginPercent: Math.round(marginPercent * 10) / 10,
       totalDelivered: totalEggs,

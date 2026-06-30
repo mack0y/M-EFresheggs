@@ -8,6 +8,7 @@ import {
   DollarSign,
 } from 'lucide-react';
 import { fetchSpoilageWithCost, recordSpoilage, deleteSpoilageRecords, fetchSpoilageByIds, fetchInventory, SPOILAGE_REASONS, formatPeso, getLocalDate } from '../lib/api';
+import { formatDate } from '../lib/formatters';
 import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
@@ -158,14 +159,7 @@ export default function Spoilage() {
     reasonBreakdown[s.reason].cost += parseFloat(s.cost || 0);
   });
 
-  function formatDate(dateStr) {
-    const d = new Date(dateStr + 'T00:00:00');
-    if (dateStr === today) return 'Today';
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    if (dateStr === getLocalDate(yesterday)) return 'Yesterday';
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  }
+
 
   const filteredSpoilage = spoilage.filter(s => {
     if (!searchQuery) return true;

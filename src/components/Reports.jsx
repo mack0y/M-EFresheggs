@@ -9,6 +9,7 @@ import {
   Download,
 } from 'lucide-react';
 import { fetchSalesReport, fetchExpenses, fetchSpoilageWithCost, fetchCustomers, fetchDeliveries, fetchCostsPerEgg, fetchPriceSettings, formatPeso, EGG_SIZES, TRAY_SIZE, getLocalDate, exportAllData } from '../lib/api';
+import { formatShiftTime } from '../lib/formatters';
 import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 
@@ -242,14 +243,7 @@ export default function Reports() {
     window.print();
   }
 
-  function formatTime(t) {
-    if (!t) return '';
-    const [h, m] = t.split(':');
-    const hour = parseInt(h, 10);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const h12 = hour % 12 || 12;
-    return `${h12}:${m} ${ampm}`;
-  }
+
 
   const processed = processReport();
 
@@ -428,7 +422,7 @@ export default function Reports() {
             <h2 className="report-title">M&E Fresh Eggs — Sales Report</h2>
             <div className="report-meta">
               <span><Calendar size={14} /> {startDate} — {endDate}</span>
-              <span><Clock size={14} /> {formatTime(startTime)} — {formatTime(endTime)}</span>
+              <span><Clock size={14} /> {formatShiftTime(startTime)} — {formatShiftTime(endTime)}</span>
               <span className="report-badge">Shift: {SHIFTS[activeShift].label}</span>
             </div>
             <div className="report-summary">

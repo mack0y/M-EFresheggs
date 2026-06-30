@@ -29,6 +29,7 @@ import {
   EXPENSE_CATEGORIES,
   getLocalDate,
 } from '../lib/api';
+import { formatDate, formatTime } from '../lib/formatters';
 import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
@@ -338,22 +339,7 @@ export default function ExpensesFunds() {
     }
   }
 
-  function formatDate(dateStr) {
-    const d = new Date(dateStr + 'T00:00:00');
-    const todayDate = getLocalDate();
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
 
-    if (dateStr === todayDate) return 'Today';
-    if (dateStr === getLocalDate(yesterday)) return 'Yesterday';
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  }
-
-  function formatTime(timestamp) {
-    if (!timestamp) return '';
-    const d = new Date(timestamp);
-    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-  }
 
   return (
     <div className="fade-in">

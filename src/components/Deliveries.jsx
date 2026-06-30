@@ -26,10 +26,10 @@ import {
   fetchInventory,
   PAYMENT_STATUSES,
   formatPeso,
-  toTraysAndPieces,
   TRAY_SIZE,
   getLocalDate,
 } from '../lib/api';
+import { formatDate, formatQuantity } from '../lib/formatters';
 import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
@@ -298,22 +298,7 @@ export default function Deliveries() {
     };
   });
 
-  function formatDate(dateStr) {
-    const d = new Date(dateStr + 'T00:00:00');
-    if (dateStr === today) return 'Today';
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    if (dateStr === getLocalDate(yesterday)) return 'Yesterday';
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  }
 
-  function formatQuantity(delivery) {
-    const totalEggs = delivery.quantity * (delivery.tray_size || TRAY_SIZE);
-    const { trays, pieces } = toTraysAndPieces(totalEggs);
-    if (trays === 0) return `${pieces} pcs`;
-    if (pieces === 0) return `${trays} tray${trays > 1 ? 's' : ''}`;
-    return `${trays}t + ${pieces}p`;
-  }
 
   function batchTotalQty(items) {
     return items.reduce((sum, d) => sum + d.quantity, 0);
