@@ -10,6 +10,7 @@ import {
 import { fetchSuppliers, addSupplier, deleteSupplier } from '../lib/api';
 import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
+import { useConfirmDialog } from '../hooks/useConfirmDialog';
 import ConfirmDialog from './ConfirmDialog';
 
 export default function Suppliers() {
@@ -18,7 +19,7 @@ export default function Suppliers() {
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState(null);
+  const { isOpen, target: deleteTarget, openConfirm, closeConfirm } = useConfirmDialog();
 
   const [form, setForm] = useState({
     name: '',
@@ -73,7 +74,7 @@ export default function Suppliers() {
     try {
       await deleteSupplier(id);
       toast('Supplier removed');
-      setDeleteTarget(null);
+      closeConfirm();
       loadSuppliers();
     } catch (err) {
       console.error('Delete supplier error:', err);
@@ -224,7 +225,7 @@ export default function Suppliers() {
               <span className="num">
                 <button
                   className="btn-icon btn-icon-danger"
-                  onClick={() => setDeleteTarget(supplier)}
+                  onClick={() => openConfirm(supplier)}
                   title="Remove supplier"
                 >
                   <Trash2 size={16} />
@@ -236,14 +237,14 @@ export default function Suppliers() {
       </div>
 
       <ConfirmDialog
-        open={!!deleteTarget}
+        open={isOpen}
         title="Remove this supplier?"
         message={deleteTarget ? `Remove "${deleteTarget.name}" from your directory? This cannot be undone.` : ''}
         confirmLabel="Remove"
         variant="danger"
         icon={Trash2}
         onConfirm={() => handleDelete(deleteTarget.id)}
-        onCancel={() => setDeleteTarget(null)}
+        onCancel={closeConfirm}
       />
 
       <style>{`

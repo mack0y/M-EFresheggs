@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   DollarSign,
   Plus,
@@ -30,6 +30,7 @@ import {
   getLocalDate,
 } from '../lib/api';
 import { formatDate, formatTime } from '../lib/formatters';
+import { useTableState } from '../hooks/useTableState';
 import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
@@ -44,10 +45,6 @@ export default function ExpensesFunds() {
   const [filterCategory, setFilterCategory] = useState('all');
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sortField, setSortField] = useState('expense_date');
-  const [sortDir, setSortDir] = useState('desc');
-  const [selectedIds, setSelectedIds] = useState([]);
   const [dateStart, setDateStart] = useState(getLocalDate());
   const [dateEnd, setDateEnd] = useState(getLocalDate());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -74,6 +71,26 @@ export default function ExpensesFunds() {
   const [deleteFundTarget, setDeleteFundTarget] = useState(null);
 
   const PAGE_SIZE = 50;
+
+  // ===== Table state (search, sort, selection) =====
+  const filteredByCategory = useMemo(() => {
+    if (filterCategory === 'all') return expenses;
+    return expenses.filter(e => e.category === filterCategory);
+  }, [expenses, filterCategory]);
+
+  const {
+    searchQuery, setSearchQuery,
+    sortField, sortDir, handleSort,
+    selectedIds, clearSelection, handleToggleSelect, handleToggleSelectAll,
+    processedData,
+  } = useTableState({
+    data: filteredByCategory,
+    searchFn: (item, q) =>
+      item.category?.toLowerCase().includes(q) ||
+      item.description?.toLowerCase().includes(q),
+    defaultSortField: 'expense_date',
+    defaultSortDir: 'desc',
+  });
 
   // ===== Data loading =====
   useEffect(() => {
@@ -142,35 +159,12 @@ export default function ExpensesFunds() {
     }
   }
 
-  function handleSort(field) {
-    if (sortField === field) {
-      setSortDir(prev => (prev === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortField(field);
-      setSortDir('asc');
-    }
-  }
-
-  function handleSelectAll() {
-    if (selectedIds.length === filteredExpenses.length) {
-      setSelectedIds([]);
-    } else {
-      setSelectedIds(filteredExpenses.map(e => e.id));
-    }
-  }
-
-  function handleSelectOne(id) {
-    setSelectedIds(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-    );
-  }
-
   async function handleDeleteSelected() {
     if (selectedIds.length === 0) return;
     try {
       await deleteExpenses(selectedIds);
       toast(`Deleted ${selectedIds.length} expense(s)`, 'success');
-      setSelectedIds([]);
+      clearSelection();
       loadAll();
     } catch (err) {
       console.error('Bulk delete error:', err);
@@ -219,41 +213,6 @@ export default function ExpensesFunds() {
       setSubmitting(false);
     }
   }
-
-  const filteredExpenses = (() => {
-    let list =
-      filterCategory === 'all'
-        ? expenses
-        : expenses.filter(e => e.category === filterCategory);
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      list = list.filter(
-        e =>
-          e.category?.toLowerCase().includes(q) ||
-          e.description?.toLowerCase().includes(q)
-      );
-    }
-
-    list.sort((a, b) => {
-      let aVal, bVal;
-      if (sortField === 'category') {
-        aVal = (a.category || '').toLowerCase();
-        bVal = (b.category || '').toLowerCase();
-      } else if (sortField === 'amount') {
-        aVal = parseFloat(a.amount || 0);
-        bVal = parseFloat(b.amount || 0);
-      } else {
-        aVal = a.expense_date || '';
-        bVal = b.expense_date || '';
-      }
-      if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
-      return 0;
-    });
-
-    return list;
-  })();
 
   const todayTotal = expenses
     .filter(e => e.expense_date === today)
@@ -597,7 +556,7 @@ export default function ExpensesFunds() {
             />
           </div>
           <div className="ef-record-count">
-            Showing {filteredExpenses.length} of {expenses.length} expenses
+            Showing {processedData.length} of {expenses.length} expenses
           </div>
         </div>
 
@@ -615,8 +574,8 @@ export default function ExpensesFunds() {
             <span className="ef-check-col">
               <input
                 type="checkbox"
-                checked={filteredExpenses.length > 0 && selectedIds.length === filteredExpenses.length}
-                onChange={handleSelectAll}
+                checked={processedData.length > 0 && selectedIds.length === processedData.length}
+                onChange={handleToggleSelectAll}
                 title="Select all"
               />
             </span>
@@ -639,14 +598,14 @@ export default function ExpensesFunds() {
                 </div>
               ))}
             </div>
-          ) : filteredExpenses.length === 0 ? (
+          ) : processedData.length === 0 ? (
             <div className="empty-state">
               <DollarSign size={36} />
               <p>No expenses recorded yet</p>
               <p style={{ fontSize: '0.8125rem', marginTop: '-0.25rem' }}>Track operational costs like labor, feed, and utilities</p>
             </div>
           ) : (
-            filteredExpenses.map((exp, i) => (
+            processedData.map((exp, i) => (
               <div
                 key={exp.id}
                 className="ef-row"
@@ -656,7 +615,7 @@ export default function ExpensesFunds() {
                   <input
                     type="checkbox"
                     checked={selectedIds.includes(exp.id)}
-                    onChange={() => handleSelectOne(exp.id)}
+                    onChange={() => handleToggleSelect(exp.id)}
                     title={`Select ${exp.category} expense`}
                   />
                 </span>

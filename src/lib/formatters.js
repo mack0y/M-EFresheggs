@@ -47,15 +47,6 @@ export function formatDateShort(dateStr) {
 }
 
 /**
- * Format a full date string for report headers.
- * e.g. "June 30, 2026"
- */
-export function formatDateLong(dateStr) {
-  const d = new Date(dateStr + 'T00:00:00');
-  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-}
-
-/**
  * Format a shift time string to 12-hour format.
  * e.g. "06:00" → "6:00 AM"
  */

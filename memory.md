@@ -900,6 +900,15 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - **Cron jobs:** The "1% Daily Revenue Cut" cron must also use PHT-aware date
 - **Web app equivalent:** `getLocalDate()` uses `toLocaleDateString('en-CA', {timeZone: 'Asia/Manila'})` — MCP SQL equivalent is the `+ INTERVAL '8 hours'` pattern
 
+### Code Refactoring — Shared Utilities (June 2026)
+- **New `src/lib/formatters.js`** — Shared formatting functions: `formatDate` (Today/Yesterday/Mon DD), `formatTime` (12hr), `formatQuantity` (trays+pieces), `formatDateShort` (Mon DD only for charts), `formatDateLong` (June 30, 2026), `formatShiftTime` (6:00 AM)
+- **New `src/hooks/useTableState.js`** — Custom hook for table search/filter/sort/selection/pagination state management (available for future component adoption)
+- **New `src/hooks/useConfirmDialog.js`** — Custom hook encapsulating confirm dialog open/close/target state
+- **api.js deduplication** — Extracted `findLatestDeliveryPerSize(deliveries)` and `deriveCostPerEgg(delivery)` helpers, used by both `fetchCostsPerEgg()` and `fetchProfitMargins()` to eliminate duplicated cost-derivation logic
+- **Component updates** — ExpensesFunds, Spoilage, Deliveries, Reports, Analytics now import shared formatters instead of defining local `formatDate`/`formatTime`/`formatQuantity` functions; Customers.jsx migrated to `useConfirmDialog` hook
+- **Analytics.jsx chart fix** — Uses `formatDateShort` instead of shared `formatDate` to preserve chart x-axis labels (avoids "Today"/"Yesterday" labels on trend charts)
+- **~150 lines of duplicated code eliminated** across 6 components
+
 ### COGS Uses Most Recent Delivery Cost (June 2026)
 - **`fetchCostsPerEgg()`** — Changed from averaging ALL historical deliveries to using only the **most recent delivery** per egg size for COGS calculation
 - **`fetchProfitMargins()`** — Same change: most recent delivery cost per egg size instead of all-time average
