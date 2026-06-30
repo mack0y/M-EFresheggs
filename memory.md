@@ -900,4 +900,13 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - **Cron jobs:** The "1% Daily Revenue Cut" cron must also use PHT-aware date
 - **Web app equivalent:** `getLocalDate()` uses `toLocaleDateString('en-CA', {timeZone: 'Asia/Manila'})` — MCP SQL equivalent is the `+ INTERVAL '8 hours'` pattern
 
-# Last updated: Sat Jun 27 2026
+### COGS Uses Most Recent Delivery Cost (June 2026)
+- **`fetchCostsPerEgg()`** — Changed from averaging ALL historical deliveries to using only the **most recent delivery** per egg size for COGS calculation
+- **`fetchProfitMargins()`** — Same change: most recent delivery cost per egg size instead of all-time average
+- **Rationale:** User adjusts selling prices each time a new delivery arrives with a new supplier cost, so COGS should reflect the latest delivery cost, not a historical average
+- **Impact:** Dashboard profit margin, Profits page COGS, and Analytics Margins tab all now reflect the latest delivery cost per size
+- **Edge case:** Sizes with no deliveries gracefully default to ₱0 cost
+- **`deliveryCount`** in margins card now shows `1` (latest delivery) instead of total count
+- **`cost_per_egg` column** stores cost per tray; divided by `tray_size` (30) to get cost per egg
+
+# Last updated: Sat Jun 30 2026

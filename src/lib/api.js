@@ -549,28 +549,38 @@ export async function fetchInventoryValue() {
 }
 
 /**
- * Fetch average cost per egg for each egg size from delivery history.
+ * Fetch cost per egg for each egg size based on the MOST RECENT delivery.
+ * Uses latest delivery cost instead of historical average, since selling prices
+ * are adjusted each time a new delivery arrives.
  * Returns a Map of egg_size_id -> { avgCostPerEgg, avgCostPerTray }
  */
 export async function fetchCostsPerEgg() {
-  const deliveries = await fetchDeliveries({ limit: 500 });
+  // Fetch deliveries sorted by most recent first
+  const { data: deliveries, error } = await supabase
+    .from('deliveries')
+    .select('egg_size_id, cost_per_egg, tray_size')
+    .order('delivery_date', { ascending: false })
+    .order('created_at', { ascending: false });
+  if (error) throw error;
 
-  const costMap = {};
+  // Take only the most recent delivery per egg size
+  const latestPerSize = {};
   (deliveries || []).forEach(d => {
-    const id = d.egg_size_id;
-    if (!costMap[id]) costMap[id] = { totalCost: 0, totalEggs: 0 };
-    const eggCount = d.unit === 'tray' ? d.quantity * (d.tray_size || TRAY_SIZE) : d.quantity;
-    costMap[id].totalCost += parseFloat(d.total_cost || 0);
-    costMap[id].totalEggs += eggCount;
+    if (!latestPerSize[d.egg_size_id]) {
+      latestPerSize[d.egg_size_id] = d;
+    }
   });
 
   const result = {};
-  Object.keys(costMap).forEach(id => {
-    const c = costMap[id];
-    const avgCostPerEgg = c.totalEggs > 0 ? c.totalCost / c.totalEggs : 0;
+  Object.keys(latestPerSize).forEach(id => {
+    const d = latestPerSize[id];
+    // cost_per_egg column stores cost per tray
+    const costPerTray = parseFloat(d.cost_per_egg || 0);
+    const traySize = d.tray_size || TRAY_SIZE;
+    const costPerEgg = traySize > 0 ? costPerTray / traySize : 0;
     result[id] = {
-      avgCostPerEgg: Math.round(avgCostPerEgg * 100) / 100,
-      avgCostPerTray: Math.round(avgCostPerEgg * TRAY_SIZE * 100) / 100,
+      avgCostPerEgg: Math.round(costPerEgg * 100) / 100,
+      avgCostPerTray: Math.round(costPerTray * 100) / 100,
     };
   });
 
@@ -579,33 +589,43 @@ export async function fetchCostsPerEgg() {
 
 /**
  * Calculate profit margins per egg size.
- * Compares average delivery cost vs selling price for each size.
+ * Uses the MOST RECENT delivery cost per egg size vs selling price.
  */
 export async function fetchProfitMargins() {
   const [prices, deliveries] = await Promise.all([
     fetchPriceSettings(),
-    fetchDeliveries({ limit: 500 }),
+    supabase
+      .from('deliveries')
+      .select('egg_size_id, cost_per_egg, tray_size, quantity, unit')
+      .order('delivery_date', { ascending: false })
+      .order('created_at', { ascending: false }),
   ]);
 
-  // Build cost map: average cost_per_egg per egg size from deliveries
-  const costAccumulator = {};
-  (deliveries || []).forEach(d => {
-    const id = d.egg_size_id;
-    if (!costAccumulator[id]) costAccumulator[id] = { totalCost: 0, totalEggs: 0, deliveries: 0 };
+  // Take only the most recent delivery per egg size
+  const latestPerSize = {};
+  const totalCountPerSize = {};
+  (deliveries.data || []).forEach(d => {
+    if (!latestPerSize[d.egg_size_id]) {
+      latestPerSize[d.egg_size_id] = d;
+    }
+    // Count total eggs delivered per size for display
+    if (!totalCountPerSize[d.egg_size_id]) totalCountPerSize[d.egg_size_id] = 0;
     const eggCount = d.unit === 'tray' ? d.quantity * (d.tray_size || TRAY_SIZE) : d.quantity;
-    costAccumulator[id].totalCost += parseFloat(d.total_cost || 0);
-    costAccumulator[id].totalEggs += eggCount;
-    costAccumulator[id].deliveries++;
+    totalCountPerSize[d.egg_size_id] += eggCount;
   });
 
   // Build margins per egg size
   const margins = EGG_SIZES.map((name, index) => {
     const price = (prices || []).find(p => p.egg_sizes?.sort_order === index + 1);
-    const cost = costAccumulator[price?.egg_size_id];
+    const latest = latestPerSize[price?.egg_size_id];
+    const totalEggs = totalCountPerSize[price?.egg_size_id] || 0;
 
     const pricePerPiece = parseFloat(price?.price_per_piece || 0);
     const pricePerTray = parseFloat(price?.price_per_tray || 0);
-    const avgCostPerEgg = cost?.totalEggs > 0 ? cost.totalCost / cost.totalEggs : 0;
+    // cost_per_egg column stores cost per tray; divide by tray size for per-egg cost
+    const costPerTray = latest ? parseFloat(latest.cost_per_egg || 0) : 0;
+    const traySize = latest?.tray_size || TRAY_SIZE;
+    const avgCostPerEgg = traySize > 0 ? costPerTray / traySize : 0;
     const profitPerEgg = pricePerPiece - avgCostPerEgg;
     const marginPercent = pricePerPiece > 0 ? (profitPerEgg / pricePerPiece) * 100 : 0;
 
@@ -617,9 +637,9 @@ export async function fetchProfitMargins() {
       avgCostPerEgg: Math.round(avgCostPerEgg * 100) / 100,
       profitPerEgg: Math.round(profitPerEgg * 100) / 100,
       marginPercent: Math.round(marginPercent * 10) / 10,
-      totalDelivered: cost?.totalEggs || 0,
-      totalDeliveryCost: cost?.totalCost || 0,
-      deliveryCount: cost?.deliveries || 0,
+      totalDelivered: totalEggs,
+      totalDeliveryCost: totalEggs * avgCostPerEgg,
+      deliveryCount: latest ? 1 : 0,
     };
   });
 
