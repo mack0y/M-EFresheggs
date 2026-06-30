@@ -289,18 +289,6 @@ export default function Customers() {
           animation: fadeIn 0.3s ease-out;
         }
 
-        .form-grid {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 0.875rem;
-        }
-
-        @media (min-width: 640px) {
-          .form-grid {
-            grid-template-columns: 1fr 1fr;
-          }
-        }
-
         .customers-table-header {
           display: grid;
           grid-template-columns: 1fr 140px 1fr 40px;
@@ -352,42 +340,6 @@ export default function Customers() {
 
         .customers-muted {
           color: var(--color-text-muted);
-        }
-
-        .btn-icon {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: 32px;
-          height: 32px;
-          border: none;
-          border-radius: var(--radius-sm);
-          background: transparent;
-          color: var(--color-text-muted);
-          transition: all 0.2s;
-          cursor: pointer;
-        }
-
-        .btn-icon:hover {
-          background: var(--color-primary-light);
-          color: var(--color-primary);
-        }
-
-        .btn-icon-danger:hover {
-          background: var(--color-danger-bg);
-          color: var(--color-danger);
-        }
-
-        .num { text-align: right; }
-
-        .empty-state {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 0.75rem;
-          padding: 2.5rem;
-          color: var(--color-text-muted);
-          text-align: center;
         }
 
         @media (max-width: 640px) {

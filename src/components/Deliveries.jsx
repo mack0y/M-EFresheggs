@@ -1146,16 +1146,6 @@ export default function Deliveries() {
           color: white;
         }
 
-        .empty-state {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 0.75rem;
-          padding: 2.5rem;
-          color: var(--color-text-muted);
-          text-align: center;
-        }
-
         @media (max-width: 640px) {
           .delivery-table-header { display: none; }
           .checkbox-col { display: none; }

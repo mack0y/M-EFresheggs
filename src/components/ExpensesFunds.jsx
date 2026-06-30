@@ -925,21 +925,6 @@ export default function ExpensesFunds() {
 
         .ef-form-card { margin-bottom: 1rem; animation: fadeIn 0.3s ease-out; }
 
-        .filter-tabs { display: flex; gap: 0.375rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
-        .filter-tab {
-          padding: 0.5rem 1rem;
-          border: 1px solid var(--color-border);
-          border-radius: var(--radius-sm);
-          background: var(--color-card);
-          color: var(--color-text-secondary);
-          font-size: 0.8125rem;
-          font-weight: 500;
-          transition: all 0.2s;
-          cursor: pointer;
-        }
-        .filter-tab:hover { border-color: var(--color-primary); color: var(--color-primary); }
-        .filter-tab.active { background: var(--color-primary); border-color: var(--color-primary); color: white; }
-
         .ef-category-breakdown { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
         .ef-cat-item {
           display: flex; align-items: center; gap: 0.5rem;
@@ -978,7 +963,6 @@ export default function ExpensesFunds() {
         .ef-date-input:focus { border-color: var(--color-primary); outline: none; }
         .ef-date-sep { color: var(--color-text-muted); font-size: 0.8125rem; }
 
-        .bulk-actions { margin-bottom: 0.75rem; }
         .btn-danger { background: var(--color-danger); color: white; border: none; }
         .btn-danger:hover { background: #c0392b; }
 
@@ -1032,20 +1016,7 @@ export default function ExpensesFunds() {
         .ef-desc { font-size: 0.875rem; color: var(--color-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .ef-amount { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--color-danger); }
 
-        .num { text-align: right; }
         .ef-check-col { display: flex; align-items: center; }
-        .sortable { cursor: pointer; user-select: none; }
-        .sortable:hover { color: var(--color-primary); }
-
-        .empty-state {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 0.75rem;
-          padding: 2.5rem;
-          color: var(--color-text-muted);
-          text-align: center;
-        }
 
         /* Fund list */
         .ef-fund-header {
@@ -1076,22 +1047,6 @@ export default function ExpensesFunds() {
         .ef-fund-row:hover { background: var(--color-bg); }
 
         .ef-fund-amount { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--color-primary); }
-
-        .btn-icon {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: 32px;
-          height: 32px;
-          border: none;
-          border-radius: var(--radius-sm);
-          background: transparent;
-          color: var(--color-text-muted);
-          transition: all 0.2s;
-          cursor: pointer;
-        }
-        .btn-icon:hover { background: var(--color-primary-light); color: var(--color-primary); }
-        .btn-icon-danger:hover { background: var(--color-danger-bg); color: var(--color-danger); }
 
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

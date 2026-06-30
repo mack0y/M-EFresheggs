@@ -640,14 +640,6 @@ export default function Analytics() {
           margin-bottom: 0.25rem;
         }
 
-        .empty-state {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          color: var(--color-text-muted);
-        }
-
         .margin-summary {
           display: grid;
           grid-template-columns: 1fr;

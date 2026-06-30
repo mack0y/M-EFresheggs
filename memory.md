@@ -909,6 +909,13 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - **Analytics.jsx chart fix** — Uses `formatDateShort` instead of shared `formatDate` to preserve chart x-axis labels (avoids "Today"/"Yesterday" labels on trend charts)
 - **~200 lines of duplicated code eliminated** across 7 components
 
+### API Module Split (June 2026)
+- **api.js split into 12 domain-specific modules** — `utils.js`, `eggSizes.js`, `inventory.js`, `pricing.js`, `sales.js`, `reports.js`, `expenses.js`, `spoilage.js`, `customers.js`, `suppliers.js`, `deliveries.js`, `funds.js`, `analytics.js`, `export.js`
+- **Barrel api.js** — Rewritten to re-export all symbols from sub-modules so existing component imports (`from '../lib/api'`) continue working without changes
+- **No circular dependencies** — Clean dependency graph: utils → supabaseClient, analytics → eggSizes + pricing, export → inventory + pricing
+- **Cross-module helpers** — `findLatestDeliveryPerSize` and `deriveCostPerEgg` live in analytics.js; `fetchInventoryValue` and `fetchSpoilageWithCost` live in export.js
+- **13 component imports unchanged** — All 13 components that import from '../lib/api' work without modification thanks to the barrel re-export
+
 ### COGS Uses Most Recent Delivery Cost (June 2026)
 - **`fetchCostsPerEgg()`** — Changed from averaging ALL historical deliveries to using only the **most recent delivery** per egg size for COGS calculation
 - **`fetchProfitMargins()`** — Same change: most recent delivery cost per egg size instead of all-time average

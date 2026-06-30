@@ -603,18 +603,6 @@ export default function Spoilage() {
           animation: fadeIn 0.3s ease-out;
         }
 
-        .form-grid {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 0.875rem;
-        }
-
-        @media (min-width: 640px) {
-          .form-grid {
-            grid-template-columns: 1fr 1fr;
-          }
-        }
-
         .spoilage-table-header {
           display: grid;
           grid-template-columns: 40px 70px 1fr 100px 1fr;
@@ -708,16 +696,6 @@ export default function Spoilage() {
 
         .spoilage-header-sortable:hover {
           color: var(--color-text);
-        }
-
-        .empty-state {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 0.75rem;
-          padding: 2.5rem;
-          color: var(--color-text-muted);
-          text-align: center;
         }
 
         @media (max-width: 640px) {

@@ -854,8 +854,6 @@ export default function SalesLog() {
         .sl-sale-amount { font-weight: 700; color: var(--color-primary); font-variant-numeric: tabular-nums; }
         .sl-sale-time { font-size: 0.6875rem; color: var(--color-text-muted); }
 
-        .empty-state { display: flex; flex-direction: column; align-items: center; gap: 0.75rem; padding: 2.5rem; color: var(--color-text-muted); text-align: center; }
-
         /* Search */
         .sl-search-bar { margin-bottom: 0.75rem; }
         .sl-search-input-wrap { position: relative; }
