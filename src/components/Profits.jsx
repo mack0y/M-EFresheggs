@@ -10,7 +10,7 @@ import {
   Egg,
   ChevronDown,
 } from 'lucide-react';
-import { fetchCostsPerEgg, fetchPriceSettings, fetchSalesReport, fetchExpenses, formatPeso, EGG_SIZES, TRAY_SIZE, getLocalDate } from '../lib/api';
+import { fetchCostsPerEgg, fetchPriceSettings, fetchSalesReport, fetchExpenses, formatPeso, EGG_SIZES, TRAY_SIZE, getLocalDate, fetchProductSales } from '../lib/api';
 import { getUserFriendlyError } from '../lib/errors';
 
 const PERIODS = [
@@ -57,6 +57,8 @@ export default function Profits() {
   const [costsPerEgg, setCostsPerEgg] = useState({});
   const [priceSettings, setPriceSettings] = useState([]);
   const [expandedSize, setExpandedSize] = useState(null);
+  const [viewFilter, setViewFilter] = useState('all'); // 'all' | 'eggs' | 'products'
+  const [productSales, setProductSales] = useState([]);
 
   function changePeriod(key) {
     setPeriod(key);
@@ -81,17 +83,19 @@ export default function Profits() {
       setLoading(true);
       setError(null);
 
-      const [priceData, costData, salesData, expensesData] = await Promise.all([
+      const [priceData, costData, salesData, expensesData, prodSalesData] = await Promise.all([
         fetchPriceSettings(),
         fetchCostsPerEgg(),
         fetchSalesReport({ startDate, endDate, startTime: '00:00', endTime: '23:59' }),
         fetchExpenses({ startDate, endDate }),
+        fetchProductSales({ startDate, endDate }),
       ]);
 
       setPriceSettings(priceData || []);
       setCostsPerEgg(costData || {});
       setSales(salesData || []);
       setExpenses(expensesData || []);
+      setProductSales(prodSalesData || []);
     } catch (err) {
       console.error('Profits page load error:', err);
       setError(err);
@@ -223,6 +227,17 @@ export default function Profits() {
         </div>
       </div>
 
+      {/* View Filter */}
+      <div className="pr-view-filter">
+        {[
+          { key: 'all', label: 'All' },
+          { key: 'eggs', label: 'Eggs Only' },
+          { key: 'products', label: 'Products Only' },
+        ].map(v => (
+          <button key={v.key} className={`pr-view-btn ${viewFilter === v.key ? 'active' : ''}`} onClick={() => setViewFilter(v.key)}>{v.label}</button>
+        ))}
+      </div>
+
       {/* Summary Cards */}
       <div className="profit-summary-grid">
         <div className="profit-summary-card profit-card-revenue">
@@ -281,6 +296,16 @@ export default function Profits() {
           <div className="profit-card-info">
             <span className="profit-card-label">Eggs Sold</span>
             <span className="profit-card-value">{loading ? '—' : profitData.totalEggs.toLocaleString()}</span>
+          </div>
+        </div>
+        <div className="profit-summary-card">
+          <div className="profit-card-icon-wrap" style={{ background: '#E0F2F1', color: '#00695C' }}>
+            <DollarSign size={20} />
+          </div>
+          <div className="profit-card-info">
+            <span className="profit-card-label">Product Sales</span>
+            <span className="profit-card-value">{loading ? '—' : formatPeso(productSales.reduce((s, ps) => s + parseFloat(ps.total_amount || 0), 0))}</span>
+            <span style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)' }}>{productSales.length} sale{productSales.length !== 1 ? 's' : ''}</span>
           </div>
         </div>
       </div>
@@ -703,6 +728,11 @@ export default function Profits() {
         .pr-margin-badge-sm.neg { background: var(--color-danger-bg); color: var(--color-danger); }
 
         .profit-net-strip-wrap { margin-top: 0.75rem; }
+
+        .pr-view-filter { display: flex; gap: 0.375rem; margin-bottom: 1rem; }
+        .pr-view-btn { min-height: 36px; padding: 0.375rem 1rem; border: 1.5px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-card); color: var(--color-text-secondary); font-size: 0.8125rem; font-weight: 500; cursor: pointer; transition: all var(--transition-fast); }
+        .pr-view-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
+        .pr-view-btn.active { background: var(--color-primary); border-color: var(--color-primary); color: white; }
 
         @media (max-width: 768px) {
           .profit-desktop-table { display: none; }

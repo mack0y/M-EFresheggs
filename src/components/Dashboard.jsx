@@ -16,7 +16,7 @@ import {
   BarChart3,
   Plus,
 } from 'lucide-react';
-import { fetchInventory, fetchTodaySales, fetchTodayExpenses, fetchInventoryValue, fetchDeliveries, fetchCostsPerEgg, getOperationalBalance, fetchSales, fetchSalesTrend, updateInventory, getEggCount, formatInventory, formatPeso, getLocalDate, TRAY_SIZE } from '../lib/api';
+import { fetchInventory, fetchTodaySales, fetchTodayExpenses, fetchInventoryValue, fetchDeliveries, fetchCostsPerEgg, getOperationalBalance, fetchSales, fetchSalesTrend, updateInventory, getEggCount, formatInventory, formatPeso, getLocalDate, TRAY_SIZE, fetchProducts, fetchTodayProductSales } from '../lib/api';
 import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 
@@ -48,6 +48,8 @@ export default function Dashboard() {
   const [quickAdding, setQuickAdding] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [productCount, setProductCount] = useState(0);
+  const [todayProductSales, setTodayProductSales] = useState([]);
 
   async function loadData() {
     try {
@@ -57,7 +59,7 @@ export default function Dashboard() {
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
       const yesterdayStr = getLocalDate(yesterday);
-      const [inv, sales, expenses, invValue, deliveries, costs, opex, ySales, trend] = await Promise.all([
+      const [inv, sales, expenses, invValue, deliveries, costs, opex, ySales, trend, prods, todayProdSales] = await Promise.all([
         fetchInventory(),
         fetchTodaySales(),
         fetchTodayExpenses(),
@@ -67,6 +69,8 @@ export default function Dashboard() {
         getOperationalBalance(),
         fetchSales({ startDate: yesterdayStr, endDate: yesterdayStr, limit: 500 }),
         fetchSalesTrend(7),
+        fetchProducts(),
+        fetchTodayProductSales(),
       ]);
       setInventory(inv || []);
       setTodaySales(sales || []);
@@ -77,6 +81,8 @@ export default function Dashboard() {
       setOpexBalance(opex || { totalFunds: 0, totalExpenses: 0, balance: 0 });
       setYesterdaySales(ySales || []);
       setTrendData(trend || []);
+      setProductCount((prods || []).length);
+      setTodayProductSales(todayProdSales || []);
     } catch (err) {
       console.error('Dashboard load error:', err);
       setError(err);
@@ -377,6 +383,30 @@ export default function Dashboard() {
               {loading ? '—' : formatPeso(dailyRevenueCut)}
             </span>
             <span className="stat-card-label">1% Daily Cut</span>
+          </div>
+        </div>
+
+        <div className="stat-card-item">
+          <div className="stat-card-icon" style={{ background: '#E0F2F1', color: '#00695C' }}>
+            <Package size={18} />
+          </div>
+          <div className="stat-card-content">
+            <span className="stat-card-value">
+              {loading ? '—' : productCount}
+            </span>
+            <span className="stat-card-label">Products</span>
+          </div>
+        </div>
+
+        <div className="stat-card-item">
+          <div className="stat-card-icon" style={{ background: '#FFF3E0', color: '#E65100' }}>
+            <ShoppingCart size={18} />
+          </div>
+          <div className="stat-card-content">
+            <span className="stat-card-value">
+              {loading ? '—' : formatPeso(todayProductSales.reduce((sum, s) => sum + parseFloat(s.total_amount || 0), 0))}
+            </span>
+            <span className="stat-card-label">Product Sales Today</span>
           </div>
         </div>
       </div>

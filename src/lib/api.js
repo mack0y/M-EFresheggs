@@ -49,5 +49,12 @@ export {
 // Analytics & margins
 export { fetchSalesBySize, fetchSalesByHour, fetchSalesTrend, fetchCostsPerEgg, fetchProfitMargins } from './analytics';
 
+// ===== Products & Deliveries =====
+export { fetchProducts, addProduct, updateProduct, deleteProduct, calculateMarkup, calculateSellingPrice, autoFillPricing } from './products';
+export { fetchProductDeliveries, recordProductDelivery, updateProductDeliveryPayment, deleteProductDelivery } from './productDeliveries';
+
+// ===== Product Sales =====
+export { recordProductSale, fetchProductSales, fetchTodayProductSales, deleteProductSale, deleteProductSales } from './productSales';
+
 // Cross-module utilities (inventory value, spoilage with cost, export)
 export { fetchInventoryValue, fetchSpoilageWithCost, exportAllData, APP_VERSION } from './export';

@@ -16,6 +16,9 @@ const Spoilage = lazy(() => import('./components/Spoilage'));
 const Customers = lazy(() => import('./components/Customers'));
 const Suppliers = lazy(() => import('./components/Suppliers'));
 const Deliveries = lazy(() => import('./components/Deliveries'));
+const Products = lazy(() => import('./components/Products'));
+const ProductSales = lazy(() => import('./components/ProductSales'));
+const ProductDeliveries = lazy(() => import('./components/ProductDeliveries'));
 
 function PageLoading() {
   return (
@@ -44,6 +47,9 @@ export default function App() {
             <Route path="/customers" element={<ErrorBoundary><Customers /></ErrorBoundary>} />
             <Route path="/suppliers" element={<ErrorBoundary><Suppliers /></ErrorBoundary>} />
             <Route path="/deliveries" element={<ErrorBoundary><Deliveries /></ErrorBoundary>} />
+            <Route path="/products" element={<ErrorBoundary><Products /></ErrorBoundary>} />
+            <Route path="/product-sales" element={<ErrorBoundary><ProductSales /></ErrorBoundary>} />
+            <Route path="/product-deliveries" element={<ErrorBoundary><ProductDeliveries /></ErrorBoundary>} />
             <Route path="/reports" element={<ErrorBoundary><Reports /></ErrorBoundary>} />
             <Route path="/profits" element={<ErrorBoundary><Profits /></ErrorBoundary>} />
             <Route path="*" element={<Navigate to="/" replace />} />

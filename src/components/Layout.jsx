@@ -18,6 +18,8 @@ import {
   Truck,
   Building,
   Tag,
+  ShoppingBag,
+  ClipboardList,
 } from 'lucide-react';
 
 const navSections = [
@@ -34,6 +36,14 @@ const navSections = [
       { to: '/inventory', icon: Package, label: 'Inventory' },
       { to: '/sales', icon: ShoppingCart, label: 'Sales' },
       { to: '/deliveries', icon: Truck, label: 'Deliveries' },
+    ],
+  },
+  {
+    label: 'PRODUCTS',
+    items: [
+      { to: '/products', icon: ShoppingBag, label: 'Product Catalog' },
+      { to: '/product-sales', icon: ClipboardList, label: 'Product Sales' },
+      { to: '/product-deliveries', icon: Truck, label: 'Product Deliveries' },
     ],
   },
   {
