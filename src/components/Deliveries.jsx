@@ -251,15 +251,14 @@ export default function Deliveries() {
     }
   }
 
-  async function handlePaymentUpdate(id, status, amount = 0) {
+  async function handlePaymentUpdate(id, status, amount = 0, totalCost = 0) {
     try {
       await updateDeliveryPayment(id, status, parseFloat(amount || 0));
       
       let message = `Payment marked as ${status}`;
       if (status === 'partial' && parseFloat(amount) > 0) {
-        const remaining = (await fetchDeliveries({ limit: 1, offset: 0 })).find(d => d.id === id);
-        const totalCost = remaining?.total_cost || 0;
-        message += ` — ₱${parseFloat(totalCost - amount).toFixed(2)} remaining`;
+        const remaining = totalCost - parseFloat(amount);
+        message += ` — ₱${remaining.toFixed(2)} remaining`;
       }
       
       toast(message);
@@ -739,55 +738,16 @@ export default function Deliveries() {
                     {PAYMENT_STATUSES.map(status => (
                       <button
                         key={status}
-                        className={`delivery-payment-option ${bpStatus === status ? 'active' : ''}`}
+                        className={`delivery-payment-option ${paymentStatusInput === status ? 'active' : ''}`}
                         onClick={() => {
-                          const items = batch.items;
+                          setPaymentStatusInput(status);
                           
-                          // If selecting "partial" or "paid", handle amount input
-                          if (status === 'partial' || status === 'paid') {
-                            const currentPaid = batchAmountPaid(items);
-                            const maxAmount = batchTotalCost(items);
-                            
-                            if (status === 'paid') {
-                              // Automatically set to full payment for convenience
-                              setPaymentStatusInput(status);
-                              setPartialAmountInput(maxAmount);
-                            } else {
-                              // For partial, prompt user to enter amount
-                              setPaymentStatusInput(status);
-                              setPartialAmountInput(currentPaid);
-                            }
-                            
-                            // Show a simple input dialog using native prompt (for simplicity)
-                            const promptMessage = status === 'paid'
-                              ? `Mark as FULLY PAID?\nTotal: ${formatPeso(maxAmount)}`
-                              : `Enter amount paid so far:\n(Total: ${formatPeso(maxAmount)}, Already Paid: ${formatPeso(currentPaid)})`;
-                            
-                            let result;
-                            if (status === 'paid') {
-                              result = window.confirm(promptMessage);
-                              if (!result) return;
-                              // Use full payment
-                              setPartialAmountInput(maxAmount);
-                            } else {
-                              const currentVal = partialAmountInput > 0 ? partialAmountInput.toFixed(2) : currentPaid.toFixed(2);
-                              result = prompt(`${promptMessage}\n\nEnter amount (₱):`, currentVal);
-                              
-                              if (result === null) return; // User cancelled
-                              
-                              const parsed = parseFloat(result);
-                              if (isNaN(parsed) || parsed < 0) {
-                                toast('Invalid amount entered', 'error');
-                                return;
-                              }
-                              
-                              setPartialAmountInput(Math.min(parsed, maxAmount));
-                            }
-                            
-                            Promise.all(items.map(item => handlePaymentUpdate(item.id, status, status === 'paid' ? maxAmount : partialAmountInput)));
-                          } else {
-                            // Unpaid doesn't require amount
-                            Promise.all(items.map(item => handlePaymentUpdate(item.id, status, 0)));
+                          if (status === 'paid') {
+                            // Auto-set to full amount for convenience
+                            setPartialAmountInput(batchTotalCost(batch.items));
+                          } else if (status === 'partial') {
+                            // Keep current input or set to 0 if empty
+                            if (partialAmountInput === 0) setPartialAmountInput(0);
                           }
                         }}
                       >
@@ -798,23 +758,38 @@ export default function Deliveries() {
                       </button>
                     ))}
                     
-                    {/* Amount input field when editing */}
-                    {editingPayment === batch.batchId && paymentStatusInput !== 'unpaid' && (
-                      <div className="delivery-amount-input">
-                        <label>Amount Paid: ₱</label>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={partialAmountInput.toFixed(2)}
-                          onChange={(e) => {
-                            const val = Math.min(parseFloat(e.target.value) || 0, batchTotalCost(batch.items));
-                            setPartialAmountInput(val);
-                          }}
-                          onFocus={() => setPartialAmountInput(batchAmountPaid(batch.items))}
-                        />
-                      </div>
-                    )}
+                    {/* Amount input field */}
+                    <div className="delivery-amount-input">
+                      <label>Amount Paid: ₱</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={partialAmountInput.toFixed(2)}
+                        onChange={(e) => {
+                          const val = Math.min(parseFloat(e.target.value) || 0, batchTotalCost(batch.items));
+                          setPartialAmountInput(val);
+                        }}
+                        placeholder="0.00"
+                      />
+                    </div>
+
+                    {/* Save Button */}
+                    <button 
+                      className="btn btn-primary btn-sm" 
+                      style={{ marginTop: '0.5rem' }}
+                      onClick={() => {
+                        const items = batch.items;
+                        Promise.all(items.map(item => handlePaymentUpdate(
+                          item.id, 
+                          paymentStatusInput, 
+                          partialAmountInput, 
+                          batchTotalCost(batch.items)
+                        )));
+                      }}
+                    >
+                      Update Payment
+                    </button>
                   </div>
                 )}
               </div>
@@ -1197,17 +1172,22 @@ export default function Deliveries() {
         .delivery-batch-item-qty { font-variant-numeric: tabular-nums; }
         .delivery-batch-item-cost { color: var(--color-primary); font-weight: 600; }
 
+        /* Payment update dropdown */
         .delivery-payment-dropdown {
           position: absolute;
-          right: 1rem;
           top: 100%;
+          left: 0;
+          width: 100%;
           background: var(--color-card);
           border: 1px solid var(--color-border);
           border-radius: var(--radius-md);
           box-shadow: var(--shadow-lg);
           z-index: 20;
-          padding: 0.375rem;
-          animation: scaleIn 0.15s ease-out;
+          padding: 0.5rem;
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+          animation: fadeIn 0.15s ease-out;
         }
 
         .delivery-payment-option {
