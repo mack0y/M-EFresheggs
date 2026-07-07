@@ -98,15 +98,16 @@ export default function Dashboard() {
   }, []);
 
   const todayDeliveryCount = todayDeliveries.length;
-  const todayDeliveryCost = todayDeliveries.reduce(
-    (sum, d) => sum + parseFloat(d.total_cost || 0), 0
-  );
 
   const totalEggsSoldToday = todaySales.reduce(
     (sum, s) => sum + getEggCount(s), 0
   );
 
   const todayRevenue = todaySales.reduce(
+    (sum, s) => sum + parseFloat(s.total_amount || 0), 0
+  );
+
+  const todayProductRevenue = todayProductSales.reduce(
     (sum, s) => sum + parseFloat(s.total_amount || 0), 0
   );
 
@@ -228,19 +229,27 @@ export default function Dashboard() {
       <div className="quick-actions">
         <button className="qa-btn qa-sale" onClick={() => navigate('/sales')}>
           <ShoppingCart size={18} />
-          <span>Record Sale</span>
+          <span>Egg Sale</span>
+        </button>
+        <button className="qa-btn qa-product-sale" onClick={() => navigate('/product-sales')}>
+          <ShoppingCart size={18} />
+          <span>Product Sale</span>
         </button>
         <button className="qa-btn qa-stock" onClick={() => navigate('/inventory')}>
           <Package size={18} />
-          <span>Add Stock</span>
-        </button>
-        <button className="qa-btn qa-expense" onClick={() => navigate('/expenses-funds')}>
-          <TrendingDown size={18} />
-          <span>Add Expense</span>
+          <span>Stock</span>
         </button>
         <button className="qa-btn qa-delivery" onClick={() => navigate('/deliveries')}>
           <Truck size={18} />
-          <span>New Delivery</span>
+          <span>Delivery</span>
+        </button>
+        <button className="qa-btn qa-product-delivery" onClick={() => navigate('/product-deliveries')}>
+          <Truck size={18} />
+          <span>Prod. Delivery</span>
+        </button>
+        <button className="qa-btn qa-expense" onClick={() => navigate('/expenses-funds')}>
+          <TrendingDown size={18} />
+          <span>Expense</span>
         </button>
       </div>
 
@@ -285,7 +294,7 @@ export default function Dashboard() {
             <span className="stat-card-value">
               {loading ? <span className="skeleton" style={{ display: 'inline-block', width: 50, height: 24 }}>&nbsp;</span> : totalStock.toLocaleString()}
             </span>
-            <span className="stat-card-label">{inventory.length} items in stock</span>
+            <span className="stat-card-label">{inventory.length} size{inventory.length !== 1 ? 's' : ''} in stock</span>
           </div>
         </div>
 
@@ -307,9 +316,9 @@ export default function Dashboard() {
           </div>
           <div className="stat-card-content">
             <span className="stat-card-value">
-              {loading ? '—' : totalEggsSoldToday.toLocaleString()}
+              {loading ? '—' : formatPeso(todayRevenue + todayProductRevenue)}
             </span>
-            <span className="stat-card-label">{todaySales.length} sale{todaySales.length !== 1 ? 's' : ''}</span>
+            <span className="stat-card-label">Total Sales Today</span>
           </div>
         </div>
 
@@ -358,19 +367,7 @@ export default function Dashboard() {
             <span className="stat-card-value">
               {loading ? '—' : todayDeliveryCount}
             </span>
-            <span className="stat-card-label">{todayDeliveryCount} deliver{todayDeliveryCount === 1 ? 'y' : 'ies'}</span>
-          </div>
-        </div>
-
-        <div className="stat-card-item">
-          <div className="stat-card-icon" style={{ background: '#FFF3E0', color: '#E65100' }}>
-            <Truck size={18} />
-          </div>
-          <div className="stat-card-content">
-            <span className="stat-card-value">
-              {loading ? '—' : formatPeso(todayDeliveryCost)}
-            </span>
-            <span className="stat-card-label">{todayDeliveries.length > 0 ? formatPeso(todayDeliveryCost / (todayDeliveries.length || 1)) + '/avg' : 'delivery cost'}</span>
+            <span className="stat-card-label">Deliveries Today</span>
           </div>
         </div>
 
@@ -387,26 +384,14 @@ export default function Dashboard() {
         </div>
 
         <div className="stat-card-item">
-          <div className="stat-card-icon" style={{ background: '#E0F2F1', color: '#00695C' }}>
+          <div className="stat-card-icon" style={{ background: '#FFF3E0', color: '#E65100' }}>
             <Package size={18} />
           </div>
           <div className="stat-card-content">
             <span className="stat-card-value">
               {loading ? '—' : productCount}
             </span>
-            <span className="stat-card-label">Products</span>
-          </div>
-        </div>
-
-        <div className="stat-card-item">
-          <div className="stat-card-icon" style={{ background: '#FFF3E0', color: '#E65100' }}>
-            <ShoppingCart size={18} />
-          </div>
-          <div className="stat-card-content">
-            <span className="stat-card-value">
-              {loading ? '—' : formatPeso(todayProductSales.reduce((sum, s) => sum + parseFloat(s.total_amount || 0), 0))}
-            </span>
-            <span className="stat-card-label">Product Sales Today</span>
+            <span className="stat-card-label">Product Catalog</span>
           </div>
         </div>
       </div>
@@ -582,12 +567,14 @@ export default function Dashboard() {
         <div className="card">
           <div className="card-header">
             <h2>Today's Sales</h2>
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() => navigate('/sales')}
-            >
-              View All <ArrowRight size={14} />
-            </button>
+            <div style={{ display: 'flex', gap: '0.375rem' }}>
+              <button className="btn btn-secondary btn-sm" onClick={() => navigate('/sales')}>
+                Eggs <ArrowRight size={14} />
+              </button>
+              <button className="btn btn-secondary btn-sm" onClick={() => navigate('/product-sales')}>
+                Products <ArrowRight size={14} />
+              </button>
+            </div>
           </div>
           {loading ? (
             <div className="stock-list">
@@ -597,20 +584,23 @@ export default function Dashboard() {
                   <span className="skeleton" style={{ width: 50, height: 18 }}>&nbsp;</span>
                 </div>
               ))}
-            </div>              ) : todaySales.length === 0 ? (
+            </div>
+          ) : todaySales.length === 0 && todayProductSales.length === 0 ? (
             <div className="empty-state">
               <ShoppingCart size={32} />
               <p>No sales recorded today</p>
-              <button
-                className="btn btn-primary btn-sm"
-                onClick={() => navigate('/sales')}
-              >
-                Record a Sale
-              </button>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button className="btn btn-primary btn-sm" onClick={() => navigate('/sales')}>
+                  Record Egg Sale
+                </button>
+                <button className="btn btn-secondary btn-sm" onClick={() => navigate('/product-sales')}>
+                  Record Product Sale
+                </button>
+              </div>
             </div>
           ) : (
             <div className="stock-list">
-              {todaySales.slice(0, 10).map((sale, i) => (
+              {todaySales.slice(0, 6).map((sale, i) => (
                 <div
                   key={sale.id}
                   className="stock-item"
@@ -638,6 +628,38 @@ export default function Dashboard() {
                   </div>
                 </div>
               ))}
+              {todayProductSales.slice(0, 4).map((sale, i) => (
+                <div
+                  key={`prod-${sale.id}`}
+                  className="stock-item"
+                  style={{ animationDelay: `${(todaySales.length + i) * 0.03}s` }}
+                >
+                  <div className="sale-info">
+                    <span className="stock-name">
+                      {sale.products?.name || 'Unknown'}
+                    </span>
+                    <span className="sale-qty-detail">
+                      {sale.quantity} {sale.products?.unit || 'units'}
+                    </span>
+                  </div>
+                  <div className="stock-right">
+                    <span className="sale-amount-small">
+                      {formatPeso(sale.total_amount)}
+                    </span>
+                    <span className="sale-time">
+                      <Clock size={11} />
+                      {sale.sale_time?.slice(0, 5)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+              {(todaySales.length + todayProductSales.length) > 10 && (
+                <div className="stock-item" style={{ justifyContent: 'center', padding: '0.5rem' }}>
+                  <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>
+                    +{(todaySales.length + todayProductSales.length) - 10} more sales
+                  </span>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -646,12 +668,14 @@ export default function Dashboard() {
         <div className="card">
           <div className="card-header">
             <h2>Today's Deliveries</h2>
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() => navigate('/deliveries')}
-            >
-              View All <ArrowRight size={14} />
-            </button>
+            <div style={{ display: 'flex', gap: '0.375rem' }}>
+              <button className="btn btn-secondary btn-sm" onClick={() => navigate('/deliveries')}>
+                Eggs <ArrowRight size={14} />
+              </button>
+              <button className="btn btn-secondary btn-sm" onClick={() => navigate('/product-deliveries')}>
+                Products <ArrowRight size={14} />
+              </button>
+            </div>
           </div>
           {loading ? (
             <div className="stock-list">
@@ -662,20 +686,22 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
-          ) : todayDeliveries.length === 0 ? (
+          ) : todayDeliveries.length === 0 && (todayProductSales || []).length === 0 ? (
             <div className="empty-state">
               <Truck size={32} />
               <p>No deliveries today</p>
-              <button
-                className="btn btn-primary btn-sm"
-                onClick={() => navigate('/deliveries')}
-              >
-                Record a Delivery
-              </button>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button className="btn btn-primary btn-sm" onClick={() => navigate('/deliveries')}>
+                  Record Egg Delivery
+                </button>
+                <button className="btn btn-secondary btn-sm" onClick={() => navigate('/product-deliveries')}>
+                  Record Product Delivery
+                </button>
+              </div>
             </div>
           ) : (
             <div className="stock-list">
-              {todayDeliveries.slice(0, 10).map((delivery, i) => (
+              {todayDeliveries.slice(0, 6).map((delivery, i) => (
                 <div
                   key={delivery.id}
                   className="stock-item"
@@ -1053,7 +1079,7 @@ export default function Dashboard() {
         /* Quick Action Bar */
         .quick-actions {
           display: grid;
-          grid-template-columns: repeat(4, 1fr);
+          grid-template-columns: repeat(3, 1fr);
           gap: 0.5rem;
           margin-bottom: var(--space-lg);
         }
@@ -1092,12 +1118,16 @@ export default function Dashboard() {
 
         .qa-sale { border-color: var(--color-primary); color: var(--color-primary); }
         .qa-sale:hover { background: var(--color-primary-light); border-color: var(--color-primary); }
+        .qa-product-sale { border-color: #7B1FA2; color: #7B1FA2; }
+        .qa-product-sale:hover { background: #F3E5F5; border-color: #7B1FA2; }
         .qa-stock { border-color: #1565C0; color: #1565C0; }
         .qa-stock:hover { background: #E3F2FD; border-color: #1565C0; }
         .qa-expense { border-color: var(--color-danger); color: var(--color-danger); }
         .qa-expense:hover { background: var(--color-danger-bg); border-color: var(--color-danger); }
         .qa-delivery { border-color: #00695C; color: #00695C; }
         .qa-delivery:hover { background: #E0F2F1; border-color: #00695C; }
+        .qa-product-delivery { border-color: #F57F17; color: #F57F17; }
+        .qa-product-delivery:hover { background: #FFF8E1; border-color: #F57F17; }
 
         /* Primary Stat Change Badge */
         .primary-stat-change {
@@ -1254,6 +1284,7 @@ export default function Dashboard() {
 
         @media (max-width: 640px) {
           .quick-actions {
+            grid-template-columns: repeat(3, 1fr);
             gap: 0.375rem;
           }
 
