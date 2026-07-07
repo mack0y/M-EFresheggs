@@ -36,6 +36,8 @@ M-EFresheggs/
 ├── migration_pricing.sql
 ├── migration_suppliers_deliveries.sql
 ├── migration_operational_expenses.sql
+├── migration_products.sql
+├── migration_products_fix.sql
 ├── memory.md
 ├── eslint.config.js
 ├── .github/workflows/deploy.yml
@@ -51,9 +53,14 @@ M-EFresheggs/
     ├── index.css               # Design system (CSS variables, dark mode, animations)
     ├── lib/
     │   ├── supabaseClient.js   # Supabase connection
-    │   ├── api.js              # All data operations, pagination, exportAllData, APP_VERSION
-    │   ├── errors.js           # User-friendly error messages
-    │   └── salesUtils.js       # Sale calculations, validation, grouping, quick qty chips
+│   ├── api.js              # All data operations, pagination, exportAllData, APP_VERSION
+│   ├── errors.js           # User-friendly error messages
+│   ├── salesUtils.js       # Sale calculations, validation, grouping, quick qty chips
+│   ├── products.js         # Product CRUD + pricing helpers
+│   ├── productSales.js     # Product sales with inventory sync
+│   ├── productDeliveries.js # Product delivery CRUD
+│   ├── formatters.js       # Shared formatting (date, time, quantity)
+│   └── toastFn.js          # Toast notification function
     └── components/
         ├── Layout.jsx          # Sidebar nav + mobile bottom nav + keyboard shortcuts + version badge
         ├── Dashboard.jsx       # Auto-refresh (30s), stat cards, stock alerts, today's feed
@@ -68,6 +75,9 @@ M-EFresheggs/
         ├── Customers.jsx       # Customer directory
         ├── Suppliers.jsx       # Supplier directory
         ├── Deliveries.jsx      # Multi-size batch form, search, bulk delete, pagination, undo
+        ├── Products.jsx        # Product catalog with card grid, dual-mode pricing, search
+        ├── ProductSales.jsx    # Product sales recording, date filters, bulk delete
+        ├── ProductDeliveries.jsx # Product supplier deliveries, payment status, search
         ├── Toast.jsx           # Global notifications (undo action support, 5s duration)
         ├── ConfirmDialog.jsx   # Reusable confirmation modal (backdrop blur, scale-in)
         └── ErrorBoundary.jsx   # React error fallback UI
@@ -205,6 +215,9 @@ All tables use permissive policies (`ALL USING true`) since this is a single-use
 | `/expenses-funds` | ExpensesFunds | Combined expenses + operational funds, date filter, 1% daily revenue cut |
 | `/expenses` | → redirects to `/expenses-funds` | Legacy route |
 | `/operational-expenses` | → redirects to `/expenses-funds` | Legacy route |
+| `/products` | Products | Product catalog with card grid, add/edit modal, dual-mode pricing |
+| `/product-sales` | ProductSales | Record product sales, date filters, bulk delete, undo |
+| `/product-deliveries` | ProductDeliveries | Track product supplier deliveries with payment status |
 | `/analytics` | Analytics | 5 chart views (by size, by hour, trend, revenue, distribution) |
 | `/reports` | Reports | Shift-based sales reports with CSV export + revenue vs expenses + deliveries |
 | `/profits` | Profits | Real-time profit dashboard with per-size breakdown, Net Profit focus |
@@ -247,17 +260,18 @@ The design system lives in `src/index.css` with CSS custom properties.
 ## Layout & Navigation
 
 ### Desktop (≥768px)
-- Fixed sidebar (260px) with logo, 13 nav items in 5 labeled sections, and dark mode toggle
-- Nav sections: OVERVIEW, STOCK & SALES, FINANCIAL, DIRECTORY, REPORTS
+- Fixed sidebar (260px) with logo, 15 nav items in 6 labeled sections, and dark mode toggle
+- Nav sections: OVERVIEW, EGGS, PRODUCTS, FINANCIAL, DIRECTORY, REPORTS
 - Main content area fills remaining width
 
 ### Mobile (<768px)
 - **Fixed top header** with hamburger menu, logo, and dark mode toggle button
-- **Bottom navigation bar** with 5 quick-access tabs (Home, Stock, Sales, Costs, Stats) + More button
+- **Bottom navigation bar** with 5 quick-access tabs (Home, Stock, Eggs, Costs, Stats) + More button
 - Slide-out sidebar triggered by hamburger or More button
 - Backdrop blur overlay on sidebar open
 - Frosted glass effect on header and bottom nav (`backdrop-filter: blur(12px)`)
 - Safe area inset support for iPhone notch (`env(safe-area-inset-bottom)`)
+- FAB (Floating Action Button) for quick egg sale access
 
 ---
 
@@ -265,14 +279,14 @@ The design system lives in `src/index.css` with CSS custom properties.
 
 ### Dashboard
 - **Welcome greeting** with time-of-day emoji (🌅/☀️/🌙) and date
-- **Quick Action Bar** — 4 color-coded shortcut buttons: Record Sale, Add Stock, Add Expense, New Delivery
+- **Quick Action Bar** — 6 color-coded shortcut buttons: Egg Sale (green), Product Sale (purple), Stock (blue), Delivery (teal), Prod. Delivery (amber), Expense (red)
 - **Primary stat cards** — Today's Revenue (with ▲▼ % change vs yesterday), Net Profit (green/red based on positive/negative)
 - **Insight cards row** — Best Seller Today (name, eggs, %), Profit Margin (%, green/red), 7-Day Sales Trend (SVG sparkline)
-- **Secondary stat grid** — Total Stock, Stock Value, Eggs Sold, Operational Funds (with health progress bar), Expenses, Deliveries count, Delivery Cost
+- **Secondary stat grid** — Total Stock, Stock Value, Total Sales Today (eggs + products), Operational Funds (with health progress bar), Expenses, Deliveries count, 1% Daily Cut, Product Catalog
 - **Low stock alert card** — Shows out-of-stock sizes count with "Restock immediately" message
 - **Stock levels list** with trays/pieces breakdown, status badges, and quick-restock (+1 tray) buttons
-- **Today's sales feed** with amounts and times
-- **Today's deliveries feed** with supplier, egg size, quantity, cost, and payment status
+- **Today's sales feed** — Combined egg + product sales with amounts and times, with separate "Eggs"/"Products" navigation buttons
+- **Today's deliveries feed** — Egg deliveries with supplier, egg size, quantity, cost, and payment status, with separate "Eggs"/"Products" navigation buttons
 - Loading skeletons for all data
 - Auto-refresh every 30 seconds
 
@@ -923,4 +937,110 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - **`deliveryCount`** in margins card now shows `1` (latest delivery) instead of total count
 - **`cost_per_egg` column** stores cost per tray; divided by `tray_size` (30) to get cost per egg
 
-# Last updated: Sat Jun 30 2026
+---
+
+## Product Catalog & Product Sales (July 2026)
+
+### New Feature: Non-Egg Product Support
+- **Rationale:** Business sells frozen goods, canned goods, and other products alongside eggs. Needed separate catalog, sales, and delivery tracking.
+- **Pricing Mode:** Both (Flexible) — each product can use markup percentage OR explicit selling price, with live auto-calculation between the two
+
+### New Database Tables
+#### `products` — Product catalog
+| Column | Type | Notes |
+|--------|------|-------|
+| id | BIGINT PK | Auto-generated |
+| name | TEXT NOT NULL | Product name |
+| description | TEXT | Optional |
+| category | TEXT | Eggs, Frozen, Canned, Other |
+| unit | TEXT | pcs, kg, box, tray, can, pack |
+| price | NUMERIC | Selling price per unit |
+| cost | NUMERIC | Purchase cost per unit |
+| sku | TEXT | Optional stock-keeping unit |
+| image_url | TEXT | Optional |
+| active | BOOLEAN | Default true |
+| purchase_unit | TEXT | Unit used when purchasing from supplier |
+| purchase_qty_per_unit | NUMERIC | Conversion factor (e.g., 1 box = 12 pcs) |
+| markup_percentage | NUMERIC | Markup % over cost |
+| quantity_on_hand | NUMERIC | Current stock level |
+| brand_id | BIGINT | Optional FK |
+| created_at | TIMESTAMPTZ | Auto |
+| updated_at | TIMESTAMPTZ | Auto |
+
+#### `product_sales` — Product sales records
+| Column | Type | Notes |
+|--------|------|-------|
+| id | BIGINT PK | Auto-generated |
+| product_id | BIGINT FK → products | |
+| quantity | NUMERIC | > 0 |
+| total_amount | NUMERIC | quantity × selling price |
+| sale_date | DATE | Default today |
+| sale_time | TIME | Default current time |
+| created_at | TIMESTAMPTZ | Auto |
+
+#### `product_deliveries` — Product supplier deliveries
+| Column | Type | Notes |
+|--------|------|-------|
+| id | BIGINT PK | Auto-generated |
+| supplier_id | BIGINT FK → suppliers | |
+| product_id | BIGINT FK → products | |
+| purchase_quantity | NUMERIC | > 0 |
+| cost_per_purchase_unit | NUMERIC | ≥ 0 |
+| total_cost | NUMERIC | qty × cost |
+| payment_status | TEXT | unpaid, partial, paid |
+| amount_paid | NUMERIC | Default 0 |
+| notes | TEXT | Optional |
+| delivery_date | DATE | Default today |
+| created_at | TIMESTAMPTZ | Auto |
+
+### New Components
+- **`Products.jsx`** — Product catalog page with card grid, add/edit modal, dual-mode pricing (markup % ↔ explicit price), category badges, search/filter
+- **`ProductSales.jsx`** — Product sales recording with date filters, grouped by date, bulk delete, undo support, stock validation
+- **`ProductDeliveries.jsx`** — Supplier deliveries for products with payment status, cost preview, search
+
+### New API Functions
+- **`src/lib/products.js`** — Product CRUD: fetchProducts, addProduct, updateProduct, deleteProduct, calculateSellingPrice, calculateMarkup
+- **`src/lib/productSales.js`** — Product sales: fetchProductSales, recordProductSale, deleteProductSale, deleteProductSales, fetchTodayProductSales
+- **`src/lib/productDeliveries.js`** — Product deliveries: fetchProductDeliveries, recordProductDelivery, updateProductDeliveryPayment, deleteProductDelivery
+
+### Database Triggers
+- **`after_product_sale_insert`** — Auto-deducts `quantity_on_hand` from products table when a product sale is recorded
+- **`calculate_markup_on_save`** — Auto-computes markup_percentage from cost and selling price on product insert/update
+
+### Migration Files
+- **`migration_products.sql`** — Creates products, product_sales, product_deliveries tables with triggers, RLS, indexes (safe re-run with IF NOT EXISTS)
+- **`migration_products_fix.sql`** — Safe migration for existing DB: adds missing columns, creates tables, triggers, RLS
+- **`migration_products_only_triggers.sql`** — Triggers-only version (not needed after fix script worked)
+
+### Routes
+- `/products` → Product Catalog
+- `/product-sales` → Product Sales
+- `/product-deliveries` → Product Deliveries
+
+### Dashboard Updates
+- **Quick Actions** — 6 buttons (3×2 grid): Egg Sale, Product Sale, Stock, Delivery, Prod. Delivery, Expense
+- **Stat Cards** — 8 cards: Stock Level, Stock Value, Total Sales Today (eggs + products combined), Operational Funds, Expenses, Deliveries Today, 1% Daily Cut, Product Catalog
+- **Today's Sales** — Combined egg + product sales, with separate "Eggs" and "Products" navigation buttons
+- **Today's Deliveries** — Egg deliveries with separate "Eggs" and "Products" navigation buttons
+
+### Sidebar Navigation Update
+- **Section renamed** from "STOCK & SALES" to "EGGS" with labels: Inventory, Egg Sales, Egg Deliveries
+- **PRODUCTS section** with labels: Product Catalog, Product Sales, Product Deliveries
+- **Mobile bottom nav** — "Sales" renamed to "Eggs"
+- **FAB tooltip** — "Quick Sale" renamed to "Quick Egg Sale"
+
+### Profits Page Updates
+- **Filter toggle** — All / Eggs Only / Products Only filter for period-based profit breakdown
+- Product sales summary card showing product revenue
+
+### Column Name Decisions
+- Products table uses `unit`, `cost`, `price` (NOT `unit_of_sale`, `cost_price`, `selling_price`)
+- Added columns via migration_products_fix.sql: `purchase_unit`, `purchase_qty_per_unit`, `markup_percentage`, `quantity_on_hand`
+
+### ESLint & Build
+- Lint passes clean (0 errors, 0 warnings)
+- Build passes clean with Vite
+- All components have self-contained CSS (no cross-component class dependencies)
+- `search-input-wrapper` and `search-icon` classes moved to index.css as shared utilities
+
+# Last updated: Tue Jul 07 2026
