@@ -448,6 +448,7 @@ export default function ProductDeliveries() {
         .delivery-controls .search-input-wrapper { flex: 1; min-width: 200px; max-width: 320px; }
         .delivery-controls .search-input-wrapper .input { padding-left: 2rem; height: 2.25rem; font-size: 0.875rem; }
         .delivery-count { font-size: 0.8125rem; color: var(--color-text-muted); white-space: nowrap; }
+        .delivery-table-header { display: grid; align-items: center; padding: 0.625rem 1rem; background: var(--color-bg-subtle); border-bottom: 2px solid var(--color-border); font-size: 0.6875rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-muted); border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
         .delivery-batch { border-bottom: 1px solid var(--color-border); position: relative; }
         .delivery-batch:last-child { border-bottom: none; }
         .delivery-row { display: grid; align-items: center; padding: 0.75rem 1rem; font-size: 0.9375rem; transition: background 0.2s; }

@@ -608,6 +608,24 @@ input, select, textarea { font-family: inherit; }
   color: var(--color-primary);
 }
 
+/* Search input with icon */
+.search-input-wrapper {
+  position: relative;
+}
+
+.search-input-wrapper .input {
+  padding-left: 2rem;
+}
+
+.search-icon {
+  position: absolute;
+  left: 0.625rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
 /* Right-aligned numeric column */
 .num {
   text-align: right;
