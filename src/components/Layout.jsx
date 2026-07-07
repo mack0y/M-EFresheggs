@@ -31,11 +31,11 @@ const navSections = [
     ],
   },
   {
-    label: 'STOCK & SALES',
+    label: 'EGGS',
     items: [
       { to: '/inventory', icon: Package, label: 'Inventory' },
-      { to: '/sales', icon: ShoppingCart, label: 'Sales' },
-      { to: '/deliveries', icon: Truck, label: 'Deliveries' },
+      { to: '/sales', icon: ShoppingCart, label: 'Egg Sales' },
+      { to: '/deliveries', icon: Truck, label: 'Egg Deliveries' },
     ],
   },
   {
@@ -74,7 +74,7 @@ const navSections = [
 const bottomNavItems = [
   { to: '/', icon: LayoutDashboard, label: 'Home' },
   { to: '/inventory', icon: Package, label: 'Stock' },
-  { to: '/sales', icon: ShoppingCart, label: 'Sales' },
+  { to: '/sales', icon: ShoppingCart, label: 'Eggs' },
   { to: '/expenses-funds', icon: TrendingDown, label: 'Costs' },
   { to: '/analytics', icon: TrendingUp, label: 'Stats' },
 ];
@@ -225,8 +225,8 @@ export default function Layout({ children }) {
       <button
         className="btn-fab"
         onClick={() => navigate('/sales')}
-        aria-label="Record a sale"
-        title="Quick Sale"
+        aria-label="Record an egg sale"
+        title="Quick Egg Sale"
       >
         <ShoppingCart size={22} />
       </button>
