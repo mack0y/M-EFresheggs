@@ -197,7 +197,8 @@ export default function Reports() {
 
     // Add deliveries section (using already-fetched reportDeliveries)
     if (reportDeliveries && reportDeliveries.length > 0) {
-      rows.push([], ['=== DELIVERIES ==='], [                      'Date', 'Supplier', 'Size', 'Quantity', 'Unit', 'Cost per Tray', 'Total Cost', 'Payment Status', 'Notes']);
+      rows.push([], ['=== DELIVERIES ===']);
+      rows.push(['Date', 'Supplier', 'Size', 'Quantity', 'Unit', 'Cost per Tray', 'Total Cost', 'Payment Status', 'Notes']);
       reportDeliveries.forEach(d => {
         rows.push([
           d.delivery_date,
@@ -271,7 +272,9 @@ export default function Reports() {
 
     const totalCOGS = rows.reduce((sum, r) => sum + r.cogs, 0);
     const totalExpensesAmount = reportExpenses.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
-    const netProfit = Math.round((processed.totals.revenue - totalExpensesAmount - totalCOGS) * 100) / 100;
+    
+    // Net profit calculation: Revenue - COGS (Expenses are paid from Operational Funds, not deducted from Net Profit)
+    const netProfit = Math.round((processed.totals.revenue - totalCOGS) * 100) / 100;
 
     return { rows, totalCOGS, totalExpenses: totalExpensesAmount, netProfit };
   })() : null;

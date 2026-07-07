@@ -43,7 +43,9 @@ export default function Deliveries() {
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [editingPayment, setEditingPayment] = useState(null);
+  const [editingPayment, setEditingPayment] = useState(null); // stores item id being edited
+  const [paymentStatusInput, setPaymentStatusInput] = useState('unpaid');
+  const [partialAmountInput, setPartialAmountInput] = useState(0);
   const [confirmItem, setConfirmItem] = useState(null);
   const [expandedBatches, setExpandedBatches] = useState({});
   const PAGE_SIZE = 50;
@@ -249,11 +251,20 @@ export default function Deliveries() {
     }
   }
 
-  async function handlePaymentUpdate(id, status) {
+  async function handlePaymentUpdate(id, status, amount = 0) {
     try {
-      await updateDeliveryPayment(id, status);
-      toast(`Payment marked as ${status}`);
+      await updateDeliveryPayment(id, status, parseFloat(amount || 0));
+      
+      let message = `Payment marked as ${status}`;
+      if (status === 'partial' && parseFloat(amount) > 0) {
+        const remaining = (await fetchDeliveries({ limit: 1, offset: 0 })).find(d => d.id === id);
+        const totalCost = remaining?.total_cost || 0;
+        message += ` — ₱${parseFloat(totalCost - amount).toFixed(2)} remaining`;
+      }
+      
+      toast(message);
       setEditingPayment(null);
+      setPartialAmountInput(0);
       loadData();
     } catch (err) {
       console.error('Update payment error:', err);
@@ -284,9 +295,7 @@ export default function Deliveries() {
   });
 
   const totalCostAll = deliveries.reduce((sum, d) => sum + parseFloat(d.total_cost || 0), 0);
-  const unpaidTotal = deliveries
-    .filter(d => d.payment_status === 'unpaid')
-    .reduce((sum, d) => sum + parseFloat(d.total_cost || 0), 0);
+  const amountPaidTotal = deliveries.reduce((sum, d) => sum + parseFloat(d.amount_paid || 0), 0);
   const todayDeliveries = deliveries.filter(d => d.delivery_date === today);
   const todayCost = todayDeliveries.reduce((sum, d) => sum + parseFloat(d.total_cost || 0), 0);
 
@@ -295,6 +304,7 @@ export default function Deliveries() {
     paymentBreakdown[status] = {
       count: deliveries.filter(d => d.payment_status === status).length,
       total: deliveries.filter(d => d.payment_status === status).reduce((sum, d) => sum + parseFloat(d.total_cost || 0), 0),
+      paid: deliveries.filter(d => d.payment_status === status).reduce((sum, d) => sum + parseFloat(d.amount_paid || 0), 0),
     };
   });
 
@@ -313,6 +323,10 @@ export default function Deliveries() {
     if (statuses.every(s => s === 'paid')) return 'paid';
     if (statuses.some(s => s === 'paid')) return 'partial';
     return 'unpaid';
+  }
+
+  function batchAmountPaid(items) {
+    return items.reduce((sum, d) => sum + parseFloat(d.amount_paid || 0), 0);
   }
 
   const paymentColors = {
@@ -354,10 +368,17 @@ export default function Deliveries() {
           </div>
         </div>
         <div className="delivery-stat-card">
+          <CheckCircle size={18} />
+          <div>
+            <span className="delivery-stat-value">{formatPeso(amountPaidTotal)}</span>
+            <span className="delivery-stat-label">amount paid</span>
+          </div>
+        </div>
+        <div className="delivery-stat-card">
           <Clock size={18} />
           <div>
-            <span className="delivery-stat-value">{formatPeso(unpaidTotal)}</span>
-            <span className="delivery-stat-label">unpaid</span>
+            <span className="delivery-stat-value">{formatPeso(totalCostAll - amountPaidTotal)}</span>
+            <span className="delivery-stat-label">remaining unpaid</span>
           </div>
         </div>
         <div className="delivery-stat-card">
@@ -381,6 +402,9 @@ export default function Deliveries() {
                 </span>
                 <span className="delivery-breakdown-count">{data.count}</span>
                 <span className="delivery-breakdown-total">{formatPeso(data.total)}</span>
+                {parseFloat(data.paid) > 0 && (
+                  <span className="delivery-breakdown-paid">Paid: {formatPeso(data.paid)}</span>
+                )}
               </div>
             ))}
         </div>
@@ -638,7 +662,10 @@ export default function Deliveries() {
                     {batch.items.length} size{batch.items.length > 1 ? 's' : ''}
                   </span>
                   <span className="delivery-qty">{batchTotalQty(batch.items)} trays</span>
-                  <span className="delivery-cost">{formatPeso(batchTotalCost(batch.items))}</span>
+                    <span className="delivery-cost">{formatPeso(batchTotalCost(batch.items))}</span>
+                    <span className="delivery-remaining">
+                      Remaining: {formatPeso(batchTotalCost(batch.items) - batchAmountPaid(batch.items))}
+                    </span>
                   <span className="delivery-payment">
                     {batch.isSingle ? (
                       <span
@@ -715,7 +742,53 @@ export default function Deliveries() {
                         className={`delivery-payment-option ${bpStatus === status ? 'active' : ''}`}
                         onClick={() => {
                           const items = batch.items;
-                          Promise.all(items.map(item => handlePaymentUpdate(item.id, status)));
+                          
+                          // If selecting "partial" or "paid", handle amount input
+                          if (status === 'partial' || status === 'paid') {
+                            const currentPaid = batchAmountPaid(items);
+                            const maxAmount = batchTotalCost(items);
+                            
+                            if (status === 'paid') {
+                              // Automatically set to full payment for convenience
+                              setPaymentStatusInput(status);
+                              setPartialAmountInput(maxAmount);
+                            } else {
+                              // For partial, prompt user to enter amount
+                              setPaymentStatusInput(status);
+                              setPartialAmountInput(currentPaid);
+                            }
+                            
+                            // Show a simple input dialog using native prompt (for simplicity)
+                            const promptMessage = status === 'paid'
+                              ? `Mark as FULLY PAID?\nTotal: ${formatPeso(maxAmount)}`
+                              : `Enter amount paid so far:\n(Total: ${formatPeso(maxAmount)}, Already Paid: ${formatPeso(currentPaid)})`;
+                            
+                            let result;
+                            if (status === 'paid') {
+                              result = window.confirm(promptMessage);
+                              if (!result) return;
+                              // Use full payment
+                              setPartialAmountInput(maxAmount);
+                            } else {
+                              const currentVal = partialAmountInput > 0 ? partialAmountInput.toFixed(2) : currentPaid.toFixed(2);
+                              result = prompt(`${promptMessage}\n\nEnter amount (₱):`, currentVal);
+                              
+                              if (result === null) return; // User cancelled
+                              
+                              const parsed = parseFloat(result);
+                              if (isNaN(parsed) || parsed < 0) {
+                                toast('Invalid amount entered', 'error');
+                                return;
+                              }
+                              
+                              setPartialAmountInput(Math.min(parsed, maxAmount));
+                            }
+                            
+                            Promise.all(items.map(item => handlePaymentUpdate(item.id, status, status === 'paid' ? maxAmount : partialAmountInput)));
+                          } else {
+                            // Unpaid doesn't require amount
+                            Promise.all(items.map(item => handlePaymentUpdate(item.id, status, 0)));
+                          }
                         }}
                       >
                         {status === 'paid' && <CheckCircle size={14} />}
@@ -724,6 +797,24 @@ export default function Deliveries() {
                         {status.charAt(0).toUpperCase() + status.slice(1)}
                       </button>
                     ))}
+                    
+                    {/* Amount input field when editing */}
+                    {editingPayment === batch.batchId && paymentStatusInput !== 'unpaid' && (
+                      <div className="delivery-amount-input">
+                        <label>Amount Paid: ₱</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={partialAmountInput.toFixed(2)}
+                          onChange={(e) => {
+                            const val = Math.min(parseFloat(e.target.value) || 0, batchTotalCost(batch.items));
+                            setPartialAmountInput(val);
+                          }}
+                          onFocus={() => setPartialAmountInput(batchAmountPaid(batch.items))}
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1144,6 +1235,52 @@ export default function Deliveries() {
         .delivery-payment-option.active {
           background: var(--color-primary);
           color: white;
+        }
+
+        /* Amount input styling */
+        .delivery-amount-input {
+          padding: 0.5rem;
+          border-top: 1px solid var(--color-border);
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          font-size: 0.875rem;
+        }
+
+        .delivery-amount-input label {
+          font-weight: 600;
+          color: var(--color-text-muted);
+        }
+
+        .delivery-amount-input input {
+          width: 120px;
+          padding: 0.375rem 0.5rem;
+          border: 1.5px solid var(--color-border);
+          border-radius: var(--radius-sm);
+          font-size: 0.875rem;
+          font-variant-numeric: tabular-nums;
+        }
+
+        .delivery-amount-input input:focus {
+          border-color: var(--color-primary);
+          outline: none;
+        }
+
+        /* Remaining balance display */
+        .delivery-remaining {
+          font-size: 0.75rem;
+          color: var(--color-danger);
+          font-weight: 600;
+        }
+
+        /* Paid amount badge in breakdown */
+        .delivery-breakdown-paid {
+          font-size: 0.7rem;
+          color: var(--color-success);
+          font-weight: 600;
+          padding: 0.1rem 0.3rem;
+          background: var(--color-success-bg);
+          border-radius: var(--radius-sm);
         }
 
         @media (max-width: 640px) {

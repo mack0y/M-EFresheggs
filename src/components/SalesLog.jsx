@@ -11,11 +11,14 @@ import {
   Trash2,
   Check,
 } from 'lucide-react';
-import { fetchSales, recordSale, deleteSale, fetchInventory, fetchPriceSettings, getEggCount, formatPeso, formatInventory, getLocalDate, TRAY_SIZE } from '../lib/api';
+import { fetchSales, recordSale, deleteSale, deleteSales, fetchInventory, fetchPriceSettings, getEggCount, formatPeso, formatInventory, getLocalDate, TRAY_SIZE } from '../lib/api';
 
 import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
+
+// Module-level ref to store sales-to-restore data for Undo without stale closures
+const undoSalesData = { current: null };
 
 const QUICK_QTY = { piece: [1, 5, 10, 30], tray: [1, 2, 5, 10] };
 
@@ -311,17 +314,24 @@ export default function SalesLog() {
 
   async function handleBulkDelete() {
     if (selectedIds.length === 0) return;
-    // Save the sale records before deleting so we can restore them on undo
+    
+    // Save the sale records before deleting in a ref to prevent stale closures if filters change
     const salesToDelete = sales.filter(s => selectedIds.includes(s.id));
+    undoSalesData.current = salesToDelete;
+
     try {
-      for (const id of selectedIds) {
-        await deleteSale(id);
-      }
+      // Perform bulk delete with single network request
+      await deleteSales(selectedIds);
+      
       toast(`Deleted ${selectedIds.length} sale(s) — stock restored`, 'success', {
         label: 'Undo',
         onClick: async () => {
           try {
-            for (const sale of salesToDelete) {
+            const toRestore = undoSalesData.current;
+            if (!toRestore || toRestore.length === 0) return;
+            
+            // Re-record sales using original data from the ref
+            for (const sale of toRestore) {
               await recordSale({
                 eggSizeId: sale.egg_size_id,
                 quantity: sale.quantity,
@@ -338,6 +348,7 @@ export default function SalesLog() {
         },
       });
       setSelectedIds([]);
+      undoSalesData.current = null; // Clear ref after operation
       loadData();
     } catch (err) {
       console.error('Bulk delete error:', err);

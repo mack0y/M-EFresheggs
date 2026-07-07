@@ -251,8 +251,9 @@ export default function Profits() {
             <TrendingDown size={20} />
           </div>
           <div className="profit-card-info">
-            <span className="profit-card-label">Expenses</span>
+            <span className="profit-card-label">Expenses (OpEx)</span>
             <span className="profit-card-value">{loading ? '—' : formatPeso(profitData.totalExpenses)}</span>
+            {!loading && <span style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)' }}>Paid from operational funds</span>}
           </div>
         </div>
 
@@ -416,6 +417,11 @@ export default function Profits() {
               <div className="profit-net-item">
                 <span>Adjusted Revenue</span>
                 <span className="profit-net-amount" style={{ color: 'var(--color-success)', fontWeight: 700 }}>{formatPeso(profitData.adjustedRevenue)}</span>
+              </div>
+              <div className="profit-net-op"><TrendingDown size={14} /></div>
+              <div className="profit-net-item">
+                <span>Expenses</span>
+                <span className="profit-net-amount" style={{ color: 'var(--color-danger)' }}>{formatPeso(profitData.totalExpenses)}</span>
               </div>
               <div className="profit-net-op"><TrendingDown size={14} /></div>
               <div className="profit-net-item">

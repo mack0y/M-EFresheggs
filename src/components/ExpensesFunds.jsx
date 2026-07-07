@@ -78,6 +78,15 @@ export default function ExpensesFunds() {
     return expenses.filter(e => e.category === filterCategory);
   }, [expenses, filterCategory]);
 
+  const todayTotal = expenses
+    .filter(e => e.expense_date === today)
+    .reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
+
+  // Wrap searchFn in useCallback to prevent unnecessary re-renders in useTableState
+  const tableSearchFn = useMemo(() => (item, q) => 
+    item.category?.toLowerCase().includes(q) || item.description?.toLowerCase().includes(q), 
+  []);
+
   const {
     searchQuery, setSearchQuery,
     sortField, sortDir, handleSort,
@@ -85,9 +94,7 @@ export default function ExpensesFunds() {
     processedData,
   } = useTableState({
     data: filteredByCategory,
-    searchFn: (item, q) =>
-      item.category?.toLowerCase().includes(q) ||
-      item.description?.toLowerCase().includes(q),
+    searchFn: tableSearchFn,
     defaultSortField: 'expense_date',
     defaultSortDir: 'desc',
   });
@@ -95,6 +102,7 @@ export default function ExpensesFunds() {
   // ===== Data loading =====
   useEffect(() => {
     loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function loadExpenses(startDate, endDate) {
@@ -213,10 +221,6 @@ export default function ExpensesFunds() {
       setSubmitting(false);
     }
   }
-
-  const todayTotal = expenses
-    .filter(e => e.expense_date === today)
-    .reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
 
   const categoryTotals = {};
   expenses.forEach(e => {
@@ -478,7 +482,11 @@ export default function ExpensesFunds() {
           <div className="ef-date-filter-row">
             <button
               className={`ef-date-btn ${dateStart === today && dateEnd === today ? 'active' : ''}`}
-              onClick={() => setDateStart(today) || setDateEnd(today) || loadExpenses(today, today)}
+              onClick={() => {
+                setDateStart(today);
+                setDateEnd(today);
+                loadExpenses(today, today);
+              }}
             >
               Today
             </button>

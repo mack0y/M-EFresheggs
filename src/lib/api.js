@@ -15,7 +15,7 @@ export { fetchInventory, updateInventory } from './inventory';
 export { fetchPriceSettings, updatePriceSetting } from './pricing';
 
 // Sales
-export { recordSale, fetchSales, fetchTodaySales, deleteSale } from './sales';
+export { recordSale, fetchSales, fetchTodaySales, deleteSale, deleteSales } from './sales';
 
 // Reports
 export { fetchSalesReport } from './reports';

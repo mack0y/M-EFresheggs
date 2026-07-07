@@ -2,11 +2,10 @@
 export const TRAY_SIZE = 30;
 
 // ===== Local Date Helper =====
-// Returns today's date in YYYY-MM-DD format using the user's LOCAL timezone
-// (not UTC, which is what toISOString() would give)
+// Returns today's date in YYYY-MM-DD format using the LOCAL timezone (Asia/Manila)
 export function getLocalDate(date) {
   const d = date || new Date();
-  return d.toLocaleDateString('en-CA'); // en-CA gives YYYY-MM-DD format
+  return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' }); // en-CA gives YYYY-MM-DD format
 }
 
 // ===== Egg Count Helpers =====

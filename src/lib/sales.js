@@ -105,3 +105,26 @@ export async function deleteSale(id) {
 
   return sale;
 }
+
+/**
+ * Delete multiple sales records at once for better performance.
+ */
+export async function deleteSales(ids) {
+  if (!ids || ids.length === 0) return [];
+  
+  // Fetch all sales to restore inventory later
+  const { data: sales, error: fetchErr } = await supabase
+    .from('sales')
+    .select('*')
+    .in('id', ids);
+  if (fetchErr) throw fetchErr;
+
+  // Delete the records
+  const { error: delErr } = await supabase
+    .from('sales')
+    .delete()
+    .in('id', ids);
+  if (delErr) throw delErr;
+
+  return sales;
+}

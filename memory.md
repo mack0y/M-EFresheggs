@@ -459,15 +459,13 @@ All form fields across 10 components have proper `id` and `name` attributes:
 - `PAYMENT_STATUSES` — ['unpaid', 'partial', 'paid']
 - List grouped by `batch_id`: multi-size submissions shown as expandable rows; old records (no batch_id) shown individually
 
-### Utilities
-- `getLocalDate(date?)` — Returns today's (or given date's) YYYY-MM-DD string using **local timezone** (not UTC). Uses `toLocaleDateString('en-CA')`.
-- `fetchProfitMargins()` — Calculates profit margins per egg size by comparing average delivery cost vs selling price
-- `exportAllData()` — Fetches all tables (sales, deliveries, expenses, spoilage, inventory, prices, suppliers, customers) as a single JSON object
-- `APP_VERSION` — `import.meta.env.VITE_APP_VERSION || '1.0.0'`
-- `EGG_SIZES` — ['Peewee', 'Pullet', 'Small', 'Medium', 'Large', 'Extra Large', 'Jumbo']
-- `EXPENSE_CATEGORIES` — ['Feed', 'Labor', 'Utilities', 'Transport', 'Packaging', 'Maintenance', 'Misc']
-- `SPOILAGE_REASONS` — ['Cracked', 'Broken', 'Expired', 'Damaged', 'Other']
-- `TRAY_SIZE` — 30 (eggs per tray)
+### Exported Data and Limits (June 2026)
+- **`exportAllData()`** — Fetches all tables (sales, deliveries, expenses, spoilage, inventory, prices, suppliers, customers) as a single JSON object
+- **`APP_VERSION`** — `import.meta.env.VITE_APP_VERSION || '1.1.0'`
+- **EGG_SIZES** — ['Peewee', 'Pullet', 'Small', 'Medium', 'Large', 'Extra Large', 'Jumbo']
+- **EXPENSE_CATEGORIES** — ['Feed', 'Labor', 'Utilities', 'Transport', 'Packaging', 'Maintenance', 'Misc']
+- **SPOILAGE_REASONS** — ['Cracked', 'Broken', 'Expired', 'Damaged', 'Other']
+- **TRAY_SIZE** — 30 (eggs per tray)
 - `getEggCount(sale)` — Converts sale record to total egg count
 - `toTraysAndPieces(totalEggs)` — Returns `{ trays, pieces }` object
 - `formatInventory(totalEggs)` — Returns string like "2 trays + 22 pcs" or "15 pcs"

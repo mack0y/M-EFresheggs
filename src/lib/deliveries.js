@@ -74,10 +74,13 @@ export async function deleteDeliveryBatch(batchId) {
   if (error) throw error;
 }
 
-export async function updateDeliveryPayment(id, paymentStatus) {
+export async function updateDeliveryPayment(id, paymentStatus, amountPaid = 0) {
   const { data, error } = await supabase
     .from('deliveries')
-    .update({ payment_status: paymentStatus })
+    .update({ 
+      payment_status: paymentStatus, 
+      amount_paid: parseFloat(amountPaid || 0) 
+    })
     .eq('id', id)
     .select()
     .single();

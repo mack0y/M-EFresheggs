@@ -523,7 +523,7 @@ export default function Analytics() {
                   )}
 
                   <p className="chart-hint">
-                    Average cost is calculated from all delivery records. Compare against your selling price to see profit margins per egg.
+                    Cost per egg is based on your most recent delivery for each size. Compare against your selling price to see profit margins per egg.
                   </p>
                 </>
               )}
