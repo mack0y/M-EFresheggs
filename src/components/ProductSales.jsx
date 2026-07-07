@@ -134,7 +134,7 @@ export default function ProductSales() {
     if (!product || !form.quantity) return null;
     const qty = parseFloat(form.quantity);
     if (isNaN(qty) || qty <= 0) return null;
-    const price = parseFloat(product.selling_price || 0);
+    const price = parseFloat(product.price || 0);
     if (price <= 0) return null;
     return qty * price;
   }
@@ -155,7 +155,7 @@ export default function ProductSales() {
 
     const stock = parseFloat(product.quantity_on_hand || 0);
     if (qty > stock) {
-      toast(`Not enough stock — only ${stock} ${product.unit_of_sale || 'units'} available`, 'error');
+      toast(`Not enough stock — only ${stock} ${product.unit || 'units'} available`, 'error');
       return;
     }
     setConfirmSale({ productId: parseInt(form.productId, 10), quantity: qty, productName: product.name });
@@ -333,13 +333,13 @@ export default function ProductSales() {
                   <select className="select" value={form.productId} onChange={e => setForm({ ...form, productId: e.target.value, quantity: '' })} required>
                     <option value="">Select product...</option>
                     {products.filter(p => parseFloat(p.quantity_on_hand || 0) > 0).map(p => (
-                      <option key={p.id} value={p.id}>{p.name} ({parseFloat(p.quantity_on_hand || 0).toLocaleString()} {p.unit_of_sale || 'units'} — {p.selling_price > 0 ? formatPeso(p.selling_price) + '/' + p.unit_of_sale : 'No price'})</option>
+                      <option key={p.id} value={p.id}>{p.name} ({parseFloat(p.quantity_on_hand || 0).toLocaleString()} {p.unit || 'units'} — {p.price > 0 ? formatPeso(p.price) + '/' + p.unit : 'No price'})</option>
                     ))}
                   </select>
                 </div>
                 {form.productId && (
                   <div className="sl-field">
-                    <label>Quantity ({getSelectedProduct()?.unit_of_sale || 'units'})</label>
+                    <label>Quantity ({getSelectedProduct()?.unit || 'units'})</label>
                     <input type="number" min="1" step="any" placeholder="Enter quantity" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} required />
                   </div>
                 )}

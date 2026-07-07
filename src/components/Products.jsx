@@ -77,11 +77,11 @@ export default function Products() {
       id: p.id,
       name: p.name || '',
       category: p.category || 'Others',
-      unitOfSale: p.unit_of_sale || 'pcs',
+      unitOfSale: p.unit || 'pcs',
       purchaseUnit: p.purchase_unit || 'pcs',
       qtyPerPurchase: p.purchase_qty_per_unit || 1,
-      costPrice: p.cost_price || '',
-      sellingPrice: p.selling_price || '',
+      costPrice: p.cost || '',
+      sellingPrice: p.price || '',
       quantityOnHand: p.quantity_on_hand || 0,
     });
     setPricingMode(p.markup_percentage ? 'markup' : 'direct');
@@ -161,11 +161,11 @@ export default function Products() {
         await updateProduct(form.id, {
           name: payload.name,
           category: payload.category,
-          unit_of_sale: payload.unitOfSale,
+          unit: payload.unitOfSale,
           purchase_unit: payload.purchaseUnit,
           purchase_qty_per_unit: payload.qtyPerPurchase,
-          cost_price: payload.costPrice,
-          selling_price: payload.sellingPrice,
+          cost: payload.costPrice,
+          price: payload.sellingPrice,
         });
         toast('Product updated');
       } else {
@@ -208,7 +208,7 @@ export default function Products() {
     return true;
   });
 
-  const totalStockValue = products.reduce((sum, p) => sum + (parseFloat(p.selling_price || 0) * parseFloat(p.quantity_on_hand || 0)), 0);
+  const totalStockValue = products.reduce((sum, p) => sum + (parseFloat(p.price || 0) * parseFloat(p.quantity_on_hand || 0)), 0);
   const totalStockQty = products.reduce((sum, p) => sum + parseFloat(p.quantity_on_hand || 0), 0);
   const categoryCounts = {};
   products.forEach(p => {
@@ -379,8 +379,8 @@ export default function Products() {
           {filtered.map((p, i) => {
             const catStyle = categoryColors[p.category] || categoryColors.Others;
             const qty = parseFloat(p.quantity_on_hand || 0);
-            const price = parseFloat(p.selling_price || 0);
-            const cost = parseFloat(p.cost_price || 0);
+            const price = parseFloat(p.price || 0);
+            const cost = parseFloat(p.cost || 0);
             const m = cost > 0 && price > 0 ? Math.round(((price - cost) / price) * 100) : 0;
             return (
               <div key={p.id} className="prod-card" style={{ animationDelay: `${i * 0.03}s` }}>
@@ -393,13 +393,13 @@ export default function Products() {
                 </div>
                 <h3 className="prod-card-name">{p.name}</h3>
                 <div className="prod-card-pricing">
-                  {price > 0 && <span className="prod-card-price">{formatPeso(price)}/{p.unit_of_sale}</span>}
+                  {price > 0 && <span className="prod-card-price">{formatPeso(price)}/{p.unit}</span>}
                   {cost > 0 && <span className="prod-card-cost">Cost: {formatPeso(cost)}</span>}
                 </div>
                 {m > 0 && <span className="prod-card-margin">{m}% margin</span>}
                 <div className="prod-card-stock">
                   <span className={`prod-stock-badge ${qty === 0 ? 'out' : qty <= 5 ? 'low' : 'ok'}`}>
-                    {qty === 0 ? 'Out of Stock' : `${qty.toLocaleString()} ${p.unit_of_sale}`}
+                    {qty === 0 ? 'Out of Stock' : `${qty.toLocaleString()} ${p.unit}`}
                   </span>
                 </div>
               </div>

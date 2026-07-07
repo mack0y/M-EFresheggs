@@ -9,15 +9,15 @@ export async function recordProductSale({ productId, quantity, saleDate }) {
   // Fetch current product price to calculate total amount
   const { data: productData, error: productErr } = await supabase
     .from('products')
-    .select('selling_price')
+    .select('price')
     .eq('id', productId)
     .single();
 
   if (productErr) throw productErr;
 
   let totalAmount = 0;
-  if (productData && productData.selling_price > 0) {
-    totalAmount = parseFloat(quantity) * parseFloat(productData.selling_price);
+  if (productData && productData.price > 0) {
+    totalAmount = parseFloat(quantity) * parseFloat(productData.price);
   }
 
   const { data, error } = await supabase

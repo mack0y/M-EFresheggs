@@ -47,11 +47,11 @@ export async function addProduct({ name, category, unitOfSale, purchaseUnit, qty
     .insert({
       name,
       category: category || 'Others',
-      unit_of_sale: unitOfSale || 'pcs',
+      unit: unitOfSale || 'pcs',
       purchase_unit: purchaseUnit || 'pcs',
       purchase_qty_per_unit: parseFloat(qtyPerPurchase) || 1,
-      cost_price: costPrice,
-      selling_price: sellingPrice,
+      cost: costPrice,
+      price: sellingPrice,
       markup_percentage: markup,
     })
     .select()
