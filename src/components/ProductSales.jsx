@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   ShoppingCart,
+  TrendingUp,
   AlertTriangle,
   RefreshCw,
   Trash2,
@@ -322,15 +323,6 @@ export default function ProductSales() {
         confirmLabel="Delete" variant="danger" icon={Trash2}
         onConfirm={() => { if (confirmDelete?.type === 'bulk') handleBulkDelete(); else handleDeleteSale(confirmDelete.id); setConfirmDelete(null); }}
         onCancel={() => setConfirmDelete(null)}
-      />
-
-      <ConfirmDialog
-        open={!!confirmSale}
-        title="Record this sale?"
-        message={confirmSale ? `Record sale of ${confirmSale.quantity} units of ${confirmSale.productName}? Stock will be deducted automatically.` : ''}
-        confirmLabel="Record Sale" variant="primary" icon={ShoppingCart}
-        onConfirm={() => { const d = confirmSale; setConfirmSale(null); executeSale(d); }}
-        onCancel={() => setConfirmSale(null)}
       />
 
       <style>{`
