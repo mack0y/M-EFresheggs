@@ -23,7 +23,7 @@ import {
   AlertTriangle,
   RefreshCw,
 } from 'lucide-react';
-import { fetchSalesBySize, fetchSalesByHour, fetchSalesTrend, fetchProfitMargins, formatPeso, EGG_SIZES, getLocalDate } from '../lib/api';
+import { fetchSalesBySize, fetchSalesByHour, fetchSalesTrend, fetchProfitMargins, formatPeso, EGG_SIZES, getLocalDate, fetchProductSalesBySize, fetchProductSalesByHour, fetchProductSalesTrend } from '../lib/api';
 import { formatDateShort } from '../lib/formatters';
 import { getUserFriendlyError } from '../lib/errors';
 
@@ -64,6 +64,12 @@ export default function Analytics() {
   const [error, setError] = useState(null);
   const [days, setDays] = useState(30);
   const [chartTab, setChartTab] = useState('size');
+  const [category, setCategory] = useState('both');
+
+  // Product analytics state
+  const [prodBySize, setProdBySize] = useState([]);
+  const [prodByHour, setProdByHour] = useState([]);
+  const [prodTrend, setProdTrend] = useState([]);
 
 
 
@@ -83,10 +89,13 @@ export default function Analytics() {
       startDate.setDate(startDate.getDate() - days);
 
       const startDateStr = getLocalDate(startDate);
-      const [sizeData, hourData, trendData] = await Promise.all([
+      const [sizeData, hourData, trendData, prodSizeData, prodHourData, prodTrendData] = await Promise.all([
         fetchSalesBySize(startDateStr, endDate),
         fetchSalesByHour(startDateStr, endDate),
         fetchSalesTrend(days),
+        fetchProductSalesBySize(startDateStr, endDate),
+        fetchProductSalesByHour(startDateStr, endDate),
+        fetchProductSalesTrend(days),
       ]);
 
       // Process sales by size
@@ -164,6 +173,52 @@ export default function Analytics() {
         }));
 
       setTrend(sortedTrend);
+
+      // Process product sales by size (by product name)
+      const prodSizeMap = {};
+      (prodSizeData || []).forEach(sale => {
+        const name = sale.products?.name || 'Unknown';
+        if (!prodSizeMap[name]) prodSizeMap[name] = { quantity: 0, revenue: 0 };
+        prodSizeMap[name].quantity += parseFloat(sale.quantity || 0);
+        prodSizeMap[name].revenue += parseFloat(sale.total_amount || 0);
+      });
+      const sortedProdBySize = Object.entries(prodSizeMap)
+        .sort(([, a], [, b]) => b.quantity - a.quantity)
+        .map(([name, data]) => ({ name, ...data }));
+      setProdBySize(sortedProdBySize);
+
+      // Process product sales by hour
+      const prodHourMap = {};
+      for (let h = 5; h <= 20; h++) prodHourMap[h] = 0;
+      (prodHourData || []).forEach(sale => {
+        const hour = parseInt(sale.sale_time?.split(':')[0] || '0', 10);
+        if (prodHourMap[hour] !== undefined) {
+          prodHourMap[hour] += parseFloat(sale.quantity || 0);
+        }
+      });
+      const sortedProdByHour = Object.entries(prodHourMap)
+        .sort(([a], [b]) => parseInt(a) - parseInt(b))
+        .map(([hour, qty]) => ({
+          hour: `${hour}:00`,
+          eggs: qty,
+          label: formatHour(parseInt(hour)),
+        }));
+      setProdByHour(sortedProdByHour);
+
+      // Process product sales trend
+      const prodDailyMap = {};
+      (prodTrendData || []).forEach(sale => {
+        if (!prodDailyMap[sale.sale_date]) prodDailyMap[sale.sale_date] = 0;
+        prodDailyMap[sale.sale_date] += parseFloat(sale.quantity || 0);
+      });
+      const sortedProdTrend = Object.entries(prodDailyMap)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, qty]) => ({
+          date: formatDateShort(date),
+          eggs: qty,
+        }));
+      setProdTrend(sortedProdTrend);
+
     } catch (err) {
       console.error('Analytics load error:', err);
       setError(err);
@@ -185,7 +240,6 @@ export default function Analytics() {
   }
 
   useEffect(() => {
-    // Defer to microtask to avoid cascading render warning from loadAnalytics setState calls
     Promise.resolve().then(() => loadAnalytics());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [days]);
@@ -196,6 +250,8 @@ export default function Analytics() {
 
   const totalEggsSold = bySize.reduce((sum, s) => sum + s.eggs, 0);
   const totalRevenue = revenueBySize.reduce((sum, s) => sum + s.revenue, 0);
+  const totalProdQty = prodBySize.reduce((sum, s) => sum + s.quantity, 0);
+  const totalProdRevenue = prodBySize.reduce((sum, s) => sum + s.revenue, 0);
   const bestSize = bySize.reduce(
     (best, curr) => (curr.eggs > (best?.eggs || 0) ? curr : best),
     null
@@ -204,6 +260,7 @@ export default function Analytics() {
     (best, curr) => (curr.eggs > (best?.eggs || 0) ? curr : best),
     null
   );
+  const bestProduct = prodBySize.length > 0 ? prodBySize[0] : null;
 
   return (
     <div className="fade-in">
@@ -229,6 +286,17 @@ export default function Analytics() {
         </div>
       </div>
 
+      {/* Category Filter */}
+      <div className="analytics-category-filter">
+        {[
+          { key: 'eggs', label: 'Eggs Only' },
+          { key: 'products', label: 'Products Only' },
+          { key: 'both', label: 'Both' },
+        ].map(v => (
+          <button key={v.key} className={`analytics-cat-btn ${category === v.key ? 'active' : ''}`} onClick={() => setCategory(v.key)}>{v.label}</button>
+        ))}
+      </div>
+
       {error && !loading && (
         <div className="error-banner" style={{ marginBottom: '1rem' }}>
           <AlertTriangle size={20} />
@@ -245,34 +313,70 @@ export default function Analytics() {
 
       {/* Summary stats */}
       <div className="analytics-stats">
-        <div className="analytics-stat-card">
-          <DollarSign size={20} />
-          <div>
-            <span className="analytics-stat-value">
-              {formatPeso(totalRevenue)}
-            </span>
-            <span className="analytics-stat-label">total revenue</span>
-          </div>
-        </div>
-        <div className="analytics-stat-card">
-          <TrendingUp size={20} />
-          <div>
-            <span className="analytics-stat-value">
-              {totalEggsSold.toLocaleString()}
-            </span>
-            <span className="analytics-stat-label">eggs sold</span>
-          </div>
-        </div>
-        {bestSize && (
+        {(category === 'eggs' || category === 'both') && (
+          <>
+            <div className="analytics-stat-card">
+              <DollarSign size={20} />
+              <div>
+                <span className="analytics-stat-value">{formatPeso(totalRevenue)}</span>
+                <span className="analytics-stat-label">egg revenue</span>
+              </div>
+            </div>
+            <div className="analytics-stat-card">
+              <TrendingUp size={20} />
+              <div>
+                <span className="analytics-stat-value">{totalEggsSold.toLocaleString()}</span>
+                <span className="analytics-stat-label">eggs sold</span>
+              </div>
+            </div>
+            {bestSize && (
+              <div className="analytics-stat-card">
+                <BarChart3 size={20} />
+                <div>
+                  <span className="analytics-stat-value">{bestSize.name}</span>
+                  <span className="analytics-stat-label">best egg size</span>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+        {(category === 'products' || category === 'both') && (
+          <>
+            <div className="analytics-stat-card">
+              <DollarSign size={20} />
+              <div>
+                <span className="analytics-stat-value">{formatPeso(totalProdRevenue)}</span>
+                <span className="analytics-stat-label">product revenue</span>
+              </div>
+            </div>
+            <div className="analytics-stat-card">
+              <TrendingUp size={20} />
+              <div>
+                <span className="analytics-stat-value">{totalProdQty.toLocaleString()}</span>
+                <span className="analytics-stat-label">products sold</span>
+              </div>
+            </div>
+            {bestProduct && (
+              <div className="analytics-stat-card">
+                <BarChart3 size={20} />
+                <div>
+                  <span className="analytics-stat-value">{bestProduct.name}</span>
+                  <span className="analytics-stat-label">top product</span>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+        {category === 'both' && (
           <div className="analytics-stat-card">
-            <BarChart3 size={20} />
+            <DollarSign size={20} />
             <div>
-              <span className="analytics-stat-value">{bestSize.name}</span>
-              <span className="analytics-stat-label">best-selling size</span>
+              <span className="analytics-stat-value">{formatPeso(totalRevenue + totalProdRevenue)}</span>
+              <span className="analytics-stat-label">combined revenue</span>
             </div>
           </div>
         )}
-        {peakHour && (
+        {peakHour && (category === 'eggs' || category === 'both') && (
           <div className="analytics-stat-card">
             <Clock size={20} />
             <div>
@@ -338,121 +442,234 @@ export default function Analytics() {
         <div className="card chart-card">
           {chartTab === 'size' && (
             <div>
-              <h3 style={{ marginBottom: '1rem' }}>Sales by Egg Size</h3>
-              <ResponsiveContainer width="100%" height={350}>
-                <BarChart data={bySize} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E8DDD0" />
-                  <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="eggs" name="Sold" radius={[4, 4, 0, 0]}>
-                    {bySize.map((_, i) => (
-                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              {category === 'eggs' && <h3 style={{ marginBottom: '1rem' }}>Sales by Egg Size</h3>}
+              {category === 'products' && <h3 style={{ marginBottom: '1rem' }}>Sales by Product</h3>}
+              {category === 'both' && <h3 style={{ marginBottom: '1rem' }}>Sales by Item</h3>}
+              {(category === 'eggs' || category === 'both') && (
+                <ResponsiveContainer width="100%" height={category === 'both' ? 280 : 350}>
+                  <BarChart data={bySize} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E8DDD0" />
+                    <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                    <YAxis tick={{ fontSize: 12 }} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar dataKey="eggs" name="Eggs Sold" radius={[4, 4, 0, 0]}>
+                      {bySize.map((_, i) => (
+                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+              {category === 'both' && <div style={{ height: '1rem' }} />}
+              {(category === 'products' || category === 'both') && (
+                <ResponsiveContainer width="100%" height={category === 'both' ? 280 : 350}>
+                  <BarChart data={prodBySize} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E8DDD0" />
+                    <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                    <YAxis tick={{ fontSize: 12 }} />
+                    <Tooltip formatter={(value) => `${value} units`} />
+                    <Bar dataKey="quantity" name="Products Sold" radius={[4, 4, 0, 0]} fill="#2E7D32">
+                      {prodBySize.map((_, i) => (
+                        <Cell key={i} fill={COLORS[(i + 3) % COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
           )}
 
           {chartTab === 'hour' && (
             <div>
-              <h3 style={{ marginBottom: '1rem' }}>Sales by Time of Day</h3>
-              <ResponsiveContainer width="100%" height={350}>
-                <BarChart data={byHour} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E8DDD0" />
-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="eggs" name="Sold" radius={[4, 4, 0, 0]} fill="#D4A574" />
-                </BarChart>
-              </ResponsiveContainer>
+              {category === 'eggs' && <h3 style={{ marginBottom: '1rem' }}>Sales by Time of Day</h3>}
+              {category === 'products' && <h3 style={{ marginBottom: '1rem' }}>Product Sales by Time of Day</h3>}
+              {category === 'both' && <h3 style={{ marginBottom: '1rem' }}>Sales by Time of Day</h3>}
+              {(category === 'eggs' || category === 'both') && (
+                <ResponsiveContainer width="100%" height={category === 'both' ? 280 : 350}>
+                  <BarChart data={byHour} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E8DDD0" />
+                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 12 }} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar dataKey="eggs" name="Eggs Sold" radius={[4, 4, 0, 0]} fill="#D4A574" />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+              {category === 'both' && <div style={{ height: '1rem' }} />}
+              {(category === 'products' || category === 'both') && (
+                <ResponsiveContainer width="100%" height={category === 'both' ? 280 : 350}>
+                  <BarChart data={prodByHour} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E8DDD0" />
+                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 12 }} />
+                    <Tooltip formatter={(value) => `${value} units`} />
+                    <Bar dataKey="eggs" name="Products Sold" radius={[4, 4, 0, 0]} fill="#2E7D32" />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
               <p className="chart-hint">
-                Shows what times of day most eggs are sold. Peak hours help you plan staffing and restocking.
+                Shows what times of day most items are sold. Peak hours help you plan staffing and restocking.
               </p>
             </div>
           )}
 
           {chartTab === 'trend' && (
             <div>
-              <h3 style={{ marginBottom: '1rem' }}>Sales Trend (Last {days} Days)</h3>
-              {trend.length > 0 ? (
-                <ResponsiveContainer width="100%" height={350}>
-                  <LineChart data={trend} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E8DDD0" />
-                    <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 12 }} />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Line
-                      type="monotone"
-                      dataKey="eggs"
-                      name="Eggs Sold"
-                      stroke="#8B4513"
-                      strokeWidth={2}
-                      dot={{ fill: '#8B4513', r: 3 }}
-                      activeDot={{ r: 6 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+              {category === 'eggs' && <h3 style={{ marginBottom: '1rem' }}>Sales Trend (Last {days} Days)</h3>}
+              {category === 'products' && <h3 style={{ marginBottom: '1rem' }}>Product Sales Trend (Last {days} Days)</h3>}
+              {category === 'both' && <h3 style={{ marginBottom: '1rem' }}>Combined Sales Trend (Last {days} Days)</h3>}
+              {category === 'both' ? (
+                (trend.length > 0 || prodTrend.length > 0) ? (
+                  <ResponsiveContainer width="100%" height={350}>
+                    <LineChart data={trend.length > 0 ? trend.map(t => ({ ...t, eggs: t.eggs || 0, products: prodTrend.find(p => p.date === t.date)?.eggs || 0 })) : prodTrend.map(p => ({ ...p, eggs: 0, products: p.eggs || 0 }))} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E8DDD0" />
+                      <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 12 }} />
+                      <Tooltip />
+                      <Line type="monotone" dataKey="eggs" name="Eggs" stroke="#8B4513" strokeWidth={2} dot={{ fill: '#8B4513', r: 3 }} activeDot={{ r: 6 }} />
+                      <Line type="monotone" dataKey="products" name="Products" stroke="#2E7D32" strokeWidth={2} dot={{ fill: '#2E7D32', r: 3 }} activeDot={{ r: 6 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="empty-state" style={{ height: 300 }}>
+                    <p>Not enough data to show trends yet</p>
+                  </div>
+                )
+              ) : category === 'eggs' ? (
+                trend.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={350}>
+                    <LineChart data={trend} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E8DDD0" />
+                      <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 12 }} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Line type="monotone" dataKey="eggs" name="Eggs Sold" stroke="#8B4513" strokeWidth={2} dot={{ fill: '#8B4513', r: 3 }} activeDot={{ r: 6 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="empty-state" style={{ height: 300 }}>
+                    <p>Not enough data to show trends yet</p>
+                  </div>
+                )
               ) : (
-                <div className="empty-state" style={{ height: 300 }}>
-                  <p>Not enough data to show trends yet</p>
-                </div>
+                prodTrend.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={350}>
+                    <LineChart data={prodTrend} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E8DDD0" />
+                      <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 12 }} />
+                      <Tooltip formatter={(value) => `${value} units`} />
+                      <Line type="monotone" dataKey="eggs" name="Products Sold" stroke="#2E7D32" strokeWidth={2} dot={{ fill: '#2E7D32', r: 3 }} activeDot={{ r: 6 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="empty-state" style={{ height: 300 }}>
+                    <p>Not enough data to show trends yet</p>
+                  </div>
+                )
               )}
             </div>
           )}
 
           {chartTab === 'revenue' && (
             <div>
-              <h3 style={{ marginBottom: '1rem' }}>Revenue by Egg Size</h3>
-              {revenueBySize.some(r => r.revenue > 0) ? (
-                <ResponsiveContainer width="100%" height={350}>
-                  <BarChart data={revenueBySize} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E8DDD0" />
-                    <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                    <YAxis tick={{ fontSize: 12 }} />
-                    <Tooltip content={<CustomTooltip formatType="peso" />} />
-                    <Bar dataKey="revenue" name="Revenue" radius={[4, 4, 0, 0]} fill="#2E7D32">
-                      {revenueBySize.map((_, i) => (
-                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="empty-state" style={{ height: 300 }}>
-                  <p>No revenue data yet. Set prices and record sales to see revenue breakdown.</p>
-                </div>
+              {category === 'eggs' && <h3 style={{ marginBottom: '1rem' }}>Revenue by Egg Size</h3>}
+              {category === 'products' && <h3 style={{ marginBottom: '1rem' }}>Revenue by Product</h3>}
+              {category === 'both' && <h3 style={{ marginBottom: '1rem' }}>Revenue by Item</h3>}
+              {(category === 'eggs' || category === 'both') && (
+                revenueBySize.some(r => r.revenue > 0) ? (
+                  <ResponsiveContainer width="100%" height={category === 'both' ? 280 : 350}>
+                    <BarChart data={revenueBySize} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E8DDD0" />
+                      <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                      <YAxis tick={{ fontSize: 12 }} />
+                      <Tooltip content={<CustomTooltip formatType="peso" />} />
+                      <Bar dataKey="revenue" name="Egg Revenue" radius={[4, 4, 0, 0]}>
+                        {revenueBySize.map((_, i) => (
+                          <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="empty-state" style={{ height: 300 }}>
+                    <p>No egg revenue data yet. Set prices and record sales to see revenue breakdown.</p>
+                  </div>
+                )
+              )}
+              {category === 'both' && <div style={{ height: '1rem' }} />}
+              {(category === 'products' || category === 'both') && (
+                prodBySize.some(s => s.revenue > 0) ? (
+                  <ResponsiveContainer width="100%" height={category === 'both' ? 280 : 350}>
+                    <BarChart data={prodBySize} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E8DDD0" />
+                      <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                      <YAxis tick={{ fontSize: 12 }} />
+                      <Tooltip formatter={(value) => formatPeso(value)} />
+                      <Bar dataKey="revenue" name="Product Revenue" radius={[4, 4, 0, 0]} fill="#2E7D32">
+                        {prodBySize.map((_, i) => (
+                          <Cell key={i} fill={COLORS[(i + 3) % COLORS.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="empty-state" style={{ height: 300 }}>
+                    <p>No product revenue data yet.</p>
+                  </div>
+                )
               )}
             </div>
           )}
 
           {chartTab === 'pie' && (
             <div>
-              <h3 style={{ marginBottom: '1rem' }}>Sales Distribution</h3>
-              <ResponsiveContainer width="100%" height={380}>
-                <PieChart>
-                  <Pie
-                    data={bySize.filter(d => d.eggs > 0)}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={true}
-                    label={({ name, percent }) =>
-                      `${name} (${(percent * 100).toFixed(0)}%)`
-                    }
-                    outerRadius="70%"
-                    innerRadius="35%"
-                    dataKey="eggs"
-                  >
-                    {bySize
-                      .filter(d => d.eggs > 0)
-                      .map((_, i) => (
+              {category === 'eggs' && <h3 style={{ marginBottom: '1rem' }}>Sales Distribution</h3>}
+              {category === 'products' && <h3 style={{ marginBottom: '1rem' }}>Product Sales Distribution</h3>}
+              {category === 'both' && <h3 style={{ marginBottom: '1rem' }}>Combined Sales Distribution</h3>}
+              {(category === 'eggs' || category === 'both') && (
+                <ResponsiveContainer width="100%" height={category === 'both' ? 300 : 380}>
+                  <PieChart>
+                    <Pie
+                      data={bySize.filter(d => d.eggs > 0)}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={true}
+                      label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                      outerRadius="70%"
+                      innerRadius="35%"
+                      dataKey="eggs"
+                    >
+                      {bySize.filter(d => d.eggs > 0).map((_, i) => (
                         <Cell key={i} fill={COLORS[i % COLORS.length]} />
                       ))}
-                  </Pie>
-                  <Tooltip content={<CustomTooltip />} />
-                </PieChart>
-              </ResponsiveContainer>
+                    </Pie>
+                    <Tooltip content={<CustomTooltip />} />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+              {category === 'both' && <div style={{ height: '1rem' }} />}
+              {(category === 'products' || category === 'both') && (
+                <ResponsiveContainer width="100%" height={category === 'both' ? 300 : 380}>
+                  <PieChart>
+                    <Pie
+                      data={prodBySize.filter(d => d.quantity > 0)}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={true}
+                      label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                      outerRadius="70%"
+                      innerRadius="35%"
+                      dataKey="quantity"
+                    >
+                      {prodBySize.filter(d => d.quantity > 0).map((_, i) => (
+                        <Cell key={i} fill={COLORS[(i + 3) % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => `${value} units`} />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
             </div>
           )}
 
@@ -533,6 +750,24 @@ export default function Analytics() {
       )}
 
       <style>{`
+        .analytics-category-filter {
+          display: flex;
+          gap: 0.375rem;
+          margin-bottom: 1.25rem;
+        }
+        .analytics-cat-btn {
+          padding: 0.5rem 1rem;
+          border: 1.5px solid var(--color-border);
+          border-radius: var(--radius-sm);
+          background: var(--color-card);
+          color: var(--color-text-secondary);
+          font-size: 0.8125rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .analytics-cat-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
+        .analytics-cat-btn.active { background: var(--color-primary); border-color: var(--color-primary); color: white; }
         .days-selector {
           display: flex;
           align-items: center;

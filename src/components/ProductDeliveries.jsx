@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Truck,
   Plus,
@@ -24,6 +25,7 @@ const paymentColors = {
 };
 
 export default function ProductDeliveries() {
+  const navigate = useNavigate();
   const [deliveries, setDeliveries] = useState([]);
   const [products, setProducts] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
@@ -105,7 +107,7 @@ export default function ProductDeliveries() {
 
     setSubmitting(true);
     try {
-      await recordProductDelivery({
+      const newDelivery = await recordProductDelivery({
         supplierId: parseInt(form.supplierId, 10),
         productId: parseInt(form.productId, 10),
         purchaseQuantity: parseFloat(form.quantity),
@@ -113,13 +115,13 @@ export default function ProductDeliveries() {
         deliveryDate: form.date,
         notes: form.notes.trim(),
       });
+      const createdId = newDelivery?.id;
       toast('Product delivery recorded', 'success', {
         label: 'Undo',
         onClick: async () => {
           try {
-            const latest = deliveries[0];
-            if (latest) {
-              await deleteProductDelivery(latest.id);
+            if (createdId) {
+              await deleteProductDelivery(createdId);
               toast('Delivery undone');
               loadData();
             }
@@ -261,7 +263,7 @@ export default function ProductDeliveries() {
           {suppliers.length === 0 ? (
             <div className="delivery-no-suppliers">
               <p>Add a supplier first.</p>
-              <button className="btn btn-primary" onClick={() => window.location.hash = '#/suppliers'}>Go to Suppliers</button>
+              <button className="btn btn-primary" onClick={() => navigate('/suppliers')}>Go to Suppliers</button>
             </div>
           ) : (
             <form onSubmit={handleSubmit}>

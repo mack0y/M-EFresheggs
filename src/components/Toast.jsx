@@ -4,19 +4,32 @@ import { setToastHandler } from '../lib/toastFn';
 export function ToastContainer() {
   const [toasts, setToasts] = useState([]);
   const idRef = useRef(0);
+  const timersRef = useRef({});
+
+  const removeToast = useCallback((id) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+    if (timersRef.current[id]) {
+      clearTimeout(timersRef.current[id]);
+      delete timersRef.current[id];
+    }
+  }, []);
 
   const addToast = useCallback((message, type = 'success', action = null) => {
     const id = ++idRef.current;
     const duration = action ? 5000 : 3000;
     setToasts(prev => [...prev, { id, message, type, action }]);
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
+    timersRef.current[id] = setTimeout(() => {
+      removeToast(id);
     }, duration);
-  }, []);
+  }, [removeToast]);
 
   useEffect(() => {
     setToastHandler(addToast);
-    return () => { setToastHandler(null); };
+    return () => {
+      setToastHandler(null);
+      Object.values(timersRef.current).forEach(clearTimeout);
+      timersRef.current = {};
+    };
   }, [addToast]);
 
   return (
@@ -39,7 +52,7 @@ export function ToastContainer() {
               className="toast-action"
               onClick={() => {
                 t.action.onClick();
-                setToasts(prev => prev.filter(toast => toast.id !== t.id));
+                removeToast(t.id);
               }}
             >
               {t.action.label}

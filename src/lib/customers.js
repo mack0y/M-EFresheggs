@@ -12,9 +12,10 @@ export async function fetchCustomers() {
 }
 
 export async function addCustomer({ name, phone, notes }) {
+  if (!name || !name.trim()) throw new Error('Customer name is required');
   const { data, error } = await supabase
     .from('customers')
-    .insert({ name, phone, notes })
+    .insert({ name: name.trim(), phone, notes })
     .select()
     .single();
   if (error) throw error;

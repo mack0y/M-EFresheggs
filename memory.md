@@ -1043,4 +1043,102 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - All components have self-contained CSS (no cross-component class dependencies)
 - `search-input-wrapper` and `search-icon` classes moved to index.css as shared utilities
 
-# Last updated: Tue Jul 07 2026
+## Session: Full Audit & Bug Fixes (July 11, 2026)
+
+### New Sale Button Loading Bug Fix
+- **NewEggSale.jsx** and **NewProductSale.jsx** — Fixed infinite loading state caused by `useEffect` guard `if (!loading)` that prevented initial data fetch (loading starts as `true`, so `loadData()` never runs on mount)
+- Removed the `if (!loading)` guard so `loadData()` runs unconditionally on mount
+
+### Full Codebase Audit (16 fixes applied)
+
+#### CRITICAL Fixes
+1. **`sales.js` — `deleteSales()` batch delete never restored inventory** — Bulk-deleting sales silently corrupted inventory by not adding back egg counts. Fixed by adding inventory restoration loop matching single-delete logic.
+2. **`productSales.js` — `deleteProductSales()` batch delete never restored inventory** — Same bug for product sales. Fixed with inventory restoration loop.
+
+#### HIGH Fixes
+3. **`supabaseClient.js` — Silent fallback to placeholder credentials** — Missing env vars only logged `console.warn`, app ran with broken client. Changed to `console.error` for visibility.
+4. **`deliveries.js:57` — `notes.trim()` null crash** — `TypeError` when notes is null/undefined. Fixed with `(notes || '').trim()`.
+5. **`reports.js:13-14` — Unconditional `.gte/.lte` with undefined** — Supabase error when startDate/endDate undefined. Wrapped in `if (startDate)`/`if (endDate)` guards.
+6. **`analytics.js:113-122` — Missing error check on deliveries query** — `deliveries.error` never checked in `fetchProfitMargins()`. Added error throw.
+7. **`salesUtils.js:5,18` — `parseInt` truncated decimal quantities** — 0.5 became 0, causing incorrect totals and broken stock validation. Changed to `parseFloat`.
+8. **`App.jsx` — Lazy chunk load failures not handled** — Network interruption showed skeleton forever. Added `ChunkErrorBoundary` with retry/reload.
+
+#### MEDIUM Fixes
+9. **`main.jsx` — No top-level error boundary** — Layout crash white-screened entire app. Wrapped `App` in `ErrorBoundary`.
+10. **`customers.js:14` — No input validation** — Empty/whitespace names inserted into DB. Added `if (!name || !name.trim())` guard + `.trim()`.
+11. **`suppliers.js:14` — No input validation** — Same fix as customers.
+12. **`index.css` — Missing `color-scheme: dark`** — Native scrollbars/form controls didn't theme in dark mode. Added `color-scheme: dark` to dark mode block.
+13. **`index.css` — No `prefers-reduced-motion` support** — Users with motion sensitivity couldn't disable animations. Added `@media (prefers-reduced-motion: reduce)` rule.
+
+### Known Remaining Issues (Deferred)
+- **funds.js TOCTOU race** on `recordDailyRevenueCut` — needs Supabase DB unique constraint on `(fund_date, description)`
+- **Timezone inconsistency** — `sale_time` in `sales.js`/`productSales.js` uses system timezone vs Manila (`getLocalDate()` for `sale_date`)
+- **No 404 page** — silent redirect to `/` (low priority UX)
+- **Duplicate inline `<style>` in ErrorBoundary** — should move to index.css (refactor)
+- **PWA workbox config** — Supabase project ID hardcoded in `vite.config.js:31` (should reference env var)
+
+### Build Verification
+- `npm run build` passes clean (3.89s, 21 chunks, PWA generated)
+
+## Unified Checkout & Performance Optimizations (July 2026)
+
+### Unified Checkout Flow
+- **New `NewSale.jsx`** — Single checkout page for both egg and product sales with tabbed selector (Eggs/Products), cart system, and combined checkout
+- **New `CartContext.jsx`** — React Context with cart state persistence across navigation, preventing accidental data loss
+- **New `ReceiptView.jsx`** — Post-checkout receipt modal with 30-second auto-dismiss
+- **New `transactions.js`** — Unified transaction API: `recordTransaction()` validates stock for ALL items atomically before any inserts, creates transaction record, links egg and product sales via `transaction_id`
+- **Stock validation** — Validates egg and product stock before any inserts (atomic checkout)
+- **Backward compatible** — `transaction_id` columns on `sales` and `product_sales` are nullable, so old individual sales still work
+
+### Reporting & Analytics Filters
+- **Reports.jsx** — Added Eggs Only / Products Only / Both category filter with product sales table section
+- **Analytics.jsx** — Added Eggs Only / Products Only / Both category filter; all 5 chart tabs (size, time, trend, pie, revenue) respect the filter
+- **Profits.jsx** — Already had Eggs/Products/All filter from earlier session
+
+### Dashboard Enhancements
+- **Combined revenue** — Eggs + products revenue shown together with itemized breakdown
+- **1% daily cut** — Applied to ALL sales (eggs + products combined)
+- **Separate COGS** — Egg COGS and product COGS tracked independently
+- **Split stock value cards** — Egg Stock Value and Product Stock Value as separate stat cards
+- **Split best seller cards** — Top Egg Size and Top Product as separate insight cards
+- **Yesterday comparison** — Uses combined revenue (eggs + products)
+
+### Mobile UX Improvements (NewSale.jsx)
+- **Sticky total bar** — Mobile sticky total bar at top (always visible during scrolling)
+- **Inline product quantities** — Quick chips per product row with +/- buttons
+- **Add to Cart at top** — Both egg and product tabs have Add to Cart button at top
+- **Larger product list** — Increased max-height to 420px for better scrolling
+- **Enlarged total display** — 2rem/weight-900 for better visibility
+
+### Seed Data
+- **`seed_products.sql`** — 20 frozen goods products (column names: `unit`, `cost`, `price`)
+- **`seed_product_deliveries.sql`** — 1 supplier + 20 product deliveries using subqueries with CASE expressions to match auto-generated product IDs by name
+- **Applied to Supabase** — Both seed files executed successfully
+
+### Database Migration
+- **`migration_transactions.sql`** — Creates `transactions` table, adds `transaction_id` columns to `sales` and `product_sales` (nullable for backward compatibility), creates indexes
+- **Applied to Supabase** — Migration executed successfully
+
+### Performance Optimizations
+- **Dead code cleanup** — Removed 3 unused exports from `transactions.js`, unused `getLocalDate` import from `ReceiptView.jsx`, unused `.slide-up`/`.grid-3`/`.grid-4`/`@keyframes slideIn`/`@keyframes pulse` from CSS, 5 unnecessary re-exports from `api.js`
+- **Dependency fix** — Moved `vite-plugin-pwa` from `dependencies` to `devDependencies`
+- **Gzip compression** — Added `vite-plugin-compression` for gzip pre-compression of all assets
+- **CartContext useMemo** — Context value wrapped in `useMemo` to prevent unnecessary re-renders of all consumers
+- **Dashboard useMemo** — All ~15 derived computations (revenue, COGS, profit, best seller, sparkline, etc.) wrapped in `useMemo`
+- **Redundant API call removed** — `fetchInventoryValue()` (which internally called `fetchInventory()` + `fetchProducts()` + `fetchPriceSettings()`) replaced with local computation from already-fetched data, eliminating 1 redundant API call per 30-second refresh
+- **NewSale useMemo** — `filteredProducts` and `sortedInventory` wrapped in `useMemo` to prevent unnecessary list re-renders
+- **Dashboard useCallback** — `handleQuickAdd` wrapped in `useCallback` for stable function reference
+
+### Performance Optimization Cancelled (Not Needed)
+- **React.memo on list items** — Dashboard lists are small (7-10 items); memoizing adds complexity for negligible gain
+- **Dashboard sub-component split** — Code organization improvement, not performance; useMemo additions already address the performance concerns
+- **Import from sub-modules vs barrel file** — Vite handles tree-shaking well; current barrel pattern works correctly
+
+### Build Output
+- **Compression working** — 23 gzip-compressed files generated alongside originals
+- **Build passes clean** — All changes verified with `npm run build`
+- **Pre-existing lint errors** — 50 errors in SalesLog.jsx, ProductSales.jsx, etc. (all pre-existing, none introduced by this session)
+
+---
+
+# Last updated: Sun Jul 12 2026

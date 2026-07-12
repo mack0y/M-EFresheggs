@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Package,
@@ -16,7 +16,7 @@ import {
   BarChart3,
   Plus,
 } from 'lucide-react';
-import { fetchInventory, fetchTodaySales, fetchTodayExpenses, fetchInventoryValue, fetchDeliveries, fetchCostsPerEgg, getOperationalBalance, fetchSales, fetchSalesTrend, updateInventory, getEggCount, formatInventory, formatPeso, getLocalDate, TRAY_SIZE, fetchProducts, fetchTodayProductSales } from '../lib/api';
+import { fetchInventory, fetchTodaySales, fetchTodayExpenses, fetchDeliveries, fetchCostsPerEgg, fetchCostsPerProduct, getOperationalBalance, fetchSales, fetchSalesTrend, incrementInventory, getEggCount, formatInventory, formatPeso, getLocalDate, TRAY_SIZE, fetchProducts, fetchTodayProductSales, fetchProductSales, fetchPriceSettings } from '../lib/api';
 import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 
@@ -39,7 +39,7 @@ export default function Dashboard() {
   const [inventory, setInventory] = useState([]);
   const [todaySales, setTodaySales] = useState([]);
   const [todayExpenses, setTodayExpenses] = useState([]);
-  const [inventoryValue, setInventoryValue] = useState(0);
+  const [priceSettings, setPriceSettings] = useState([]);
   const [todayDeliveries, setTodayDeliveries] = useState([]);
   const [costsPerEgg, setCostsPerEgg] = useState({});
   const [opexBalance, setOpexBalance] = useState({ totalFunds: 0, totalExpenses: 0, balance: 0 });
@@ -49,7 +49,10 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [productCount, setProductCount] = useState(0);
+  const [products, setProducts] = useState([]);
   const [todayProductSales, setTodayProductSales] = useState([]);
+  const [costsPerProduct, setCostsPerProduct] = useState({});
+  const [yesterdayProductSales, setYesterdayProductSales] = useState([]);
 
   async function loadData() {
     try {
@@ -59,11 +62,11 @@ export default function Dashboard() {
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
       const yesterdayStr = getLocalDate(yesterday);
-      const [inv, sales, expenses, invValue, deliveries, costs, opex, ySales, trend, prods, todayProdSales] = await Promise.all([
+      const [inv, sales, expenses, prices, deliveries, costs, opex, ySales, trend, prods, todayProdSales, costsProd, yProdSales] = await Promise.all([
         fetchInventory(),
         fetchTodaySales(),
         fetchTodayExpenses(),
-        fetchInventoryValue(),
+        fetchPriceSettings(),
         fetchDeliveries({ startDate: today, endDate: today }),
         fetchCostsPerEgg(),
         getOperationalBalance(),
@@ -71,18 +74,23 @@ export default function Dashboard() {
         fetchSalesTrend(7),
         fetchProducts(),
         fetchTodayProductSales(),
+        fetchCostsPerProduct(),
+        fetchProductSales({ startDate: yesterdayStr, endDate: yesterdayStr }),
       ]);
       setInventory(inv || []);
       setTodaySales(sales || []);
       setTodayExpenses(expenses || []);
-      setInventoryValue(invValue);
+      setPriceSettings(prices || []);
       setTodayDeliveries(deliveries || []);
       setCostsPerEgg(costs || {});
       setOpexBalance(opex || { totalFunds: 0, totalExpenses: 0, balance: 0 });
       setYesterdaySales(ySales || []);
       setTrendData(trend || []);
       setProductCount((prods || []).length);
+      setProducts(prods || []);
       setTodayProductSales(todayProdSales || []);
+      setCostsPerProduct(costsProd || {});
+      setYesterdayProductSales(yProdSales || []);
     } catch (err) {
       console.error('Dashboard load error:', err);
       setError(err);
@@ -92,64 +100,125 @@ export default function Dashboard() {
   }
 
   useEffect(() => {
+    // Defer to microtask to avoid cascading render warning from setState calls
     Promise.resolve().then(() => loadData());
     const interval = setInterval(loadData, 30000);
     return () => clearInterval(interval);
   }, []);
 
-  const todayDeliveryCount = todayDeliveries.length;
+  const todayDeliveryCount = useMemo(() => todayDeliveries.length, [todayDeliveries]);
 
-  const totalEggsSoldToday = todaySales.reduce(
-    (sum, s) => sum + getEggCount(s), 0
+  const totalEggsSoldToday = useMemo(() =>
+    todaySales.reduce((sum, s) => sum + getEggCount(s), 0),
+    [todaySales]
   );
 
-  const todayRevenue = todaySales.reduce(
-    (sum, s) => sum + parseFloat(s.total_amount || 0), 0
+  const todayRevenue = useMemo(() =>
+    todaySales.reduce((sum, s) => sum + parseFloat(s.total_amount || 0), 0),
+    [todaySales]
   );
 
-  const todayProductRevenue = todayProductSales.reduce(
-    (sum, s) => sum + parseFloat(s.total_amount || 0), 0
+  const todayProductRevenue = useMemo(() =>
+    todayProductSales.reduce((sum, s) => sum + parseFloat(s.total_amount || 0), 0),
+    [todayProductSales]
   );
 
-  const todayExpenseTotal = todayExpenses.reduce(
-    (sum, e) => sum + parseFloat(e.amount || 0), 0
+  const combinedRevenue = todayRevenue + todayProductRevenue;
+
+  const todayExpenseTotal = useMemo(() =>
+    todayExpenses.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0),
+    [todayExpenses]
   );
 
-  const todayCOGS = todaySales.reduce((sum, s) => {
-    const cost = costsPerEgg[s.egg_size_id];
-    const eggCount = getEggCount(s);
-    return sum + (cost?.avgCostPerEgg || 0) * eggCount;
-  }, 0);
-  const dailyRevenueCut = Math.round(todayRevenue * 0.01 * 100) / 100;
-  const adjustedRevenue = todayRevenue - dailyRevenueCut;
-  // Net profit = adjusted revenue minus COGS only
-  // (expenses are paid from operational funds, funded by the 1% cut)
-  const netProfit = adjustedRevenue - todayCOGS;
-
-  const totalStock = inventory.reduce(
-    (sum, item) => sum + (item.quantity_on_hand || 0), 0
+  const todayCOGS = useMemo(() =>
+    todaySales.reduce((sum, s) => {
+      const cost = costsPerEgg[s.egg_size_id];
+      const eggCount = getEggCount(s);
+      return sum + (cost?.avgCostPerEgg || 0) * eggCount;
+    }, 0),
+    [todaySales, costsPerEgg]
   );
 
-  // Yesterday comparison
-  const yesterdayRevenue = yesterdaySales.reduce(
-    (sum, s) => sum + parseFloat(s.total_amount || 0), 0
+  const todayProductCOGS = useMemo(() =>
+    todayProductSales.reduce((sum, s) => {
+      const costPerUnit = costsPerProduct[s.product_id] || 0;
+      return sum + costPerUnit * parseFloat(s.quantity || 0);
+    }, 0),
+    [todayProductSales, costsPerProduct]
   );
-  const revenueChange = yesterdayRevenue > 0
-    ? Math.round(((todayRevenue - yesterdayRevenue) / yesterdayRevenue) * 100)
-    : todayRevenue > 0 ? 100 : 0;
+
+  const dailyRevenueCut = Math.round(combinedRevenue * 0.01 * 100) / 100;
+  const adjustedRevenue = combinedRevenue - dailyRevenueCut;
+  const netProfit = adjustedRevenue - todayCOGS - todayProductCOGS;
+
+  const totalStock = useMemo(() =>
+    inventory.reduce((sum, item) => sum + (item.quantity_on_hand || 0), 0),
+    [inventory]
+  );
+
+  // Compute inventory value from already-fetched data (avoids redundant fetchInventoryValue call)
+  const inventoryValue = useMemo(() => {
+    const priceMap = {};
+    priceSettings.forEach(p => {
+      priceMap[p.egg_size_id] = parseFloat(p.price_per_piece || 0);
+    });
+    let eggValue = 0;
+    inventory.forEach(item => {
+      const qty = item.quantity_on_hand || 0;
+      const pp = priceMap[item.egg_size_id] || 0;
+      eggValue += qty * pp;
+    });
+    let productValue = 0;
+    products.forEach(p => {
+      const qty = parseFloat(p.quantity_on_hand || 0);
+      const price = parseFloat(p.price || 0);
+      productValue += qty * price;
+    });
+    return { eggValue, productValue, totalValue: eggValue + productValue };
+  }, [inventory, priceSettings, products]);
+
+  // Yesterday comparison (combined)
+  const yesterdayCombinedRevenue = useMemo(() => {
+    const yRev = yesterdaySales.reduce((sum, s) => sum + parseFloat(s.total_amount || 0), 0);
+    const yProdRev = yesterdayProductSales.reduce((sum, s) => sum + parseFloat(s.total_amount || 0), 0);
+    return yRev + yProdRev;
+  }, [yesterdaySales, yesterdayProductSales]);
+
+  const revenueChange = yesterdayCombinedRevenue > 0
+    ? Math.round(((combinedRevenue - yesterdayCombinedRevenue) / yesterdayCombinedRevenue) * 100)
+    : combinedRevenue > 0 ? 100 : 0;
 
   // Best-selling size today
-  const sizeSalesMap = {};
-  todaySales.forEach(s => {
-    const name = s.egg_sizes?.name || 'Unknown';
-    const eggs = getEggCount(s);
-    sizeSalesMap[name] = (sizeSalesMap[name] || 0) + eggs;
-  });
-  const bestSellerEntries = Object.entries(sizeSalesMap).sort((a, b) => b[1] - a[1]);
-  const bestSeller = bestSellerEntries[0] || null;
-  const bestSellerPercent = bestSeller && totalEggsSoldToday > 0
-    ? Math.round((bestSeller[1] / totalEggsSoldToday) * 100)
-    : 0;
+  const { bestSeller, bestSellerPercent } = useMemo(() => {
+    const sizeSalesMap = {};
+    todaySales.forEach(s => {
+      const name = s.egg_sizes?.name || 'Unknown';
+      const eggs = getEggCount(s);
+      sizeSalesMap[name] = (sizeSalesMap[name] || 0) + eggs;
+    });
+    const entries = Object.entries(sizeSalesMap).sort((a, b) => b[1] - a[1]);
+    const best = entries[0] || null;
+    const pct = best && totalEggsSoldToday > 0
+      ? Math.round((best[1] / totalEggsSoldToday) * 100)
+      : 0;
+    return { bestSeller: best, bestSellerPercent: pct };
+  }, [todaySales, totalEggsSoldToday]);
+
+  // Top product today
+  const { topProduct, topProductPercent } = useMemo(() => {
+    const productSalesMap = {};
+    todayProductSales.forEach(s => {
+      const name = s.products?.name || 'Unknown';
+      productSalesMap[name] = (productSalesMap[name] || 0) + parseFloat(s.quantity || 0);
+    });
+    const entries = Object.entries(productSalesMap).sort((a, b) => b[1] - a[1]);
+    const top = entries[0] || null;
+    const totalUnits = todayProductSales.reduce((sum, s) => sum + parseFloat(s.quantity || 0), 0);
+    const pct = top && totalUnits > 0
+      ? Math.round((top[1] / totalUnits) * 100)
+      : 0;
+    return { topProduct: top, topProductPercent: pct };
+  }, [todayProductSales]);
 
   // Profit margin
   const marginPercent = adjustedRevenue > 0
@@ -157,21 +226,22 @@ export default function Dashboard() {
     : 0;
 
   // 7-day sparkline data
-  const dailyMap = {};
-  trendData.forEach(s => {
-    dailyMap[s.sale_date] = (dailyMap[s.sale_date] || 0) + getEggCount(s);
-  });
-  const sparklineValues = Object.entries(dailyMap)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([, eggs]) => eggs);
-  const maxSpark = Math.max(...sparklineValues, 1);
+  const { sparklineValues, maxSpark } = useMemo(() => {
+    const dailyMap = {};
+    trendData.forEach(s => {
+      dailyMap[s.sale_date] = (dailyMap[s.sale_date] || 0) + getEggCount(s);
+    });
+    const values = Object.entries(dailyMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, eggs]) => eggs);
+    return { sparklineValues: values, maxSpark: Math.max(...values, 1) };
+  }, [trendData]);
 
   // Quick-add tray to inventory
-  async function handleQuickAdd(item) {
+  const handleQuickAdd = useCallback(async (item) => {
     setQuickAdding(item.egg_size_id);
     try {
-      const currentQty = item.quantity_on_hand || 0;
-      await updateInventory(item.egg_size_id, currentQty + TRAY_SIZE);
+      await incrementInventory(item.egg_size_id, TRAY_SIZE);
       toast(`Added 1 tray to ${item.egg_sizes?.name}`);
       loadData();
     } catch (err) {
@@ -180,14 +250,16 @@ export default function Dashboard() {
     } finally {
       setQuickAdding(null);
     }
-  }
+  }, []);
 
-  const lowStockItems = inventory.filter(
-    item => item.quantity_on_hand <= 50 && item.quantity_on_hand > 0
+  const lowStockItems = useMemo(() =>
+    inventory.filter(item => item.quantity_on_hand <= 50 && item.quantity_on_hand > 0),
+    [inventory]
   );
 
-  const outOfStockItems = inventory.filter(
-    item => item.quantity_on_hand === 0
+  const outOfStockItems = useMemo(() =>
+    inventory.filter(item => item.quantity_on_hand === 0),
+    [inventory]
   );
 
   const now = new Date();
@@ -227,13 +299,9 @@ export default function Dashboard() {
 
       {/* Quick Action Bar */}
       <div className="quick-actions">
-        <button className="qa-btn qa-sale" onClick={() => navigate('/sales')}>
+        <button className="qa-btn qa-sale" onClick={() => navigate('/sales/new')}>
           <ShoppingCart size={18} />
-          <span>Egg Sale</span>
-        </button>
-        <button className="qa-btn qa-product-sale" onClick={() => navigate('/product-sales')}>
-          <ShoppingCart size={18} />
-          <span>Product Sale</span>
+          <span>New Sale</span>
         </button>
         <button className="qa-btn qa-stock" onClick={() => navigate('/inventory')}>
           <Package size={18} />
@@ -261,7 +329,10 @@ export default function Dashboard() {
           </div>
           <div className="primary-stat-info">
             <span className="primary-stat-label">Today's Revenue</span>
-            <span className="primary-stat-value">{loading ? <span className="skeleton" style={{ display: 'inline-block', width: 80, height: 28 }}>&nbsp;</span> : formatPeso(todayRevenue)}</span>
+            <span className="primary-stat-value">{loading ? <span className="skeleton" style={{ display: 'inline-block', width: 80, height: 28 }}>&nbsp;</span> : formatPeso(combinedRevenue)}</span>
+            {!loading && (
+              <span className="primary-stat-sub">Eggs {formatPeso(todayRevenue)} · Products {formatPeso(todayProductRevenue)}</span>
+            )}
             {!loading && (
               <span className="primary-stat-sub">After 1% cut: {formatPeso(adjustedRevenue)}</span>
             )}
@@ -304,9 +375,21 @@ export default function Dashboard() {
           </div>
           <div className="stat-card-content">
             <span className="stat-card-value">
-              {loading ? '—' : formatPeso(inventoryValue)}
+              {loading ? '—' : formatPeso(inventoryValue.eggValue)}
             </span>
-            <span className="stat-card-label">Stock Value</span>
+            <span className="stat-card-label">Egg Stock Value</span>
+          </div>
+        </div>
+
+        <div className="stat-card-item">
+          <div className="stat-card-icon" style={{ background: '#F3E5F5', color: '#7B1FA2' }}>
+            <DollarSign size={18} />
+          </div>
+          <div className="stat-card-content">
+            <span className="stat-card-value">
+              {loading ? '—' : formatPeso(inventoryValue.productValue)}
+            </span>
+            <span className="stat-card-label">Product Stock Value</span>
           </div>
         </div>
 
@@ -316,7 +399,7 @@ export default function Dashboard() {
           </div>
           <div className="stat-card-content">
             <span className="stat-card-value">
-              {loading ? '—' : formatPeso(todayRevenue + todayProductRevenue)}
+              {loading ? '—' : formatPeso(combinedRevenue)}
             </span>
             <span className="stat-card-label">Total Sales Today</span>
           </div>
@@ -398,13 +481,13 @@ export default function Dashboard() {
 
       {/* Insight Cards Row */}
       <div className="insight-row">
-        {/* Best Seller */}
+        {/* Top Egg Size */}
         <div className="insight-card">
-          <div className="insight-icon-box" style={{ background: '#F3E5F5', color: '#7B1FA2' }}>
+          <div className="insight-icon-box" style={{ background: '#E8F5E9', color: '#2E7D32' }}>
             <Award size={18} />
           </div>
           <div className="insight-content">
-            <span className="insight-label">Best Seller Today</span>
+            <span className="insight-label">Top Egg Size</span>
             {loading ? (
               <span className="skeleton" style={{ display: 'inline-block', width: 80, height: 20 }}>&nbsp;</span>
             ) : bestSeller ? (
@@ -414,6 +497,26 @@ export default function Dashboard() {
             )}
             {bestSeller && !loading && (
               <span className="insight-sub">{bestSeller[1].toLocaleString()} eggs ({bestSellerPercent}%)</span>
+            )}
+          </div>
+        </div>
+
+        {/* Top Product */}
+        <div className="insight-card">
+          <div className="insight-icon-box" style={{ background: '#F3E5F5', color: '#7B1FA2' }}>
+            <Package size={18} />
+          </div>
+          <div className="insight-content">
+            <span className="insight-label">Top Product</span>
+            {loading ? (
+              <span className="skeleton" style={{ display: 'inline-block', width: 80, height: 20 }}>&nbsp;</span>
+            ) : topProduct ? (
+              <span className="insight-value">{topProduct[0]}</span>
+            ) : (
+              <span className="insight-value" style={{ color: 'var(--color-text-muted)', fontSize: '0.8125rem' }}>No sales yet</span>
+            )}
+            {topProduct && !loading && (
+              <span className="insight-sub">{topProduct[1].toLocaleString()} units ({topProductPercent}%)</span>
             )}
           </div>
         </div>
@@ -589,14 +692,9 @@ export default function Dashboard() {
             <div className="empty-state">
               <ShoppingCart size={32} />
               <p>No sales recorded today</p>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button className="btn btn-primary btn-sm" onClick={() => navigate('/sales')}>
-                  Record Egg Sale
-                </button>
-                <button className="btn btn-secondary btn-sm" onClick={() => navigate('/product-sales')}>
-                  Record Product Sale
-                </button>
-              </div>
+              <button className="btn btn-primary btn-sm" onClick={() => navigate('/sales/new')}>
+                Record a Sale
+              </button>
             </div>
           ) : (
             <div className="stock-list">
@@ -1167,7 +1265,13 @@ export default function Dashboard() {
 
         @media (min-width: 640px) {
           .insight-row {
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+
+        @media (min-width: 900px) {
+          .insight-row {
+            grid-template-columns: repeat(4, 1fr);
           }
         }
 

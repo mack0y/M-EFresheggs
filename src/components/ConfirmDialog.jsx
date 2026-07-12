@@ -8,7 +8,7 @@ export default function ConfirmDialog({ open, title, message, confirmLabel = 'Co
   const btnClass = variant === 'danger' ? 'btn-confirm-danger' : 'btn-confirm-primary';
 
   return (
-    <div className="confirm-overlay" onClick={onCancel}>
+    <div className="confirm-overlay" onClick={() => onCancel?.()}>
       <div className="confirm-dialog" onClick={e => e.stopPropagation()}>
         <div className="confirm-icon" style={{ background: iconBg, color: iconColor }}>
           {Icon ? <Icon size={28} /> : <AlertTriangle size={28} />}
@@ -16,7 +16,7 @@ export default function ConfirmDialog({ open, title, message, confirmLabel = 'Co
         <h3 className="confirm-title">{title}</h3>
         <p className="confirm-message">{message}</p>
         <div className="confirm-actions">
-          <button className="btn btn-secondary" onClick={onCancel}>
+          <button className="btn btn-secondary" onClick={() => onCancel?.()}>
             {cancelLabel}
           </button>
           <button className={`btn ${btnClass}`} onClick={onConfirm}>

@@ -215,8 +215,14 @@ export default function Deliveries() {
   async function handleBulkDeleteConfirmed() {
     try {
       const ids = [...selectedBatches];
-      await Promise.all(ids.map(batchId => deleteDeliveryBatch(batchId)));
-      toast(`${ids.length} delivery(ies) removed`);
+      const results = await Promise.allSettled(ids.map(batchId => deleteDeliveryBatch(batchId)));
+      const succeeded = results.filter(r => r.status === 'fulfilled').length;
+      const failed = results.filter(r => r.status === 'rejected').length;
+      if (failed > 0) {
+        toast(`${succeeded} removed, ${failed} failed`, 'error');
+      } else {
+        toast(`${succeeded} delivery(ies) removed`);
+      }
       setSelectedBatches(new Set());
       setConfirmBulkDelete(false);
       loadData();

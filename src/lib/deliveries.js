@@ -52,9 +52,9 @@ export async function recordDeliveryBatch({ supplierId, items, unit, traySize, p
     unit,
     tray_size: traySize || 30,
     cost_per_egg: item.costPerTray,
-    total_cost: item.quantity * parseFloat(item.costPerTray),
+    total_cost: item.quantity * parseFloat(item.costPerTray || 0),
     payment_status: paymentStatus,
-    notes: notes.trim(),
+    notes: (notes || '').trim(),
     delivery_date: deliveryDate,
     batch_id: batchId,
   }));

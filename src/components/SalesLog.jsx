@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   ShoppingCart,
-  Plus,
   X,
   AlertTriangle,
   RefreshCw,
@@ -18,7 +17,7 @@ import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
 
 // Module-level ref to store sales-to-restore data for Undo without stale closures
-const undoSalesData = { current: null };
+
 
 const QUICK_QTY = { piece: [1, 5, 10, 30], tray: [1, 2, 5, 10] };
 
@@ -28,8 +27,6 @@ export default function SalesLog() {
   const [priceSettings, setPriceSettings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showForm, setShowForm] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const today = getLocalDate();
 
   const [filter, setFilter] = useState('today');
@@ -38,11 +35,6 @@ export default function SalesLog() {
   const [customStart, setCustomStart] = useState(today);
   const [customEnd, setCustomEnd] = useState(today);
 
-  const [form, setForm] = useState({
-    eggSizeId: '',
-    quantity: '',
-    unit: 'piece',
-  });
   const [confirmSale, setConfirmSale] = useState(null);
   const [expandedDate, setExpandedDate] = useState(null);
   const PAGE_SIZE = 50;
@@ -315,23 +307,17 @@ export default function SalesLog() {
   async function handleBulkDelete() {
     if (selectedIds.length === 0) return;
     
-    // Save the sale records before deleting in a ref to prevent stale closures if filters change
     const salesToDelete = sales.filter(s => selectedIds.includes(s.id));
-    undoSalesData.current = salesToDelete;
 
     try {
-      // Perform bulk delete with single network request
       await deleteSales(selectedIds);
       
       toast(`Deleted ${selectedIds.length} sale(s) — stock restored`, 'success', {
         label: 'Undo',
         onClick: async () => {
           try {
-            const toRestore = undoSalesData.current;
-            if (!toRestore || toRestore.length === 0) return;
-            
-            // Re-record sales using original data from the ref
-            for (const sale of toRestore) {
+            if (!salesToDelete || salesToDelete.length === 0) return;
+            for (const sale of salesToDelete) {
               await recordSale({
                 eggSizeId: sale.egg_size_id,
                 quantity: sale.quantity,
@@ -348,7 +334,6 @@ export default function SalesLog() {
         },
       });
       setSelectedIds([]);
-      undoSalesData.current = null; // Clear ref after operation
       loadData();
     } catch (err) {
       console.error('Bulk delete error:', err);
@@ -364,9 +349,6 @@ export default function SalesLog() {
           <h1>Sales Log</h1>
           <p className="page-subtitle">Record and view egg sales</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowForm(true)}>
-          <Plus size={18} /> New Sale
-        </button>
       </div>
 
       {/* Stats */}
@@ -427,101 +409,6 @@ export default function SalesLog() {
         </div>
       )}
 
-      {/* Modal Form */}
-      {showForm && (
-        <div className="sl-modal-overlay" onClick={() => setShowForm(false)}>
-          <div className="sl-modal" onClick={e => e.stopPropagation()}>
-            <div className="sl-modal-header">
-              <h3>Record New Sale</h3>
-              <button className="sl-modal-close" onClick={() => setShowForm(false)} title="Close"><X size={20} /></button>
-            </div>
-            <form onSubmit={handleSubmit}>
-              <div className="sl-form-grid">
-                <div className="sl-field sl-field-sizes">
-                  <label>Egg Size</label>
-                  <div className="sl-size-grid">
-                    {inventory
-                      .slice()
-                      .sort((a, b) => (a.egg_sizes?.sort_order || 0) - (b.egg_sizes?.sort_order || 0))
-                      .map(item => {
-                        const selected = form.eggSizeId === String(item.egg_size_id);
-                        const qty = item.quantity_on_hand || 0;
-                        let stockClass = 'sl-size-stock-ok';
-                        let stockLabel = 'In Stock';
-                        if (qty === 0) { stockClass = 'sl-size-stock-out'; stockLabel = 'Out'; }
-                        else if (qty <= 50) { stockClass = 'sl-size-stock-low'; stockLabel = 'Low'; }
-                        return (
-                          <button
-                            key={item.egg_size_id}
-                            type="button"
-                            className={`sl-size-card ${selected ? 'selected' : ''} ${qty === 0 ? 'out-of-stock' : ''}`}
-                            onClick={() => {
-                              if (qty > 0) {
-                                setForm({ ...form, eggSizeId: String(item.egg_size_id), quantity: '' });
-                              }
-                            }}
-                          >
-                            {selected && (
-                              <span className="sl-size-check">
-                                <Check size={16} />
-                              </span>
-                            )}
-                            <span className="sl-size-name">{item.egg_sizes?.name || 'Unknown'}</span>
-                            <span className="sl-size-stock">{qty.toLocaleString()} eggs</span>
-                            <span className={`sl-size-badge ${stockClass}`}>{stockLabel}</span>
-                          </button>
-                        );
-                      })}
-                  </div>
-                  {form.eggSizeId && getFormPriceDisplay() && (
-                    <span className="sl-price-hint" style={{ marginTop: '0.375rem' }}>{getFormPriceDisplay()}</span>
-                  )}
-                </div>
-                <div className="sl-field">
-                  <label>Unit</label>
-                  <div className="sl-unit-tabs">
-                    <button type="button" className={`sl-unit-tab ${form.unit === 'piece' ? 'active' : ''}`}
-                      onClick={() => setForm({ ...form, unit: 'piece', quantity: '' })}>By Piece</button>
-                    <button type="button" className={`sl-unit-tab ${form.unit === 'tray' ? 'active' : ''}`}
-                      onClick={() => setForm({ ...form, unit: 'tray', quantity: '' })}>By Tray</button>
-                  </div>
-                </div>
-                <div className="sl-field">
-                  <label>Quantity</label>
-                  <input type="number" min="1"
-                    placeholder={form.unit === 'tray' ? 'Number of trays' : 'Number of eggs'}
-                    value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} required />
-                  <div className="sl-quick-chips">
-                    {(form.unit === 'piece' ? QUICK_QTY.piece : QUICK_QTY.tray).map(v => (
-                      <button key={v} type="button" className="sl-chip" onClick={() => addQuickQty(v)}>+{v}</button>
-                    ))}
-                  </div>
-                </div>
-
-              </div>
-
-              {getFormEggCount() !== null && (
-                <div className="sl-conversion">
-                  <Egg size={14} />
-                  <span>= {formatInventory(getFormEggCount())}</span>
-                </div>
-              )}
-
-              {calculateTotalAmount() && (
-                <div className="sl-total">
-                  <span>Total the customer pays</span>
-                  <strong>{formatPeso(calculateTotalAmount())}</strong>
-                </div>
-              )}
-
-              <button type="submit" className="btn btn-primary btn-block" style={{ marginTop: '0.75rem' }} disabled={submitting}>
-                {submitting ? 'Recording...' : 'Review & Record'}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
       {/* Search */}
         <div className="sl-search-bar">
           <div className="sl-search-input-wrap">
@@ -567,10 +454,7 @@ export default function SalesLog() {
         <div className="empty-state">
           <ShoppingCart size={36} />
           <p>No sales recorded yet</p>
-          <p style={{ fontSize: '0.8125rem', marginTop: '-0.25rem' }}>Click "Record Sale" above or press <kbd>Ctrl+N</kbd> to get started</p>
-          <button className="btn btn-primary" onClick={() => setShowForm(true)}>
-            <Plus size={16} /> Record a Sale
-          </button>
+          <p style={{ fontSize: '0.8125rem', marginTop: '-0.25rem' }}>Click <a href="/M-EFresheggs/sales/new" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>New Sale</a> in the sidebar to get started</p>
         </div>
       ) : (
         <div className="sl-list">

@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, Component } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import { ToastContainer } from './components/Toast';
@@ -8,6 +8,7 @@ const Dashboard = lazy(() => import('./components/Dashboard'));
 const Inventory = lazy(() => import('./components/Inventory'));
 const PriceSettings = lazy(() => import('./components/PriceSettings'));
 const SalesLog = lazy(() => import('./components/SalesLog'));
+const NewSale = lazy(() => import('./components/NewSale'));
 const Analytics = lazy(() => import('./components/Analytics'));
 const Reports = lazy(() => import('./components/Reports'));
 const Profits = lazy(() => import('./components/Profits'));
@@ -29,32 +30,64 @@ function PageLoading() {
   );
 }
 
+class ChunkErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  handleRetry = () => {
+    this.setState({ hasError: false });
+    window.location.reload();
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', padding: '2rem', textAlign: 'center' }}>
+          <p style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '0.5rem' }}>Failed to load page</p>
+          <p style={{ color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>Check your connection and try again.</p>
+          <button className="btn btn-primary" onClick={this.handleRetry}>Retry</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   return (
     <BrowserRouter basename="/M-EFresheggs">
       <Layout>
-        <Suspense fallback={<PageLoading />}>
-          <Routes>
-            <Route path="/" element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />
-            <Route path="/inventory" element={<ErrorBoundary><Inventory /></ErrorBoundary>} />
-            <Route path="/prices" element={<ErrorBoundary><PriceSettings /></ErrorBoundary>} />
-            <Route path="/sales" element={<ErrorBoundary><SalesLog /></ErrorBoundary>} />
-            <Route path="/analytics" element={<ErrorBoundary><Analytics /></ErrorBoundary>} />
-            <Route path="/expenses" element={<Navigate to="/expenses-funds" replace />} />
-            <Route path="/expenses-funds" element={<ErrorBoundary><ExpensesFunds /></ErrorBoundary>} />
-            <Route path="/operational-expenses" element={<Navigate to="/expenses-funds" replace />} />
-            <Route path="/spoilage" element={<ErrorBoundary><Spoilage /></ErrorBoundary>} />
-            <Route path="/customers" element={<ErrorBoundary><Customers /></ErrorBoundary>} />
-            <Route path="/suppliers" element={<ErrorBoundary><Suppliers /></ErrorBoundary>} />
-            <Route path="/deliveries" element={<ErrorBoundary><Deliveries /></ErrorBoundary>} />
-            <Route path="/products" element={<ErrorBoundary><Products /></ErrorBoundary>} />
-            <Route path="/product-sales" element={<ErrorBoundary><ProductSales /></ErrorBoundary>} />
-            <Route path="/product-deliveries" element={<ErrorBoundary><ProductDeliveries /></ErrorBoundary>} />
-            <Route path="/reports" element={<ErrorBoundary><Reports /></ErrorBoundary>} />
-            <Route path="/profits" element={<ErrorBoundary><Profits /></ErrorBoundary>} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Suspense>
+        <ChunkErrorBoundary>
+          <Suspense fallback={<PageLoading />}>
+            <Routes>
+              <Route path="/" element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />
+              <Route path="/inventory" element={<ErrorBoundary><Inventory /></ErrorBoundary>} />
+              <Route path="/prices" element={<ErrorBoundary><PriceSettings /></ErrorBoundary>} />
+              <Route path="/sales" element={<ErrorBoundary><SalesLog /></ErrorBoundary>} />
+              <Route path="/sales/new" element={<ErrorBoundary><NewSale /></ErrorBoundary>} />
+              <Route path="/analytics" element={<ErrorBoundary><Analytics /></ErrorBoundary>} />
+              <Route path="/expenses-funds" element={<ErrorBoundary><ExpensesFunds /></ErrorBoundary>} />
+              <Route path="/operational-expenses" element={<Navigate to="/expenses-funds" replace />} />
+              <Route path="/spoilage" element={<ErrorBoundary><Spoilage /></ErrorBoundary>} />
+              <Route path="/customers" element={<ErrorBoundary><Customers /></ErrorBoundary>} />
+              <Route path="/suppliers" element={<ErrorBoundary><Suppliers /></ErrorBoundary>} />
+              <Route path="/deliveries" element={<ErrorBoundary><Deliveries /></ErrorBoundary>} />
+              <Route path="/products" element={<ErrorBoundary><Products /></ErrorBoundary>} />
+              <Route path="/product-sales" element={<ErrorBoundary><ProductSales /></ErrorBoundary>} />
+              <Route path="/product-sales/new" element={<Navigate to="/sales/new" replace />} />
+              <Route path="/product-deliveries" element={<ErrorBoundary><ProductDeliveries /></ErrorBoundary>} />
+              <Route path="/reports" element={<ErrorBoundary><Reports /></ErrorBoundary>} />
+              <Route path="/profits" element={<ErrorBoundary><Profits /></ErrorBoundary>} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
+        </ChunkErrorBoundary>
         <ToastContainer />
       </Layout>
     </BrowserRouter>

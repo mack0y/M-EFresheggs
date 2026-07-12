@@ -102,15 +102,32 @@ export async function deleteProductSale(id) {
   return sale;
 }
 
+/**
+ * Fetch product sales within a date range for reports.
+ */
+export async function fetchProductSalesReport({ startDate, endDate } = {}) {
+  let query = supabase
+    .from('product_sales')
+    .select('*, products(name, category, unit_of_sale)')
+    .order('sale_date', { ascending: false });
+
+  if (startDate) query = query.gte('sale_date', startDate);
+  if (endDate) query = query.lte('sale_date', endDate);
+
+  const { data, error } = await query.limit(500);
+  if (error) throw error;
+  return data || [];
+}
+
 export async function deleteProductSales(ids) {
   if (!ids || ids.length === 0) return [];
-  
+
   // Fetch all sales to restore inventory later
   const { data: sales, error: fetchErr } = await supabase
     .from('product_sales')
     .select('*')
     .in('id', ids);
-  
+
   if (fetchErr) throw fetchErr;
 
   // Delete the records
@@ -118,8 +135,32 @@ export async function deleteProductSales(ids) {
     .from('product_sales')
     .delete()
     .in('id', ids);
-  
+
   if (delErr) throw delErr;
+
+  // Restore inventory for each deleted sale
+  const restoreMap = {};
+  (sales || []).forEach(sale => {
+    const qty = parseFloat(sale.quantity || 0);
+    if (!restoreMap[sale.product_id]) restoreMap[sale.product_id] = 0;
+    restoreMap[sale.product_id] += qty;
+  });
+
+  for (const [productId, qty] of Object.entries(restoreMap)) {
+    const { data: invItem, error: invFetchErr } = await supabase
+      .from('products')
+      .select('quantity_on_hand')
+      .eq('id', productId)
+      .single();
+    if (invFetchErr) throw invFetchErr;
+
+    const newQty = parseFloat(invItem?.quantity_on_hand || 0) + qty;
+    const { error: updateErr } = await supabase
+      .from('products')
+      .update({ quantity_on_hand: newQty, updated_at: new Date().toISOString() })
+      .eq('id', productId);
+    if (updateErr) throw updateErr;
+  }
 
   return sales;
 }

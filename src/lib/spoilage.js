@@ -58,3 +58,26 @@ export async function fetchSpoilageByIds(ids) {
   if (error) throw error;
   return data;
 }
+
+export async function restoreInventoryForSpoilage(spoilageRecords) {
+  const restoreMap = {};
+  (spoilageRecords || []).forEach(s => {
+    restoreMap[s.egg_size_id] = (restoreMap[s.egg_size_id] || 0) + s.quantity;
+  });
+
+  for (const [eggSizeId, qty] of Object.entries(restoreMap)) {
+    const { data: invItem, error: fetchErr } = await supabase
+      .from('inventory')
+      .select('quantity_on_hand')
+      .eq('egg_size_id', eggSizeId)
+      .single();
+    if (fetchErr) throw fetchErr;
+
+    const newQty = (invItem?.quantity_on_hand || 0) + qty;
+    const { error: updateErr } = await supabase
+      .from('inventory')
+      .update({ quantity_on_hand: newQty, updated_at: new Date().toISOString() })
+      .eq('egg_size_id', eggSizeId);
+    if (updateErr) throw updateErr;
+  }
+}

@@ -76,6 +76,7 @@
 
 /* ===== Dark Mode ===== */
 [data-theme="dark"] {
+  color-scheme: dark;
   --color-primary: #66BB6A;
   --color-primary-hover: #4CAF50;
   --color-primary-light: #1B3A1B;
@@ -382,38 +383,14 @@ input, select, textarea { font-family: inherit; }
   gap: var(--space-lg);
 }
 
-.grid-3 {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--space-lg);
-}
-
-.grid-4 {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--space-lg);
-}
-
 @media (min-width: 640px) {
   .grid-2 { grid-template-columns: repeat(2, 1fr); }
-  .grid-3 { grid-template-columns: repeat(2, 1fr); }
-  .grid-4 { grid-template-columns: repeat(2, 1fr); }
-}
-
-@media (min-width: 900px) {
-  .grid-3 { grid-template-columns: repeat(3, 1fr); }
-  .grid-4 { grid-template-columns: repeat(4, 1fr); }
 }
 
 /* ===== Animations ===== */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes slideIn {
-  from { opacity: 0; transform: translateX(-12px); }
-  to { opacity: 1; transform: translateX(0); }
 }
 
 @keyframes slideUp {
@@ -426,11 +403,6 @@ input, select, textarea { font-family: inherit; }
   to { opacity: 1; transform: scale(1); }
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
-}
-
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
@@ -438,10 +410,6 @@ input, select, textarea { font-family: inherit; }
 
 .fade-in {
   animation: fadeIn 0.35s ease-out;
-}
-
-.slide-up {
-  animation: slideUp 0.35s ease-out;
 }
 
 /* ===== Scrollbar ===== */
@@ -669,5 +637,14 @@ input, select, textarea { font-family: inherit; }
 
   h1 {
     font-size: 1.5rem;
+  }
+}
+
+/* ===== Accessibility ===== */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

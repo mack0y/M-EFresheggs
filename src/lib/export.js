@@ -1,14 +1,16 @@
 import { supabase } from './supabaseClient';
 import { fetchInventory } from './inventory';
 import { fetchPriceSettings } from './pricing';
+import { fetchProducts } from './products';
 
-export const APP_VERSION = import.meta.env.VITE_APP_VERSION || '1.1.0';
+export const APP_VERSION = import.meta.env.VITE_APP_VERSION || '1.2.0';
 
-/** Calculate total inventory monetary value */
+/** Calculate inventory monetary value — eggs, products, and combined total */
 export async function fetchInventoryValue() {
-  const [inv, prices] = await Promise.all([
+  const [inv, prices, products] = await Promise.all([
     fetchInventory(),
     fetchPriceSettings(),
+    fetchProducts(),
   ]);
 
   const priceMap = {};
@@ -16,14 +18,21 @@ export async function fetchInventoryValue() {
     priceMap[p.egg_size_id] = parseFloat(p.price_per_piece || 0);
   });
 
-  let totalValue = 0;
+  let eggValue = 0;
   (inv || []).forEach(item => {
     const qty = item.quantity_on_hand || 0;
     const pp = priceMap[item.egg_size_id] || 0;
-    totalValue += qty * pp;
+    eggValue += qty * pp;
   });
 
-  return totalValue;
+  let productValue = 0;
+  (products || []).forEach(p => {
+    const qty = parseFloat(p.quantity_on_hand || 0);
+    const price = parseFloat(p.price || 0);
+    productValue += qty * price;
+  });
+
+  return { eggValue, productValue, totalValue: eggValue + productValue };
 }
 
 /** Calculate cost of spoilage data */

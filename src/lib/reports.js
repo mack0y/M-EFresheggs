@@ -9,9 +9,10 @@ import { supabase } from './supabaseClient';
 export async function fetchSalesReport({ startDate, endDate, startTime, endTime }) {
   let query = supabase
     .from('sales')
-    .select('*, egg_sizes(name, sort_order)')
-    .gte('sale_date', startDate)
-    .lte('sale_date', endDate);
+    .select('*, egg_sizes(name, sort_order)');
+
+  if (startDate) query = query.gte('sale_date', startDate);
+  if (endDate) query = query.lte('sale_date', endDate);
 
   if (startTime && endTime) {
     // Handle overnight shifts (e.g., 7PM to 9AM next day)

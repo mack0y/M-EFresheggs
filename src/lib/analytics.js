@@ -44,6 +44,49 @@ export async function fetchSalesTrend(days = 30) {
   return data;
 }
 
+// ===== Product Analytics =====
+
+export async function fetchProductSalesBySize(startDate, endDate) {
+  let query = supabase
+    .from('product_sales')
+    .select('*, products(name, category)')
+    .order('sale_date', { ascending: true });
+
+  if (startDate) query = query.gte('sale_date', startDate);
+  if (endDate) query = query.lte('sale_date', endDate);
+
+  const { data, error } = await query.limit(500);
+  if (error) throw error;
+  return data || [];
+}
+
+export async function fetchProductSalesByHour(startDate, endDate) {
+  let query = supabase
+    .from('product_sales')
+    .select('sale_time, quantity, product_id')
+    .order('sale_date', { ascending: true });
+
+  if (startDate) query = query.gte('sale_date', startDate);
+  if (endDate) query = query.lte('sale_date', endDate);
+
+  const { data, error } = await query.limit(500);
+  if (error) throw error;
+  return data || [];
+}
+
+export async function fetchProductSalesTrend(days = 30) {
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+
+  const { data, error } = await supabase
+    .from('product_sales')
+    .select('sale_date, quantity, total_amount')
+    .gte('sale_date', getLocalDate(startDate))
+    .order('sale_date', { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
 // ===== Cost & Margin Helpers =====
 
 /**
@@ -106,6 +149,49 @@ export async function fetchCostsPerEgg() {
 }
 
 /**
+ * Fetch cost per sell-unit for each product based on the MOST RECENT product delivery.
+ * Mirrors fetchCostsPerEgg() but for products.
+ * Derives: cost_per_sell_unit = cost_per_purchase_unit / purchase_qty_per_unit
+ * Returns a Map of product_id -> costPerUnit
+ */
+export async function fetchCostsPerProduct() {
+  const { data: deliveries, error } = await supabase
+    .from('product_deliveries')
+    .select('product_id, cost_per_purchase_unit')
+    .order('delivery_date', { ascending: false })
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+
+  const latestPerProduct = {};
+  (deliveries || []).forEach(d => {
+    if (!latestPerProduct[d.product_id]) {
+      latestPerProduct[d.product_id] = d;
+    }
+  });
+
+  const { data: products, error: prodErr } = await supabase
+    .from('products')
+    .select('id, purchase_qty_per_unit');
+  if (prodErr) throw prodErr;
+
+  const productMap = {};
+  (products || []).forEach(p => { productMap[p.id] = p; });
+
+  const result = {};
+  Object.keys(latestPerProduct).forEach(id => {
+    const delivery = latestPerProduct[id];
+    const product = productMap[id];
+    const costPerPurchaseUnit = parseFloat(delivery.cost_per_purchase_unit || 0);
+    const qtyPerUnit = parseFloat(product?.purchase_qty_per_unit || 1);
+    result[id] = qtyPerUnit > 0
+      ? Math.round((costPerPurchaseUnit / qtyPerUnit) * 100) / 100
+      : 0;
+  });
+
+  return result;
+}
+
+/**
  * Calculate profit margins per egg size.
  * Uses the MOST RECENT delivery cost per egg size vs selling price.
  */
@@ -118,6 +204,8 @@ export async function fetchProfitMargins() {
       .order('delivery_date', { ascending: false })
       .order('created_at', { ascending: false }),
   ]);
+
+  if (deliveries.error) throw deliveries.error;
 
   const { latestPerSize, totalCountPerSize } = findLatestDeliveryPerSize(deliveries.data);
 

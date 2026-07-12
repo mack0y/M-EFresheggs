@@ -1,10 +1,13 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import compression from 'vite-plugin-compression'
 
 export default defineConfig({
   plugins: [
     react(),
+    compression({ algorithm: 'gzip' }),
+    compression({ algorithm: 'brotliCompress' }),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['logo.png', 'icons/icon.svg'],

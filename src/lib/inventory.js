@@ -19,3 +19,18 @@ export async function updateInventory(eggSizeId, quantity) {
   if (error) throw error;
   return data;
 }
+
+export async function incrementInventory(eggSizeId, delta) {
+  const { error } = await supabase.rpc('increment_inventory', {
+    p_egg_size_id: eggSizeId,
+    p_delta: delta,
+  });
+  if (error) throw error;
+
+  const { data: updated } = await supabase
+    .from('inventory')
+    .select('*, egg_sizes(name, sort_order)')
+    .eq('egg_size_id', eggSizeId)
+    .single();
+  return updated;
+}

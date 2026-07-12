@@ -1,19 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   ShoppingCart,
-  Plus,
-  X,
   AlertTriangle,
   RefreshCw,
   Trash2,
-  TrendingUp,
 } from 'lucide-react';
-import { fetchProducts, recordProductSale, deleteProductSale, deleteProductSales, fetchProductSales, formatPeso, getLocalDate } from '../lib/api';
+import { useNavigate } from 'react-router-dom';
+import { deleteProductSale, deleteProductSales, recordProductSale, fetchProductSales, fetchProducts, formatPeso, getLocalDate } from '../lib/api';
 import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
 
-const undoSalesData = { current: null };
+
 
 function groupByDate(salesList, todayStr) {
   const groups = {};
@@ -38,16 +36,14 @@ function groupByDate(salesList, todayStr) {
 }
 
 export default function ProductSales() {
+  const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showForm, setShowForm] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState([]);
   const [confirmDelete, setConfirmDelete] = useState(null);
-  const [confirmSale, setConfirmSale] = useState(null);
   const [expandedDate, setExpandedDate] = useState(null);
   const today = getLocalDate();
 
@@ -56,8 +52,6 @@ export default function ProductSales() {
   const [endDate, setEndDate] = useState(today);
   const [customStart, setCustomStart] = useState(today);
   const [customEnd, setCustomEnd] = useState(today);
-
-  const [form, setForm] = useState({ productId: '', quantity: '' });
 
   const loadData = useCallback(async () => {
     try {
@@ -121,58 +115,6 @@ export default function ProductSales() {
   const periodRevenue = filteredSales.reduce((sum, s) => sum + parseFloat(s.total_amount || 0), 0);
   const periodQty = filteredSales.reduce((sum, s) => sum + parseFloat(s.quantity || 0), 0);
 
-  function getSelectedProduct() {
-    if (!form.productId) return null;
-    return products.find(p => p.id === parseInt(form.productId, 10));
-  }
-
-  function calculateTotalAmount() {
-    const product = getSelectedProduct();
-    if (!product || !form.quantity) return null;
-    const qty = parseFloat(form.quantity);
-    if (isNaN(qty) || qty <= 0) return null;
-    const price = parseFloat(product.price || 0);
-    if (price <= 0) return null;
-    return qty * price;
-  }
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    if (!form.productId || !form.quantity) {
-      toast('Please select a product and enter quantity', 'error');
-      return;
-    }
-    const qty = parseFloat(form.quantity);
-    if (isNaN(qty) || qty <= 0) {
-      toast('Enter a valid quantity', 'error');
-      return;
-    }
-    const product = getSelectedProduct();
-    if (!product) { toast('Product not found', 'error'); return; }
-    const stock = parseFloat(product.quantity_on_hand || 0);
-    if (qty > stock) {
-      toast(`Not enough stock — only ${stock} ${product.unit || 'units'} available`, 'error');
-      return;
-    }
-    setConfirmSale({ productId: parseInt(form.productId, 10), quantity: qty, productName: product.name });
-  }
-
-  async function executeSale(saleData) {
-    setSubmitting(true);
-    try {
-      await recordProductSale({ productId: saleData.productId, quantity: saleData.quantity, saleDate: today });
-      toast('Product sale recorded');
-      setForm({ productId: '', quantity: '' });
-      setShowForm(false);
-      loadData();
-    } catch (err) {
-      console.error('Product sale error:', err);
-      toast('Failed to record sale', 'error');
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   function handleToggleSelect(id) {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   }
@@ -208,16 +150,14 @@ export default function ProductSales() {
   async function handleBulkDelete() {
     if (selectedIds.length === 0) return;
     const salesToDelete = sales.filter(s => selectedIds.includes(s.id));
-    undoSalesData.current = salesToDelete;
     try {
       await deleteProductSales(selectedIds);
       toast(`Deleted ${selectedIds.length} sale(s) — stock restored`, 'success', {
         label: 'Undo',
         onClick: async () => {
           try {
-            const toRestore = undoSalesData.current;
-            if (!toRestore || toRestore.length === 0) return;
-            for (const sale of toRestore) {
+            if (!salesToDelete || salesToDelete.length === 0) return;
+            for (const sale of salesToDelete) {
               await recordProductSale({ productId: sale.product_id, quantity: sale.quantity, saleDate: sale.sale_date });
             }
             toast('Sales restored');
@@ -229,7 +169,6 @@ export default function ProductSales() {
         },
       });
       setSelectedIds([]);
-      undoSalesData.current = null;
       loadData();
     } catch (err) {
       console.error('Bulk delete error:', err);
@@ -245,8 +184,8 @@ export default function ProductSales() {
           <h1>Product Sales</h1>
           <p className="page-subtitle">Record and view product sales</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowForm(true)}>
-          <Plus size={18} /> Record Sale
+        <button className="btn btn-primary" onClick={() => navigate('/sales/new')}>
+          Record Sale
         </button>
       </div>
 
@@ -290,44 +229,6 @@ export default function ProductSales() {
           <AlertTriangle size={20} />
           <div className="error-banner-content"><strong>Failed to load</strong><p>{getUserFriendlyError(error)}</p></div>
           <button className="btn btn-sm btn-secondary" onClick={loadData}><RefreshCw size={14} /> Retry</button>
-        </div>
-      )}
-
-      {/* Modal Form */}
-      {showForm && (
-        <div className="ps-modal-overlay" onClick={() => setShowForm(false)}>
-          <div className="ps-modal" onClick={e => e.stopPropagation()}>
-            <div className="ps-modal-header">
-              <h3>Record Product Sale</h3>
-              <button className="ps-modal-close" onClick={() => setShowForm(false)} title="Close"><X size={20} /></button>
-            </div>
-            <form onSubmit={handleSubmit} className="ps-modal-form">
-              <div className="ps-field">
-                <label>Product</label>
-                <select className="select" value={form.productId} onChange={e => setForm({ ...form, productId: e.target.value, quantity: '' })} required>
-                  <option value="">Select product...</option>
-                  {products.filter(p => parseFloat(p.quantity_on_hand || 0) > 0).map(p => (
-                    <option key={p.id} value={p.id}>{p.name} ({parseFloat(p.quantity_on_hand || 0).toLocaleString()} {p.unit || 'units'} — {p.price > 0 ? formatPeso(p.price) + '/' + p.unit : 'No price'})</option>
-                  ))}
-                </select>
-              </div>
-              {form.productId && (
-                <div className="ps-field">
-                  <label>Quantity ({getSelectedProduct()?.unit || 'units'})</label>
-                  <input type="number" min="1" step="any" placeholder="Enter quantity" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} required />
-                </div>
-              )}
-              {calculateTotalAmount() !== null && (
-                <div className="ps-total-preview">
-                  <span>Total the customer pays</span>
-                  <strong>{formatPeso(calculateTotalAmount())}</strong>
-                </div>
-              )}
-              <button type="submit" className="btn btn-primary btn-block" style={{ marginTop: '0.75rem' }} disabled={submitting}>
-                {submitting ? 'Recording...' : 'Review & Record'}
-              </button>
-            </form>
-          </div>
         </div>
       )}
 
@@ -448,20 +349,6 @@ export default function ProductSales() {
         .ps-date-input { flex: 1; max-width: 180px; padding: 0.4rem 0.625rem; border: 1.5px solid var(--color-border); border-radius: var(--radius-sm); font-size: 0.8125rem; color: var(--color-text); background: var(--color-card); outline: none; }
         .ps-date-input:focus { border-color: var(--color-primary); }
         .ps-date-sep { color: var(--color-text-muted); }
-
-        .ps-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); backdrop-filter: blur(4px); z-index: 5000; display: flex; align-items: center; justify-content: center; animation: fadeIn 0.15s ease-out; }
-        .ps-modal { width: 100%; max-width: 440px; margin: 1rem; background: var(--color-card); border-radius: var(--radius-xl); box-shadow: var(--shadow-xl); animation: scaleIn 0.2s ease-out; max-height: 90vh; overflow-y: auto; }
-        .ps-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 1.25rem 1.25rem 0; }
-        .ps-modal-header h3 { font-size: 1.125rem; }
-        .ps-modal-close { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border: none; border-radius: var(--radius-sm); background: transparent; color: var(--color-text-secondary); cursor: pointer; }
-        .ps-modal-close:hover { background: var(--color-primary-light); color: var(--color-primary); }
-        .ps-modal-form { padding: 1.25rem; display: flex; flex-direction: column; gap: 0.875rem; }
-        .ps-field { display: flex; flex-direction: column; gap: 0.3rem; }
-        .ps-field label { font-size: 0.75rem; font-weight: 600; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.03em; }
-        .ps-field select, .ps-field input { width: 100%; padding: 0.625rem 0.75rem; border: 1.5px solid var(--color-border); border-radius: var(--radius-sm); font-size: 0.9375rem; color: var(--color-text); background: var(--color-card); outline: none; }
-        .ps-field select:focus, .ps-field input:focus { border-color: var(--color-primary); }
-        .ps-total-preview { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; background: var(--color-primary-50); border-radius: var(--radius-md); font-size: 0.9375rem; }
-        .ps-total-preview strong { color: var(--color-primary); font-size: 1.0625rem; }
 
         .ps-search-bar { margin-bottom: 0.75rem; }
         .ps-search-input { width: 100%; padding: 0.625rem 0.75rem; border: 1.5px solid var(--color-border); border-radius: var(--radius-sm); font-size: 0.875rem; color: var(--color-text); background: var(--color-card); outline: none; box-sizing: border-box; }

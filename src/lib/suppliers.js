@@ -12,9 +12,10 @@ export async function fetchSuppliers() {
 }
 
 export async function addSupplier({ name, phone, notes }) {
+  if (!name || !name.trim()) throw new Error('Supplier name is required');
   const { data, error } = await supabase
     .from('suppliers')
-    .insert({ name, phone, notes })
+    .insert({ name: name.trim(), phone, notes })
     .select()
     .single();
   if (error) throw error;

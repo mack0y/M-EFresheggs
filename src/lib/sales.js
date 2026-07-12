@@ -111,7 +111,7 @@ export async function deleteSale(id) {
  */
 export async function deleteSales(ids) {
   if (!ids || ids.length === 0) return [];
-  
+
   // Fetch all sales to restore inventory later
   const { data: sales, error: fetchErr } = await supabase
     .from('sales')
@@ -125,6 +125,32 @@ export async function deleteSales(ids) {
     .delete()
     .in('id', ids);
   if (delErr) throw delErr;
+
+  // Restore inventory for each deleted sale
+  const restoreMap = {};
+  (sales || []).forEach(sale => {
+    const eggCount = sale.unit === 'tray'
+      ? sale.quantity * (sale.tray_size || TRAY_SIZE)
+      : sale.quantity;
+    if (!restoreMap[sale.egg_size_id]) restoreMap[sale.egg_size_id] = 0;
+    restoreMap[sale.egg_size_id] += eggCount;
+  });
+
+  for (const [eggSizeId, eggCount] of Object.entries(restoreMap)) {
+    const { data: invItem, error: invFetchErr } = await supabase
+      .from('inventory')
+      .select('quantity_on_hand')
+      .eq('egg_size_id', eggSizeId)
+      .single();
+    if (invFetchErr) throw invFetchErr;
+
+    const newQty = (invItem?.quantity_on_hand || 0) + eggCount;
+    const { error: updateErr } = await supabase
+      .from('inventory')
+      .update({ quantity_on_hand: newQty, updated_at: new Date().toISOString() })
+      .eq('egg_size_id', eggSizeId);
+    if (updateErr) throw updateErr;
+  }
 
   return sales;
 }

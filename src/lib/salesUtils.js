@@ -2,7 +2,7 @@ import { TRAY_SIZE, getEggCount, formatInventory, formatPeso, getLocalDate } fro
 
 export function calculateSaleTotal(quantity, unit, traySize, priceSettings, eggSizeId) {
   if (!quantity || !eggSizeId) return null;
-  const qty = parseInt(quantity, 10);
+  const qty = parseFloat(quantity);
   if (isNaN(qty) || qty <= 0) return null;
   const price = priceSettings.find(p => p.egg_size_id === parseInt(eggSizeId, 10));
   if (!price) return null;
@@ -15,7 +15,7 @@ export function calculateSaleTotal(quantity, unit, traySize, priceSettings, eggS
 
 export function validateStock(inventory, eggSizeId, quantity, unit, traySize) {
   if (!eggSizeId || !quantity) return { valid: true };
-  const qty = parseInt(quantity, 10);
+  const qty = parseFloat(quantity);
   if (isNaN(qty) || qty <= 0) return { valid: false, message: 'Enter a valid quantity' };
   const traySz = unit === 'tray' ? parseInt(traySize, 10) || TRAY_SIZE : 1;
   const totalEggs = unit === 'tray' ? qty * traySz : qty;

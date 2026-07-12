@@ -8,7 +8,7 @@ import {
   Printer,
   Download,
 } from 'lucide-react';
-import { fetchSalesReport, fetchExpenses, fetchSpoilageWithCost, fetchCustomers, fetchDeliveries, fetchCostsPerEgg, fetchPriceSettings, formatPeso, EGG_SIZES, TRAY_SIZE, getLocalDate, exportAllData } from '../lib/api';
+import { fetchSalesReport, fetchExpenses, fetchSpoilageWithCost, fetchCustomers, fetchDeliveries, fetchCostsPerEgg, fetchPriceSettings, formatPeso, EGG_SIZES, TRAY_SIZE, getLocalDate, exportAllData, fetchProductSalesReport } from '../lib/api';
 import { formatShiftTime } from '../lib/formatters';
 import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
@@ -33,6 +33,8 @@ export default function Reports() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [report, setReport] = useState(null);
+  const [productReport, setProductReport] = useState([]);
+  const [category, setCategory] = useState('both');
   const [reportExpenses, setReportExpenses] = useState([]);
   const [reportDeliveries, setReportDeliveries] = useState([]);
   const [priceSettings, setPriceSettings] = useState([]);
@@ -54,14 +56,26 @@ export default function Reports() {
     try {
       setLoading(true);
       setError(null);
-      const [salesData, expensesData, deliveriesData, priceData, costData] = await Promise.all([
-        fetchSalesReport({ startDate, endDate, startTime, endTime }),
-        fetchExpenses({ startDate, endDate }),
-        fetchDeliveries({ startDate, endDate }),
-        fetchPriceSettings(),
-        fetchCostsPerEgg(),
-      ]);
+      const promises = [];
+      if (category === 'eggs' || category === 'both') {
+        promises.push(
+          fetchSalesReport({ startDate, endDate, startTime, endTime }),
+          fetchExpenses({ startDate, endDate }),
+          fetchDeliveries({ startDate, endDate }),
+          fetchPriceSettings(),
+          fetchCostsPerEgg(),
+        );
+      } else {
+        promises.push(Promise.resolve([]), Promise.resolve([]), Promise.resolve([]), Promise.resolve([]), Promise.resolve({}));
+      }
+      if (category === 'products' || category === 'both') {
+        promises.push(fetchProductSalesReport({ startDate, endDate }));
+      } else {
+        promises.push(Promise.resolve([]));
+      }
+      const [salesData, expensesData, deliveriesData, priceData, costData, prodSalesData] = await Promise.all(promises);
       setReport(salesData || []);
+      setProductReport(prodSalesData || []);
       setReportExpenses(expensesData || []);
       setReportDeliveries(deliveriesData || []);
       setPriceSettings(priceData || []);
@@ -209,7 +223,7 @@ export default function Reports() {
           `\u20B1${parseFloat(d.cost_per_egg || 0).toFixed(2)}`,
           `\u20B1${parseFloat(d.total_cost || 0).toFixed(2)}`,
           d.payment_status,
-          (d.notes || '').replace(/,/g, ';'),
+          (d.notes || ''),
         ]);
       });
       const totalDelivCost = reportDeliveries.reduce((sum, d) => sum + parseFloat(d.total_cost || 0), 0);
@@ -222,14 +236,22 @@ export default function Reports() {
       if (customersData && customersData.length > 0) {
         rows.push([], ['=== CUSTOMERS ==='], ['Name', 'Phone', 'Notes']);
         customersData.forEach(c => {
-          rows.push([c.name, c.phone || '', (c.notes || '').replace(/,/g, ';')]);
+          rows.push([c.name, c.phone || '', c.notes || '']);
         });
       }
     } catch (e) {
       console.error('Failed to fetch customers data for CSV export:', e);
     }
 
-    const csvContent = rows.map(row => row.join(',')).join('\n');
+    const csvEscape = (val) => {
+      const str = String(val ?? '');
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const csvContent = rows.map(row => row.map(csvEscape).join(',')).join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -247,6 +269,10 @@ export default function Reports() {
 
 
   const processed = processReport();
+
+  const productRevenue = (productReport || []).reduce((sum, s) => sum + parseFloat(s.total_amount || 0), 0);
+  const productQty = (productReport || []).reduce((sum, s) => sum + parseFloat(s.quantity || 0), 0);
+  const productSalesCount = (productReport || []).length;
 
   const totalDeliveryCost = reportDeliveries.reduce(
     (sum, d) => sum + parseFloat(d.total_cost || 0),
@@ -312,6 +338,17 @@ export default function Reports() {
 
       {/* Controls */}
       <div className="card report-controls">
+        {/* Category Filter */}
+        <div className="report-category-filter">
+          {[
+            { key: 'eggs', label: 'Eggs Only' },
+            { key: 'products', label: 'Products Only' },
+            { key: 'both', label: 'Both' },
+          ].map(v => (
+            <button key={v.key} className={`shift-tab ${category === v.key ? 'active' : ''}`} onClick={() => setCategory(v.key)}>{v.label}</button>
+          ))}
+        </div>
+
         <div className="report-controls-grid">
           {/* Date range */}
           <div className="input-group">
@@ -418,7 +455,7 @@ export default function Reports() {
       )}
 
       {/* Report output */}
-      {processed && (
+      {((category !== 'eggs' && productReport.length > 0) || (category !== 'products' && processed)) && (
         <div className="report-output">
           {/* Report header */}
           <div className="report-header">
@@ -427,37 +464,50 @@ export default function Reports() {
               <span><Calendar size={14} /> {startDate} — {endDate}</span>
               <span><Clock size={14} /> {formatShiftTime(startTime)} — {formatShiftTime(endTime)}</span>
               <span className="report-badge">Shift: {SHIFTS[activeShift].label}</span>
+              <span className="report-badge">{category === 'eggs' ? 'Eggs Only' : category === 'products' ? 'Products Only' : 'All Sales'}</span>
             </div>
             <div className="report-summary">
-              <div className="report-summary-item">
-                <span className="report-summary-value">{processed.totals.totalEggs.toLocaleString()}</span>
-                <span className="report-summary-label">Total Eggs Sold</span>
-              </div>
-              <div className="report-summary-item">
-                <span className="report-summary-value">{formatPeso(processed.totals.revenue)}</span>
-                <span className="report-summary-label">Total Revenue</span>
-              </div>
-              <div className="report-summary-item">
-                <span className="report-summary-value">{processed.totals.salesCount}</span>
-                <span className="report-summary-label">Transactions</span>
-              </div>
-              <div className="report-summary-item">
-                <span className="report-summary-value">{processed.totals.trays}</span>
-                <span className="report-summary-label">Trays Sold</span>
-              </div>
-              <div className="report-summary-item">
-                <span className="report-summary-value">{processed.totals.pieces}</span>
-                <span className="report-summary-label">Pieces Sold</span>
-              </div>
+              {(category === 'eggs' || category === 'both') && processed && (
+                <>
+                  <div className="report-summary-item">
+                    <span className="report-summary-value">{processed.totals.totalEggs.toLocaleString()}</span>
+                    <span className="report-summary-label">Eggs Sold</span>
+                  </div>
+                  <div className="report-summary-item">
+                    <span className="report-summary-value">{formatPeso(processed.totals.revenue)}</span>
+                    <span className="report-summary-label">Egg Revenue</span>
+                  </div>
+                </>
+              )}
+              {(category === 'products' || category === 'both') && (
+                <>
+                  <div className="report-summary-item">
+                    <span className="report-summary-value">{productQty.toLocaleString()}</span>
+                    <span className="report-summary-label">Products Sold</span>
+                  </div>
+                  <div className="report-summary-item">
+                    <span className="report-summary-value">{formatPeso(productRevenue)}</span>
+                    <span className="report-summary-label">Product Revenue</span>
+                  </div>
+                </>
+              )}
+              {category === 'both' && (
+                <div className="report-summary-item" style={{ background: 'var(--color-primary-light)', borderRadius: 'var(--radius-md)', padding: '0.5rem 1rem' }}>
+                  <span className="report-summary-value" style={{ color: 'var(--color-primary)' }}>{formatPeso((processed?.totals?.revenue || 0) + productRevenue)}</span>
+                  <span className="report-summary-label">Combined Revenue</span>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Report table */}
-          {processed.rows.length === 0 ? (
-            <div className="report-empty">
-              <FileText size={36} />
-              <p>No sales found for this period and shift.</p>
-            </div>
+          {/* Egg Report Table */}
+          {(category === 'eggs' || category === 'both') && processed && (
+            <>
+              {processed.rows.length === 0 ? (
+                <div className="report-empty">
+                  <FileText size={36} />
+                  <p>No egg sales found for this period and shift.</p>
+                </div>
           ) : (
             <div className="report-table-wrap">
               <table className="report-table">
@@ -496,9 +546,11 @@ export default function Reports() {
               </table>
             </div>
           )}
+            </>
+          )}
 
-          {/* Deliveries section */}
-          {reportDeliveries.length > 0 && (
+          {/* Deliveries section - egg only */}
+          {(category === 'eggs' || category === 'both') && reportDeliveries.length > 0 && (
             <div className="report-section" style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '2px solid var(--color-border)' }}>
               <h3 className="report-profit-title">Deliveries ({reportDeliveries.length})</h3>
               <div className="report-table-wrap">
@@ -551,8 +603,8 @@ export default function Reports() {
             </div>
           )}
 
-          {/* Profit & Margins */}
-          {profitData && profitData.rows.some(r => r.totalEggs > 0) && (
+          {/* Profit & Margins - egg only */}
+          {(category === 'eggs' || category === 'both') && profitData && profitData.rows.some(r => r.totalEggs > 0) && (
             <div className="report-section" style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '2px solid var(--color-border)' }}>
               <h3 className="report-profit-title">Profit & Margins</h3>
               <div className="report-table-wrap">
@@ -624,6 +676,55 @@ export default function Reports() {
             </div>
           )}
 
+          {/* Product Sales section */}
+          {(category === 'products' || category === 'both') && productReport.length > 0 && (
+            <div className="report-section" style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '2px solid var(--color-border)' }}>
+              <h3 className="report-profit-title">Product Sales ({productReport.length})</h3>
+              <div className="report-table-wrap">
+                <table className="report-table">
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th>Category</th>
+                      <th className="num">Quantity</th>
+                      <th>Unit</th>
+                      <th className="num">Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      const productMap = {};
+                      productReport.forEach(sale => {
+                        const name = sale.products?.name || 'Unknown';
+                        const cat = sale.products?.category || 'Others';
+                        if (!productMap[name]) productMap[name] = { name, category: cat, quantity: 0, revenue: 0, unit: sale.products?.unit_of_sale || 'units' };
+                        productMap[name].quantity += parseFloat(sale.quantity || 0);
+                        productMap[name].revenue += parseFloat(sale.total_amount || 0);
+                      });
+                      return Object.values(productMap).map(p => (
+                        <tr key={p.name}>
+                          <td className="size-cell">{p.name}</td>
+                          <td>{p.category}</td>
+                          <td className="num">{p.quantity.toLocaleString()}</td>
+                          <td>{p.unit}</td>
+                          <td className="num revenue">{formatPeso(p.revenue)}</td>
+                        </tr>
+                      ));
+                    })()}
+                  </tbody>
+                  <tfoot>
+                    <tr className="total-row">
+                      <td colSpan={2} className="size-cell">Total</td>
+                      <td className="num">{productQty.toLocaleString()}</td>
+                      <td></td>
+                      <td className="num revenue">{formatPeso(productRevenue)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
+
           {/* Footer */}
           <div className="report-footer">
             Generated on {new Date().toLocaleString('en-US', {
@@ -638,6 +739,14 @@ export default function Reports() {
         .report-controls {
           padding: 1.25rem;
           margin-bottom: 1.25rem;
+        }
+
+        .report-category-filter {
+          display: flex;
+          gap: 0.375rem;
+          margin-bottom: 1rem;
+          padding-bottom: 1rem;
+          border-bottom: 1px solid var(--color-border-light);
         }
 
         .report-controls-grid {

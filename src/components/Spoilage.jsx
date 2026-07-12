@@ -7,12 +7,11 @@ import {
   Calendar,
   DollarSign,
 } from 'lucide-react';
-import { fetchSpoilageWithCost, recordSpoilage, deleteSpoilageRecords, fetchSpoilageByIds, fetchInventory, SPOILAGE_REASONS, formatPeso, getLocalDate } from '../lib/api';
+import { fetchSpoilageWithCost, recordSpoilage, deleteSpoilageRecords, fetchSpoilageByIds, restoreInventoryForSpoilage, fetchInventory, SPOILAGE_REASONS, formatPeso, getLocalDate } from '../lib/api';
 import { formatDate } from '../lib/formatters';
 import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
-import { supabase } from '../lib/supabaseClient';
 
 export default function Spoilage() {
   const [spoilage, setSpoilage] = useState([]);
@@ -225,27 +224,8 @@ export default function Spoilage() {
       // Delete the records
       await deleteSpoilageRecords(ids);
 
-      // Restore inventory: aggregate quantities by egg_size_id and add back
-      const restoreMap = {};
-      (spoilageRecords || []).forEach(s => {
-        restoreMap[s.egg_size_id] = (restoreMap[s.egg_size_id] || 0) + s.quantity;
-      });
-
-      for (const [eggSizeId, qty] of Object.entries(restoreMap)) {
-        const { data: invItem, error: invFetchErr } = await supabase
-          .from('inventory')
-          .select('quantity_on_hand')
-          .eq('egg_size_id', eggSizeId)
-          .single();
-        if (invFetchErr) throw invFetchErr;
-
-        const newQty = (invItem?.quantity_on_hand || 0) + qty;
-        const { error: updateErr } = await supabase
-          .from('inventory')
-          .update({ quantity_on_hand: newQty, updated_at: new Date().toISOString() })
-          .eq('egg_size_id', eggSizeId);
-        if (updateErr) throw updateErr;
-      }
+      // Restore inventory
+      await restoreInventoryForSpoilage(spoilageRecords);
 
       setSelectedIds(new Set());
       loadData();

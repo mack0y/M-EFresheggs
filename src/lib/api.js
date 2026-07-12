@@ -3,13 +3,13 @@
 // Components can continue importing from '../lib/api'.
 
 // Utils & constants
-export { getLocalDate, TRAY_SIZE, getEggCount, toTraysAndPieces, formatInventory, formatPeso } from './utils';
+export { getLocalDate, TRAY_SIZE, getEggCount, formatInventory, formatPeso } from './utils';
 
 // Egg sizes
-export { EGG_SIZES, fetchEggSizes } from './eggSizes';
+export { EGG_SIZES } from './eggSizes';
 
 // Inventory
-export { fetchInventory, updateInventory } from './inventory';
+export { fetchInventory, updateInventory, incrementInventory } from './inventory';
 
 // Pricing
 export { fetchPriceSettings, updatePriceSetting } from './pricing';
@@ -24,7 +24,7 @@ export { fetchSalesReport } from './reports';
 export { EXPENSE_CATEGORIES, fetchExpenses, fetchTodayExpenses, recordExpense, deleteExpense, deleteExpenses } from './expenses';
 
 // Spoilage
-export { SPOILAGE_REASONS, fetchSpoilage, recordSpoilage, deleteSpoilageRecords, fetchSpoilageByIds } from './spoilage';
+export { SPOILAGE_REASONS, recordSpoilage, deleteSpoilageRecords, fetchSpoilageByIds, restoreInventoryForSpoilage } from './spoilage';
 
 // Customers
 export { fetchCustomers, addCustomer, deleteCustomer } from './customers';
@@ -33,7 +33,7 @@ export { fetchCustomers, addCustomer, deleteCustomer } from './customers';
 export { fetchSuppliers, addSupplier, deleteSupplier } from './suppliers';
 
 // Deliveries
-export { PAYMENT_STATUSES, fetchDeliveries, recordDelivery, recordDeliveryBatch, deleteDeliveryBatch, updateDeliveryPayment, deleteDelivery } from './deliveries';
+export { PAYMENT_STATUSES, fetchDeliveries, recordDeliveryBatch, deleteDeliveryBatch, updateDeliveryPayment, deleteDelivery } from './deliveries';
 
 // Funds & daily cut
 export {
@@ -47,14 +47,17 @@ export {
 } from './funds';
 
 // Analytics & margins
-export { fetchSalesBySize, fetchSalesByHour, fetchSalesTrend, fetchCostsPerEgg, fetchProfitMargins } from './analytics';
+export { fetchSalesBySize, fetchSalesByHour, fetchSalesTrend, fetchCostsPerEgg, fetchCostsPerProduct, fetchProfitMargins, fetchProductSalesBySize, fetchProductSalesByHour, fetchProductSalesTrend } from './analytics';
 
 // ===== Products & Deliveries =====
-export { fetchProducts, addProduct, updateProduct, deleteProduct, calculateMarkup, calculateSellingPrice, autoFillPricing } from './products';
+export { fetchProducts, addProduct, updateProduct, deleteProduct, calculateSellingPrice, autoFillPricing } from './products';
 export { fetchProductDeliveries, recordProductDelivery, updateProductDeliveryPayment, deleteProductDelivery } from './productDeliveries';
 
 // ===== Product Sales =====
-export { recordProductSale, fetchProductSales, fetchTodayProductSales, deleteProductSale, deleteProductSales } from './productSales';
+export { recordProductSale, fetchProductSales, fetchTodayProductSales, deleteProductSale, deleteProductSales, fetchProductSalesReport } from './productSales';
+
+// ===== Unified Transactions =====
+export { recordTransaction } from './transactions';
 
 // Cross-module utilities (inventory value, spoilage with cost, export)
 export { fetchInventoryValue, fetchSpoilageWithCost, exportAllData, APP_VERSION } from './export';

@@ -31,18 +31,19 @@ const navSections = [
     ],
   },
   {
-    label: 'EGGS',
+    label: 'SALES',
     items: [
-      { to: '/inventory', icon: Package, label: 'Inventory' },
-      { to: '/sales', icon: ShoppingCart, label: 'Egg Sales' },
-      { to: '/deliveries', icon: Truck, label: 'Egg Deliveries' },
+      { to: '/sales/new', icon: ShoppingCart, label: 'New Sale' },
+      { to: '/sales', icon: ClipboardList, label: 'Egg Sales' },
+      { to: '/product-sales', icon: ClipboardList, label: 'Product Sales' },
     ],
   },
   {
-    label: 'PRODUCTS',
+    label: 'INVENTORY',
     items: [
+      { to: '/inventory', icon: Package, label: 'Egg Stock' },
       { to: '/products', icon: ShoppingBag, label: 'Product Catalog' },
-      { to: '/product-sales', icon: ClipboardList, label: 'Product Sales' },
+      { to: '/deliveries', icon: Truck, label: 'Egg Deliveries' },
       { to: '/product-deliveries', icon: Truck, label: 'Product Deliveries' },
     ],
   },
@@ -220,16 +221,6 @@ export default function Layout({ children }) {
       <main className="main-content">
         {children}
       </main>
-
-      {/* FAB - Quick action to Sales */}
-      <button
-        className="btn-fab"
-        onClick={() => navigate('/sales')}
-        aria-label="Record an egg sale"
-        title="Quick Egg Sale"
-      >
-        <ShoppingCart size={22} />
-      </button>
 
       {/* Mobile Bottom Navigation */}
       <nav className="bottom-nav">
@@ -565,36 +556,6 @@ export default function Layout({ children }) {
         }
 
         /* Desktop styles */
-        /* FAB - Floating Action Button */
-        .btn-fab {
-          display: none;
-          position: fixed;
-          bottom: 5.5rem;
-          right: 1.25rem;
-          z-index: 85;
-          width: 56px;
-          height: 56px;
-          border: none;
-          border-radius: 50%;
-          background: var(--color-primary);
-          color: white;
-          box-shadow: var(--shadow-lg);
-          cursor: pointer;
-          align-items: center;
-          justify-content: center;
-          transition: all var(--transition-spring);
-        }
-
-        .btn-fab:hover {
-          background: var(--color-primary-hover);
-          transform: scale(1.08);
-          box-shadow: var(--shadow-xl);
-        }
-
-        .btn-fab:active {
-          transform: scale(0.95);
-        }
-
         @media (min-width: 768px) {
           .mobile-header {
             display: none;
@@ -620,16 +581,6 @@ export default function Layout({ children }) {
             padding: 1.5rem 2rem;
             padding-top: 1.5rem;
             padding-bottom: 1.5rem;
-          }
-
-          .btn-fab {
-            display: none !important;
-          }
-        }
-
-        @media (max-width: 767px) {
-          .btn-fab {
-            display: flex;
           }
         }
 

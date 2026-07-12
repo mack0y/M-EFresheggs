@@ -169,9 +169,24 @@ export default function ExpensesFunds() {
 
   async function handleDeleteSelected() {
     if (selectedIds.length === 0) return;
+    const expensesToDelete = expenses.filter(e => selectedIds.includes(e.id));
     try {
       await deleteExpenses(selectedIds);
-      toast(`Deleted ${selectedIds.length} expense(s)`, 'success');
+      toast(`Deleted ${selectedIds.length} expense(s)`, 'success', {
+        label: 'Undo',
+        onClick: async () => {
+          try {
+            for (const exp of expensesToDelete) {
+              await recordExpense({ category: exp.category, description: exp.description, amount: exp.amount });
+            }
+            toast('Expenses restored');
+            loadAll();
+          } catch (err) {
+            console.error('Undo expenses error:', err);
+            toast('Failed to restore expenses', 'error');
+          }
+        },
+      });
       clearSelection();
       loadAll();
     } catch (err) {
