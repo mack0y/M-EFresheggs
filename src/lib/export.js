@@ -78,6 +78,11 @@ export async function exportAllData() {
     { name: 'price_settings', fn: () => supabase.from('price_settings').select('*, egg_sizes(name)') },
     { name: 'suppliers', fn: () => supabase.from('suppliers').select('*').order('name') },
     { name: 'customers', fn: () => supabase.from('customers').select('*').order('name') },
+    { name: 'transactions', fn: () => supabase.from('transactions').select('*').order('created_at') },
+    { name: 'products', fn: () => supabase.from('products').select('*').order('name') },
+    { name: 'product_sales', fn: () => supabase.from('product_sales').select('*, products(name, category, unit)').order('sale_date') },
+    { name: 'product_deliveries', fn: () => supabase.from('product_deliveries').select('*, products(name, category, unit)').order('delivery_date') },
+    { name: 'operational_funds', fn: () => supabase.from('operational_funds').select('*').order('fund_date') },
   ];
   const results = await Promise.allSettled(
     tableFns.map(async ({ name, fn }) => {

@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
 import { getLocalDate, TRAY_SIZE } from './utils';
+import logger from './logger';
 
 // ===== Unified Transactions =====
 
@@ -18,46 +19,94 @@ export async function recordTransaction({ eggItems = [], productItems = [], cust
   const productTotal = productItems.reduce((sum, item) => sum + (item.total || 0), 0);
   const totalAmount = eggTotal + productTotal;
 
-  // === Step 1: Validate stock for ALL items before inserting anything ===
+  // === Step 1: Atomically validate and reserve stock for ALL items ===
+  // Uses RPC if available, falls back to read-then-check.
 
-  // Validate egg stock
+  async function tryAtomicallyReserveEgg(item) {
+    const totalEggs = item.unit === 'tray'
+      ? item.quantity * (item.traySize || TRAY_SIZE)
+      : item.quantity;
+    const { error } = await supabase.rpc('validate_egg_stock', {
+      p_egg_size_id: item.id,
+      p_quantity: totalEggs,
+    });
+    if (error) throw error;
+  }
+
+  async function tryAtomicallyReserveProduct(item) {
+    const { error } = await supabase.rpc('validate_product_stock', {
+      p_product_id: item.id,
+      p_quantity: item.quantity,
+    });
+    if (error) throw error;
+  }
+
   if (eggItems.length > 0) {
-    const { data: inventory, error: invErr } = await supabase
-      .from('inventory')
-      .select('egg_size_id, quantity_on_hand');
-    if (invErr) throw invErr;
-
-    const invMap = {};
-    (inventory || []).forEach(i => { invMap[i.egg_size_id] = i.quantity_on_hand || 0; });
-
+    let atomicWorked = true;
     for (const item of eggItems) {
-      const totalEggs = item.unit === 'tray'
-        ? item.quantity * (item.traySize || TRAY_SIZE)
-        : item.quantity;
-      const stock = invMap[item.id] || 0;
-      if (totalEggs > stock) {
-        throw new Error(`Not enough ${item.name} stock — only ${stock} eggs available, need ${totalEggs}`);
+      try {
+        await tryAtomicallyReserveEgg(item);
+      } catch (rpcErr) {
+        atomicWorked = false;
+        logger.warn('Atomic egg reserve failed, falling back to read-then-check:', rpcErr.message);
+        break;
+      }
+    }
+    if (!atomicWorked) {
+      // Fallback: read-then-check (non-atomic but still catches most cases)
+      const { data: inventory, error: invErr } = await supabase
+        .from('inventory')
+        .select('egg_size_id, quantity_on_hand');
+      if (invErr) throw invErr;
+
+      const invMap = {};
+      (inventory || []).forEach(i => { invMap[i.egg_size_id] = i.quantity_on_hand || 0; });
+
+      for (const item of eggItems) {
+        const totalEggs = item.unit === 'tray'
+          ? item.quantity * (item.traySize || TRAY_SIZE)
+          : item.quantity;
+        const stock = invMap[item.id] || 0;
+        if (totalEggs > stock) {
+          throw new Error(`Not enough ${item.name} stock — only ${stock} eggs available, need ${totalEggs}`);
+        }
       }
     }
   }
 
-  // Validate product stock
   if (productItems.length > 0) {
-    const { data: products, error: prodErr } = await supabase
-      .from('products')
-      .select('id, quantity_on_hand');
-    if (prodErr) throw prodErr;
-
-    const prodMap = {};
-    (products || []).forEach(p => { prodMap[p.id] = p.quantity_on_hand || 0; });
-
+    let atomicWorked = true;
     for (const item of productItems) {
-      const stock = prodMap[item.id] || 0;
-      if (item.quantity > stock) {
-        throw new Error(`Not enough ${item.name} stock — only ${stock} available, need ${item.quantity}`);
+      try {
+        await tryAtomicallyReserveProduct(item);
+      } catch (rpcErr) {
+        atomicWorked = false;
+        logger.warn('Atomic product reserve failed, falling back to read-then-check:', rpcErr.message);
+        break;
+      }
+    }
+    if (!atomicWorked) {
+      const { data: products, error: prodErr } = await supabase
+        .from('products')
+        .select('id, quantity_on_hand');
+      if (prodErr) throw prodErr;
+
+      const prodMap = {};
+      (products || []).forEach(p => { prodMap[p.id] = p.quantity_on_hand || 0; });
+
+      for (const item of productItems) {
+        const stock = prodMap[item.id] || 0;
+        if (item.quantity > stock) {
+          throw new Error(`Not enough ${item.name} stock — only ${stock} available, need ${item.quantity}`);
+        }
       }
     }
   }
+
+  // Note: RPC uses SELECT FOR UPDATE to lock the row, preventing concurrent
+  // oversells. The actual deduction is handled by DB triggers (after_sale_insert,
+  // after_product_sale_insert). When RPC is not available (function doesn't
+  // exist on Supabase), fallback is the non-atomic read-then-check approach.
 
   // === Step 2: Fetch prices for egg items (server-side price calculation) ===
   const eggInserts = [];

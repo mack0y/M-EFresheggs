@@ -92,7 +92,6 @@ export default function SalesLog() {
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       result = result.filter(s =>
-        (s.customer_name && s.customer_name.toLowerCase().includes(q)) ||
         (s.egg_sizes?.name && s.egg_sizes.name.toLowerCase().includes(q))
       );
     }

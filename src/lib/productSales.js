@@ -39,7 +39,7 @@ export async function recordProductSale({ productId, quantity, saleDate }) {
 export async function fetchProductSales({ limit = 50, offset = 0, startDate, endDate } = {}) {
   let query = supabase
     .from('product_sales')
-    .select('*, products(name)')
+    .select('*, products(name, unit)')
     .order('created_at', { ascending: false });
 
   if (startDate) query = query.gte('sale_date', startDate);
@@ -54,7 +54,7 @@ export async function fetchTodayProductSales() {
   const today = getLocalDate();
   const { data, error } = await supabase
     .from('product_sales')
-    .select('*, products(name)')
+    .select('*, products(name, unit)')
     .eq('sale_date', today)
     .order('sale_time', { ascending: false });
   
@@ -108,7 +108,7 @@ export async function deleteProductSale(id) {
 export async function fetchProductSalesReport({ startDate, endDate } = {}) {
   let query = supabase
     .from('product_sales')
-    .select('*, products(name, category, unit_of_sale)')
+    .select('*, products(name, category, unit)')
     .order('sale_date', { ascending: false });
 
   if (startDate) query = query.gte('sale_date', startDate);

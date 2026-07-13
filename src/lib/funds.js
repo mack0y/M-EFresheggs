@@ -55,7 +55,15 @@ export async function getDailyRevenueCutPreview() {
     .eq('sale_date', today);
   if (salesErr) throw salesErr;
 
+  const { data: productSalesData, error: psErr } = await supabase
+    .from('product_sales')
+    .select('total_amount')
+    .eq('sale_date', today);
+  if (psErr) throw psErr;
+
   const revenue = (salesData || []).reduce(
+    (sum, s) => sum + parseFloat(s.total_amount || 0), 0
+  ) + (productSalesData || []).reduce(
     (sum, s) => sum + parseFloat(s.total_amount || 0), 0
   );
   const cutAmount = Math.round(revenue * DAILY_CUT_PERCENT * 100) / 100;

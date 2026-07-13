@@ -1141,4 +1141,57 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 
 ---
 
-# Last updated: Sun Jul 12 2026
+# Last updated: Mon Jul 13 2026
+
+---
+
+## Session: Bug Fixes & Improvements (July 13, 2026)
+
+### Dead Code Cleanup
+- **Deleted 4 unused files** (~1,148 lines): `NewEggSale.jsx`, `NewProductSale.jsx`, `ProductInventory.jsx`, `hooks/usePricing.js` — none were imported anywhere
+
+### ReceiptView → Toast Confirmation
+- **Removed `ReceiptView.jsx`** — auto-close receipt popup replaced with a success toast showing transaction ID and total amount
+- **`NewSale.jsx`** — checkout success now calls `toast('Sale complete! Transaction #...')` instead of showing a full receipt overlay
+
+### Cart System Fix
+- **`CartContext.jsx`** — Fixed fragile array-index-based item removal (`removeItem(index)`) to use unique `cartId` per item
+- **`NewSale.jsx`** — Updated cart rendering to use `item.cartId` for keys and removal
+
+### Error Handling Improvements
+- **`App.jsx`** — Removed nested `<ErrorBoundary>` wrappers from all 18 route definitions; outer `ChunkErrorBoundary` + `main.jsx` boundary handle all errors
+- **New `src/lib/logger.js`** — Logger utility wrapping `console` with `[LEVEL]` prefix; debug silenced in production
+- **`transactions.js`** — Uses logger for RPC fallback warnings
+
+### Oversell Prevention
+- **New `migration_atomic_inventory_rpc.sql`** — SQL migration creating `validate_egg_stock` and `validate_product_stock` RPCs using `SELECT ... FOR UPDATE` for atomic stock validation
+- **`transactions.js`** — `recordTransaction()` now calls RPC first (lock + validate), falls back to read-then-check if RPC unavailable
+
+### Component Quality
+- **`ConfirmDialog.jsx`** — Added focus trapping (Tab/Escape/Enter keyboard handling), `role="dialog"` + `aria-modal="true"`, PropTypes validation
+- **`Inventory.jsx`** — Fixed `useEffect` missing deps by wrapping `loadInventory` in `useCallback` with proper dependency array
+
+### CSS & Dark Mode
+- **`Layout.jsx`** — Removed hardcoded dark mode `rgba` overrides for `.mobile-header` and `.bottom-nav`; now use `var(--color-card)` exclusively (CSS variables handle both modes)
+- **`index.css`** — Added 30+ utility classes: `.flex`, `.gap-*`, `.text-*`, `.fw-*`, `.mb-*`, `.truncate`, `.w-full`, etc.
+
+### 1% Daily Revenue Cut Fix
+- **`funds.js`** — `getDailyRevenueCutPreview()` now includes `product_sales` revenue (previously only summed `sales` table for eggs)
+
+### Backup Export Fix
+- **`export.js`** — Added 5 missing tables to `exportAllData()`: `transactions`, `products`, `product_sales`, `product_deliveries`, `operational_funds`
+
+### Product Unit Column Fix
+- Changed 5 references from deprecated `unit_of_sale` to `unit` across 4 files: `NewSale.jsx`, `ReceiptView.jsx` (deleted), `Reports.jsx`, `productSales.js`
+
+### Dashboard Empty-State Fix
+- **`Dashboard.jsx`** — Removed wrong `todayProductSales` check from "Today's Deliveries" empty-state
+
+### SalesLog Dead Filter Fix
+- **`SalesLog.jsx`** — Removed dead `customer_name` filter condition (column doesn't exist on `sales` table)
+
+### Product Sales Select Fix
+- **`productSales.js`** — Added `unit` to joined `products()` select in `fetchProductSales()` and `fetchTodayProductSales()` (was only fetching `name`)
+
+### Build Verification
+- `npm run build` passes clean — all 13 changes verified with live browser check (0 console errors, 0 warnings)

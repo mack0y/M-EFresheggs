@@ -2,8 +2,6 @@ import { lazy, Suspense, Component } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import { ToastContainer } from './components/Toast';
-import ErrorBoundary from './components/ErrorBoundary';
-
 const Dashboard = lazy(() => import('./components/Dashboard'));
 const Inventory = lazy(() => import('./components/Inventory'));
 const PriceSettings = lazy(() => import('./components/PriceSettings'));
@@ -66,24 +64,24 @@ export default function App() {
         <ChunkErrorBoundary>
           <Suspense fallback={<PageLoading />}>
             <Routes>
-              <Route path="/" element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />
-              <Route path="/inventory" element={<ErrorBoundary><Inventory /></ErrorBoundary>} />
-              <Route path="/prices" element={<ErrorBoundary><PriceSettings /></ErrorBoundary>} />
-              <Route path="/sales" element={<ErrorBoundary><SalesLog /></ErrorBoundary>} />
-              <Route path="/sales/new" element={<ErrorBoundary><NewSale /></ErrorBoundary>} />
-              <Route path="/analytics" element={<ErrorBoundary><Analytics /></ErrorBoundary>} />
-              <Route path="/expenses-funds" element={<ErrorBoundary><ExpensesFunds /></ErrorBoundary>} />
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/inventory" element={<Inventory />} />
+              <Route path="/prices" element={<PriceSettings />} />
+              <Route path="/sales" element={<SalesLog />} />
+              <Route path="/sales/new" element={<NewSale />} />
+              <Route path="/analytics" element={<Analytics />} />
+              <Route path="/expenses-funds" element={<ExpensesFunds />} />
               <Route path="/operational-expenses" element={<Navigate to="/expenses-funds" replace />} />
-              <Route path="/spoilage" element={<ErrorBoundary><Spoilage /></ErrorBoundary>} />
-              <Route path="/customers" element={<ErrorBoundary><Customers /></ErrorBoundary>} />
-              <Route path="/suppliers" element={<ErrorBoundary><Suppliers /></ErrorBoundary>} />
-              <Route path="/deliveries" element={<ErrorBoundary><Deliveries /></ErrorBoundary>} />
-              <Route path="/products" element={<ErrorBoundary><Products /></ErrorBoundary>} />
-              <Route path="/product-sales" element={<ErrorBoundary><ProductSales /></ErrorBoundary>} />
+              <Route path="/spoilage" element={<Spoilage />} />
+              <Route path="/customers" element={<Customers />} />
+              <Route path="/suppliers" element={<Suppliers />} />
+              <Route path="/deliveries" element={<Deliveries />} />
+              <Route path="/products" element={<Products />} />
+              <Route path="/product-sales" element={<ProductSales />} />
               <Route path="/product-sales/new" element={<Navigate to="/sales/new" replace />} />
-              <Route path="/product-deliveries" element={<ErrorBoundary><ProductDeliveries /></ErrorBoundary>} />
-              <Route path="/reports" element={<ErrorBoundary><Reports /></ErrorBoundary>} />
-              <Route path="/profits" element={<ErrorBoundary><Profits /></ErrorBoundary>} />
+              <Route path="/product-deliveries" element={<ProductDeliveries />} />
+              <Route path="/reports" element={<Reports />} />
+              <Route path="/profits" element={<Profits />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>

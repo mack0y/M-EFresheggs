@@ -12,6 +12,8 @@ export function CartProvider({ children }) {
   const [items, setItems] = useState([]);
   const [customer, setCustomer] = useState(null);
 
+  let cartIdCounter = 0;
+
   const addItem = useCallback((newItem) => {
     setItems(prev => {
       // Dedup: same type + same id + same unit = merge quantities
@@ -29,23 +31,24 @@ export function CartProvider({ children }) {
         };
         return updated;
       }
-      return [...prev, { ...newItem }];
+      cartIdCounter += 1;
+      return [...prev, { ...newItem, cartId: cartIdCounter }];
     });
   }, []);
 
-  const removeItem = useCallback((index) => {
-    setItems(prev => prev.filter((_, i) => i !== index));
+  const removeItem = useCallback((cartId) => {
+    setItems(prev => prev.filter(i => i.cartId !== cartId));
   }, []);
 
-  const updateItemQty = useCallback((index, quantity) => {
+  const updateItemQty = useCallback((cartId, quantity) => {
     setItems(prev => {
+      const idx = prev.findIndex(i => i.cartId === cartId);
+      if (idx < 0) return prev;
       const updated = [...prev];
-      const item = updated[index];
-      if (!item) return prev;
-      updated[index] = {
-        ...item,
+      updated[idx] = {
+        ...updated[idx],
         quantity,
-        total: quantity * item.pricePerUnit,
+        total: quantity * updated[idx].pricePerUnit,
       };
       return updated;
     });

@@ -1,6 +1,36 @@
+import { useEffect, useRef } from 'react';
 import { AlertTriangle } from 'lucide-react';
+import PropTypes from 'prop-types';
+
+function focusTrapRef(el) {
+  if (!el) return;
+  const focusable = el.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+  if (focusable.length > 0) focusable[0].focus();
+}
+
+function handleKeyDown(e, onCancel, onConfirm) {
+  if (e.key === 'Escape') { e.stopPropagation(); onCancel?.(); return; }
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); onConfirm?.(); return; }
+  const focusable = e.currentTarget.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+  if (focusable.length === 0) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (e.key === 'Tab') {
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+}
 
 export default function ConfirmDialog({ open, title, message, confirmLabel = 'Confirm', cancelLabel = 'Cancel', variant = 'danger', icon: Icon, onConfirm, onCancel }) {
+  const dialogRef = useRef(null);
+
+  useEffect(() => {
+    if (open && dialogRef.current) {
+      const els = dialogRef.current.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+      if (els.length > 0) els[0].focus();
+    }
+  }, [open]);
+
   if (!open) return null;
 
   const iconColor = variant === 'danger' ? 'var(--color-danger)' : 'var(--color-primary)';
@@ -9,7 +39,7 @@ export default function ConfirmDialog({ open, title, message, confirmLabel = 'Co
 
   return (
     <div className="confirm-overlay" onClick={() => onCancel?.()}>
-      <div className="confirm-dialog" onClick={e => e.stopPropagation()}>
+      <div className="confirm-dialog" role="dialog" aria-modal="true" aria-label={title} ref={dialogRef} onKeyDown={e => handleKeyDown(e, onCancel, onConfirm)} onClick={e => e.stopPropagation()}>
         <div className="confirm-icon" style={{ background: iconBg, color: iconColor }}>
           {Icon ? <Icon size={28} /> : <AlertTriangle size={28} />}
         </div>
@@ -110,3 +140,15 @@ export default function ConfirmDialog({ open, title, message, confirmLabel = 'Co
     </div>
   );
 }
+
+ConfirmDialog.propTypes = {
+  open: PropTypes.bool.isRequired,
+  title: PropTypes.string.isRequired,
+  message: PropTypes.string.isRequired,
+  confirmLabel: PropTypes.string,
+  cancelLabel: PropTypes.string,
+  variant: PropTypes.oneOf(['danger', 'primary']),
+  icon: PropTypes.elementType,
+  onConfirm: PropTypes.func.isRequired,
+  onCancel: PropTypes.func,
+};

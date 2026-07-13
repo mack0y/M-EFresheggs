@@ -266,11 +266,6 @@ export default function Layout({ children }) {
           right: 0;
           z-index: 90;
           backdrop-filter: blur(12px);
-          background: rgba(255,255,255,0.92);
-        }
-
-        [data-theme="dark"] .mobile-header {
-          background: rgba(26,32,25,0.92);
         }
 
         .menu-btn, .close-btn {
@@ -488,11 +483,6 @@ export default function Layout({ children }) {
           padding-bottom: calc(0.375rem + env(safe-area-inset-bottom, 0px));
           backdrop-filter: blur(12px);
           box-shadow: 0 -2px 8px rgba(0,0,0,0.06);
-        }
-
-        [data-theme="dark"] .bottom-nav {
-          background: rgba(26,32,25,0.95);
-          box-shadow: 0 -2px 8px rgba(0,0,0,0.3);
         }
 
         .bottom-nav-item {

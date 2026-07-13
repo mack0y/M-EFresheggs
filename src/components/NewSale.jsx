@@ -6,7 +6,6 @@ import { fetchInventory, fetchPriceSettings, fetchProducts, fetchCustomers, reco
 import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
-import ReceiptView from './ReceiptView';
 
 const QUICK_QTY = { piece: [1, 5, 10, 30], tray: [1, 2, 5, 10] };
 
@@ -22,8 +21,7 @@ export default function NewSale() {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [showReceipt, setShowReceipt] = useState(false);
-  const [lastTransaction, setLastTransaction] = useState(null);
+  // was: showReceipt / lastTransaction — replaced with toast
 
   // Egg form state
   const [eggForm, setEggForm] = useState({ eggSizeId: '', quantity: '', unit: 'piece' });
@@ -159,9 +157,8 @@ export default function NewSale() {
         customerId: customer?.id || null,
       });
 
-      setLastTransaction(result);
-      setShowReceipt(true);
       clearCart();
+      toast(`Sale complete! Transaction #${result.transaction.id} — ₱${parseFloat(result.transaction.total_amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`, 'success');
     } catch (err) {
       console.error('Checkout error:', err);
       toast(getUserFriendlyError(err), 'error');
@@ -173,15 +170,6 @@ export default function NewSale() {
 
   const cartTotal = getCartTotal();
   const cartCount = cartItems.length;
-
-  if (showReceipt && lastTransaction) {
-    return (
-      <ReceiptView
-        transaction={lastTransaction}
-        onClose={() => { setShowReceipt(false); setLastTransaction(null); navigate('/'); }}
-      />
-    );
-  }
 
   return (
     <div className="fade-in">
@@ -352,7 +340,7 @@ export default function NewSale() {
                     id: p.id,
                     name: p.name,
                     quantity: qty,
-                    unit: p.unit_of_sale || 'units',
+                    unit: p.unit || 'units',
                     traySize: null,
                     pricePerUnit: price,
                     total: qty * price,
@@ -384,7 +372,7 @@ export default function NewSale() {
                     <div className="ns-empty-products">No products with stock found</div>
                   ) : (
                     filteredProducts.map(p => {
-                      const unit = p.unit_of_sale || 'units';
+                      const unit = p.unit || 'units';
                       const stock = parseFloat(p.quantity_on_hand || 0);
                       const price = parseFloat(p.price || 0);
                       const isSelected = parseInt(productId, 10) === p.id;
@@ -475,8 +463,8 @@ export default function NewSale() {
           ) : (
             <>
               <div className="ns-cart-items">
-                {cartItems.map((item, index) => (
-                  <div key={index} className="ns-cart-item">
+                {cartItems.map(item => (
+                  <div key={item.cartId} className="ns-cart-item">
                     <div className="ns-cart-item-left">
                       <span className={`ns-cart-type ${item.type === 'egg' ? 'type-egg' : 'type-product'}`}>
                         {item.type === 'egg' ? 'Egg' : 'Product'}
@@ -492,7 +480,7 @@ export default function NewSale() {
                     </div>
                     <div className="ns-cart-item-right">
                       <span className="ns-cart-item-total">{formatPeso(item.total)}</span>
-                      <button className="ns-cart-remove" onClick={() => removeItem(index)} title="Remove">
+                      <button className="ns-cart-remove" onClick={() => removeItem(item.cartId)} title="Remove" aria-label={`Remove ${item.name} from cart`}>
                         <Trash2 size={14} />
                       </button>
                     </div>
@@ -888,8 +876,6 @@ export default function NewSale() {
         .ns-mobile-checkout-btn:hover {
           background: #f0f0f0;
         }
-
-        @media (max-width: 768px) {
 
         @media (min-width: 769px) and (max-width: 1024px) {
           .ns-layout {

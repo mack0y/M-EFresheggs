@@ -784,7 +784,7 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
-          ) : todayDeliveries.length === 0 && (todayProductSales || []).length === 0 ? (
+          ) : todayDeliveries.length === 0 ? (
             <div className="empty-state">
               <Truck size={32} />
               <p>No deliveries today</p>

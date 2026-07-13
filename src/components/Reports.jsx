@@ -697,7 +697,7 @@ export default function Reports() {
                       productReport.forEach(sale => {
                         const name = sale.products?.name || 'Unknown';
                         const cat = sale.products?.category || 'Others';
-                        if (!productMap[name]) productMap[name] = { name, category: cat, quantity: 0, revenue: 0, unit: sale.products?.unit_of_sale || 'units' };
+                        if (!productMap[name]) productMap[name] = { name, category: cat, quantity: 0, revenue: 0, unit: sale.products?.unit || 'units' };
                         productMap[name].quantity += parseFloat(sale.quantity || 0);
                         productMap[name].revenue += parseFloat(sale.total_amount || 0);
                       });

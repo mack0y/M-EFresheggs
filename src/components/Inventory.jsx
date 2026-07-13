@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Plus, Minus, AlertTriangle, RefreshCw, Trash2, PackagePlus } from 'lucide-react';
 import { fetchInventory, updateInventory, formatInventory, EGG_SIZES, TRAY_SIZE } from '../lib/api';
 import { toast } from '../lib/toastFn';
@@ -26,11 +26,7 @@ export default function Inventory() {
     setConfirmItem({ item, delta, label, isRemove });
   }
 
-  useEffect(() => {
-    loadInventory();
-  }, []);
-
-  async function loadInventory() {
+  const loadInventory = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -42,7 +38,9 @@ export default function Inventory() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => { loadInventory(); }, [loadInventory]);
 
   async function executeAdjust(item, delta) {
     setAdjusting(item.egg_size_id);
