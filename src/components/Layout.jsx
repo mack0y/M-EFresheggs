@@ -36,6 +36,7 @@ const navSections = [
       { to: '/sales/new', icon: ShoppingCart, label: 'New Sale' },
       { to: '/sales', icon: ClipboardList, label: 'Egg Sales' },
       { to: '/product-sales', icon: ClipboardList, label: 'Product Sales' },
+      { to: '/product-sales/new', icon: ShoppingCart, label: 'New Product Sale' },
     ],
   },
   {

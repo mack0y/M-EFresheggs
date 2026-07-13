@@ -1195,3 +1195,19 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 
 ### Build Verification
 - `npm run build` passes clean — all 13 changes verified with live browser check (0 console errors, 0 warnings)
+
+---
+
+## Session: Dedicated New Product Sale Page (July 13, 2026)
+
+### Bug Fix
+- **`product-sales/new`** — No longer redirects to `/sales/new`. Now renders its own standalone `NewProductSale.jsx` page (products-only, no egg tab confusion)
+
+### New Component
+- **`NewProductSale.jsx`** — Standalone product sale page with search, quantity controls, inline +/-, cart system, customer selector, and unified checkout via `recordTransaction`. Mirrors the NewSale.jsx product workflow but without egg functionality.
+
+### Route Update
+- **`App.jsx`** — `/product-sales/new` now lazy-loads `NewProductSale` component instead of `<Navigate to="/sales/new">`
+
+### Sidebar Update
+- **`Layout.jsx`** — Added "New Product Sale" link to the SALES nav section with ShoppingCart icon

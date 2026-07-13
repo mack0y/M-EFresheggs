@@ -18,6 +18,7 @@ const Deliveries = lazy(() => import('./components/Deliveries'));
 const Products = lazy(() => import('./components/Products'));
 const ProductSales = lazy(() => import('./components/ProductSales'));
 const ProductDeliveries = lazy(() => import('./components/ProductDeliveries'));
+const NewProductSale = lazy(() => import('./components/NewProductSale'));
 
 function PageLoading() {
   return (
@@ -78,7 +79,7 @@ export default function App() {
               <Route path="/deliveries" element={<Deliveries />} />
               <Route path="/products" element={<Products />} />
               <Route path="/product-sales" element={<ProductSales />} />
-              <Route path="/product-sales/new" element={<Navigate to="/sales/new" replace />} />
+              <Route path="/product-sales/new" element={<NewProductSale />} />
               <Route path="/product-deliveries" element={<ProductDeliveries />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/profits" element={<Profits />} />
