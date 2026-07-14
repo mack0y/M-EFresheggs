@@ -36,7 +36,7 @@ export default function ProductDeliveries() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [editingPayment, setEditingPayment] = useState(null);
   const [paymentStatusInput, setPaymentStatusInput] = useState('unpaid');
-  const [partialAmountInput, setPartialAmountInput] = useState(0);
+  const [partialAmountInput, setPartialAmountInput] = useState("0");
   const [searchQuery, setSearchQuery] = useState('');
   const today = getLocalDate();
 
@@ -397,7 +397,7 @@ export default function ProductDeliveries() {
                     {PAYMENT_STATUSES.map(status => (
                       <button key={status} className={`delivery-payment-option ${paymentStatusInput === status ? 'active' : ''}`} onClick={() => {
                         setPaymentStatusInput(status);
-                        if (status === 'paid') setPartialAmountInput(parseFloat(d.total_cost || 0));
+                        if (status === 'paid') setPartialAmountInput(parseFloat(d.total_cost || 0).toFixed(2));
                       }}>
                         {status === 'paid' && <CheckCircle size={14} />}
                         {status === 'partial' && <Clock size={14} />}
@@ -407,9 +407,16 @@ export default function ProductDeliveries() {
                     ))}
                     <div className="delivery-amount-input">
                       <label>Amount Paid: ₱</label>
-                      <input type="number" min="0" step="0.01" value={partialAmountInput.toFixed(2)} onChange={e => setPartialAmountInput(Math.min(parseFloat(e.target.value) || 0, parseFloat(d.total_cost || 0)))} placeholder="0.00" />
+                      <input type="number" min="0" step="0.01" value={partialAmountInput} onChange={e => {
+                        const raw = e.target.value;
+                        if (raw === '') { setPartialAmountInput(''); return; }
+                        const parsed = parseFloat(raw);
+                        if (!isNaN(parsed)) {
+                          setPartialAmountInput(Math.min(parsed, parseFloat(d.total_cost || 0)).toString());
+                        }
+                      }} placeholder="0.00" />
                     </div>
-                    <button className="btn btn-primary btn-sm" style={{ marginTop: '0.5rem' }} onClick={() => handlePaymentUpdate(d.id, paymentStatusInput, partialAmountInput)}>
+                    <button className="btn btn-primary btn-sm" style={{ marginTop: '0.5rem' }} onClick={() => handlePaymentUpdate(d.id, paymentStatusInput, parseFloat(partialAmountInput) || 0)}>
                       Update Payment
                     </button>
                   </div>

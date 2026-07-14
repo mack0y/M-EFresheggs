@@ -45,7 +45,7 @@ export default function Deliveries() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [editingPayment, setEditingPayment] = useState(null); // stores item id being edited
   const [paymentStatusInput, setPaymentStatusInput] = useState('unpaid');
-  const [partialAmountInput, setPartialAmountInput] = useState(0);
+  const [partialAmountInput, setPartialAmountInput] = useState("0");
   const [confirmItem, setConfirmItem] = useState(null);
   const [expandedBatches, setExpandedBatches] = useState({});
   const PAGE_SIZE = 50;
@@ -749,11 +749,9 @@ export default function Deliveries() {
                           setPaymentStatusInput(status);
                           
                           if (status === 'paid') {
-                            // Auto-set to full amount for convenience
-                            setPartialAmountInput(batchTotalCost(batch.items));
+                            setPartialAmountInput(batchTotalCost(batch.items).toFixed(2));
                           } else if (status === 'partial') {
-                            // Keep current input or set to 0 if empty
-                            if (partialAmountInput === 0) setPartialAmountInput(0);
+                            if (parseFloat(partialAmountInput) === 0) setPartialAmountInput("0");
                           }
                         }}
                       >
@@ -771,10 +769,14 @@ export default function Deliveries() {
                         type="number"
                         min="0"
                         step="0.01"
-                        value={partialAmountInput.toFixed(2)}
+                        value={partialAmountInput}
                         onChange={(e) => {
-                          const val = Math.min(parseFloat(e.target.value) || 0, batchTotalCost(batch.items));
-                          setPartialAmountInput(val);
+                          const raw = e.target.value;
+                          if (raw === '') { setPartialAmountInput(''); return; }
+                          const parsed = parseFloat(raw);
+                          if (!isNaN(parsed)) {
+                            setPartialAmountInput(Math.min(parsed, batchTotalCost(batch.items)).toString());
+                          }
                         }}
                         placeholder="0.00"
                       />
@@ -789,7 +791,7 @@ export default function Deliveries() {
                         Promise.all(items.map(item => handlePaymentUpdate(
                           item.id, 
                           paymentStatusInput, 
-                          partialAmountInput, 
+                          parseFloat(partialAmountInput) || 0, 
                           batchTotalCost(batch.items)
                         )));
                       }}

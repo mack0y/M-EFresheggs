@@ -623,6 +623,11 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 
 ---
 
+### Partial Amount Input Fix (July 14, 2026)
+- **Bug:** `value={partialAmountInput.toFixed(2)}` in both Deliveries.jsx and ProductDeliveries.jsx reformatted the number on every keystroke, preventing natural typing (e.g., typing "1" immediately became "1.00")
+- **Fix:** Changed `partialAmountInput` state from `number` to `string`, removed `.toFixed(2)` from the input `value`, and parse to number only on save via `parseFloat(partialAmountInput) || 0`
+- **Files changed:** `src/components/Deliveries.jsx`, `src/components/ProductDeliveries.jsx`
+
 ## Recent Changes (Session Log)
 
 ### Supplier Delivery Tracking & Integration (June 2026)
