@@ -32,15 +32,20 @@ const COLORS = [
   '#CD853F', '#DEB887', '#8B7355',
 ];
 
-function CustomTooltip({ active, payload, label, formatType }) {
+function CustomTooltip({ active, payload, label }) {
   if (active && payload && payload.length) {
     return (
       <div className="chart-tooltip">
         <p className="chart-tooltip-label">{label}</p>
         {payload.map((entry, i) => {
-          const val = formatType === 'peso'
-            ? formatPeso(entry.value)
-            : `${entry.value.toLocaleString()} eggs`;
+          let val;
+          if (entry.name?.includes('Revenue') || entry.dataKey === 'revenue') {
+            val = formatPeso(entry.value);
+          } else if (entry.dataKey === 'products') {
+            val = `${entry.value.toLocaleString()} units`;
+          } else {
+            val = `${entry.value.toLocaleString()} eggs`;
+          }
           return (
             <p key={i} style={{ color: entry.color, fontWeight: 600 }}>
               {entry.name}: {val}
@@ -159,17 +164,19 @@ export default function Analytics() {
       // Process sales trend
       const dailyMap = {};
       (trendData || []).forEach(sale => {
-        if (!dailyMap[sale.sale_date]) dailyMap[sale.sale_date] = 0;
+        if (!dailyMap[sale.sale_date]) dailyMap[sale.sale_date] = { eggs: 0, revenue: 0 };
         let count = sale.quantity;
         if (sale.unit === 'tray') count *= sale.tray_size || 30;
-        dailyMap[sale.sale_date] += count;
+        dailyMap[sale.sale_date].eggs += count;
+        dailyMap[sale.sale_date].revenue += parseFloat(sale.total_amount || 0);
       });
 
       const sortedTrend = Object.entries(dailyMap)
         .sort(([a], [b]) => a.localeCompare(b))
-        .map(([date, eggs]) => ({
+        .map(([date, { eggs, revenue }]) => ({
           date: formatDateShort(date),
           eggs,
+          revenue: Math.round(revenue * 100) / 100,
         }));
 
       setTrend(sortedTrend);
@@ -521,13 +528,15 @@ export default function Analytics() {
               {category === 'both' ? (
                 (trend.length > 0 || prodTrend.length > 0) ? (
                   <ResponsiveContainer width="100%" height={350}>
-                    <LineChart data={trend.length > 0 ? trend.map(t => ({ ...t, eggs: t.eggs || 0, products: prodTrend.find(p => p.date === t.date)?.eggs || 0 })) : prodTrend.map(p => ({ ...p, eggs: 0, products: p.eggs || 0 }))} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                    <LineChart data={trend.length > 0 ? trend.map(t => ({ ...t, eggs: t.eggs || 0, revenue: t.revenue || 0, products: prodTrend.find(p => p.date === t.date)?.eggs || 0 })) : prodTrend.map(p => ({ ...p, eggs: 0, products: p.eggs || 0 }))} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#E8DDD0" />
                       <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                      <YAxis tick={{ fontSize: 12 }} />
-                      <Tooltip />
-                      <Line type="monotone" dataKey="eggs" name="Eggs" stroke="#8B4513" strokeWidth={2} dot={{ fill: '#8B4513', r: 3 }} activeDot={{ r: 6 }} />
-                      <Line type="monotone" dataKey="products" name="Products" stroke="#2E7D32" strokeWidth={2} dot={{ fill: '#2E7D32', r: 3 }} activeDot={{ r: 6 }} />
+                      <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
+                      <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Line type="monotone" dataKey="eggs" name="Eggs" stroke="#8B4513" strokeWidth={2} dot={{ fill: '#8B4513', r: 3 }} activeDot={{ r: 6 }} yAxisId="left" />
+                      <Line type="monotone" dataKey="revenue" name="Revenue" stroke="#D4A574" strokeWidth={2} dot={{ fill: '#D4A574', r: 3 }} activeDot={{ r: 6 }} yAxisId="right" />
+                      <Line type="monotone" dataKey="products" name="Products" stroke="#2E7D32" strokeWidth={2} dot={{ fill: '#2E7D32', r: 3 }} activeDot={{ r: 6 }} yAxisId="left" />
                     </LineChart>
                   </ResponsiveContainer>
                 ) : (
@@ -541,9 +550,11 @@ export default function Analytics() {
                     <LineChart data={trend} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#E8DDD0" />
                       <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                      <YAxis tick={{ fontSize: 12 }} />
+                      <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
+                      <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} />
                       <Tooltip content={<CustomTooltip />} />
-                      <Line type="monotone" dataKey="eggs" name="Eggs Sold" stroke="#8B4513" strokeWidth={2} dot={{ fill: '#8B4513', r: 3 }} activeDot={{ r: 6 }} />
+                      <Line type="monotone" dataKey="eggs" name="Eggs Sold" stroke="#8B4513" strokeWidth={2} dot={{ fill: '#8B4513', r: 3 }} activeDot={{ r: 6 }} yAxisId="left" />
+                      <Line type="monotone" dataKey="revenue" name="Revenue" stroke="#2E7D32" strokeWidth={2} dot={{ fill: '#2E7D32', r: 3 }} activeDot={{ r: 6 }} yAxisId="right" />
                     </LineChart>
                   </ResponsiveContainer>
                 ) : (

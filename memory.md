@@ -642,6 +642,11 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - **Fix:** Replaced `.limit(100000)` with chunked pagination using `.range()` in a loop, fetching 1000 rows at a time until all rows in the range are returned
 - **Files changed:** `src/lib/analytics.js`
 
+### Analytics Trend Revenue Line (July 17, 2026)
+- **Change:** Added `total_amount` to `fetchSalesTrend` select and updated trend processing to track daily revenue alongside egg count
+- **Change:** Added revenue line to trend chart (egg-only and combined views) with dual Y-axis (left: eggs, right: revenue)
+- **Files changed:** `src/lib/analytics.js`, `src/components/Analytics.jsx`
+
 ## Recent Changes (Session Log)
 
 ### Supplier Delivery Tracking & Integration (June 2026)

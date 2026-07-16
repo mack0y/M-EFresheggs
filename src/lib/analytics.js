@@ -37,7 +37,7 @@ export async function fetchSalesTrend(days = 30, endDate) {
 
   let query = supabase
     .from('sales')
-    .select('sale_date, quantity, unit, tray_size')
+    .select('sale_date, quantity, unit, tray_size, total_amount')
     .gte('sale_date', getLocalDate(startDate))
     .order('sale_date', { ascending: true });
 
