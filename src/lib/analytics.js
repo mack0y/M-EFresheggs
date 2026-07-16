@@ -39,7 +39,8 @@ export async function fetchSalesTrend(days = 30, endDate) {
     .from('sales')
     .select('sale_date, quantity, unit, tray_size')
     .gte('sale_date', getLocalDate(startDate))
-    .order('sale_date', { ascending: true });
+    .order('sale_date', { ascending: true })
+    .limit(100000);
 
   if (endDate) query = query.lte('sale_date', endDate);
 
@@ -86,7 +87,8 @@ export async function fetchProductSalesTrend(days = 30, endDate) {
     .from('product_sales')
     .select('sale_date, quantity, total_amount')
     .gte('sale_date', getLocalDate(startDate))
-    .order('sale_date', { ascending: true });
+    .order('sale_date', { ascending: true })
+    .limit(100000);
 
   if (endDate) query = query.lte('sale_date', endDate);
 

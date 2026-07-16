@@ -632,6 +632,11 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - **Fix:** Added optional `endDate` parameter to `fetchSalesTrend()` and `fetchProductSalesTrend()` in `src/lib/analytics.js` for explicit upper date bound control
 - **Files changed:** `src/lib/analytics.js`
 
+### Analytics Trend 1000-Row Limit Fix (July 14, 2026)
+- **Bug:** supabase-js v2 defaults to 1000-row limit on `.select()`. `fetchSalesTrend()` and `fetchProductSalesTrend()` sorted ascending by date, so the oldest 1000 rows filled the limit and newer dates were silently dropped — making the trend chart appear to stop a week+ behind
+- **Fix:** Added `.limit(100000)` to both trend queries so all rows in the date range are returned
+- **Files changed:** `src/lib/analytics.js`
+
 ## Recent Changes (Session Log)
 
 ### Supplier Delivery Tracking & Integration (June 2026)
