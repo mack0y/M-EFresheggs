@@ -39,14 +39,22 @@ export async function fetchSalesTrend(days = 30, endDate) {
     .from('sales')
     .select('sale_date, quantity, unit, tray_size')
     .gte('sale_date', getLocalDate(startDate))
-    .order('sale_date', { ascending: true })
-    .limit(100000);
+    .order('sale_date', { ascending: true });
 
   if (endDate) query = query.lte('sale_date', endDate);
 
-  const { data, error } = await query;
-  if (error) throw error;
-  return data;
+  const pageSize = 1000;
+  let allData = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await query.range(from, from + pageSize - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    allData = allData.concat(data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  return allData;
 }
 
 // ===== Product Analytics =====
@@ -87,14 +95,22 @@ export async function fetchProductSalesTrend(days = 30, endDate) {
     .from('product_sales')
     .select('sale_date, quantity, total_amount')
     .gte('sale_date', getLocalDate(startDate))
-    .order('sale_date', { ascending: true })
-    .limit(100000);
+    .order('sale_date', { ascending: true });
 
   if (endDate) query = query.lte('sale_date', endDate);
 
-  const { data, error } = await query;
-  if (error) throw error;
-  return data || [];
+  const pageSize = 1000;
+  let allData = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await query.range(from, from + pageSize - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    allData = allData.concat(data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  return allData || [];
 }
 
 // ===== Cost & Margin Helpers =====

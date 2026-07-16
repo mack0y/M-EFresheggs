@@ -637,6 +637,11 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - **Fix:** Added `.limit(100000)` to both trend queries so all rows in the date range are returned
 - **Files changed:** `src/lib/analytics.js`
 
+### Analytics Trend PostgREST Pagination Fix (July 17, 2026)
+- **Bug:** Supabase PostgREST server caps responses at 1000 rows regardless of client `.limit()`. The trend query with ascending date order only returned the oldest 1000 records, cutting off recent data
+- **Fix:** Replaced `.limit(100000)` with chunked pagination using `.range()` in a loop, fetching 1000 rows at a time until all rows in the range are returned
+- **Files changed:** `src/lib/analytics.js`
+
 ## Recent Changes (Session Log)
 
 ### Supplier Delivery Tracking & Integration (June 2026)
