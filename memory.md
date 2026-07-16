@@ -628,6 +628,10 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - **Fix:** Changed `partialAmountInput` state from `number` to `string`, removed `.toFixed(2)` from the input `value`, and parse to number only on save via `parseFloat(partialAmountInput) || 0`
 - **Files changed:** `src/components/Deliveries.jsx`, `src/components/ProductDeliveries.jsx`
 
+### Analytics Trend Date Range Fix (July 14, 2026)
+- **Fix:** Added optional `endDate` parameter to `fetchSalesTrend()` and `fetchProductSalesTrend()` in `src/lib/analytics.js` for explicit upper date bound control
+- **Files changed:** `src/lib/analytics.js`
+
 ## Recent Changes (Session Log)
 
 ### Supplier Delivery Tracking & Integration (June 2026)

@@ -31,15 +31,19 @@ export async function fetchSalesByHour(startDate, endDate) {
   return data;
 }
 
-export async function fetchSalesTrend(days = 30) {
+export async function fetchSalesTrend(days = 30, endDate) {
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('sales')
     .select('sale_date, quantity, unit, tray_size')
     .gte('sale_date', getLocalDate(startDate))
     .order('sale_date', { ascending: true });
+
+  if (endDate) query = query.lte('sale_date', endDate);
+
+  const { data, error } = await query;
   if (error) throw error;
   return data;
 }
@@ -74,15 +78,19 @@ export async function fetchProductSalesByHour(startDate, endDate) {
   return data || [];
 }
 
-export async function fetchProductSalesTrend(days = 30) {
+export async function fetchProductSalesTrend(days = 30, endDate) {
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('product_sales')
     .select('sale_date, quantity, total_amount')
     .gte('sale_date', getLocalDate(startDate))
     .order('sale_date', { ascending: true });
+
+  if (endDate) query = query.lte('sale_date', endDate);
+
+  const { data, error } = await query;
   if (error) throw error;
   return data || [];
 }
