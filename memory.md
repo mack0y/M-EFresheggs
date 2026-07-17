@@ -647,6 +647,13 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - **Change:** Added revenue line to trend chart (egg-only and combined views) with dual Y-axis (left: eggs, right: revenue)
 - **Files changed:** `src/lib/analytics.js`, `src/components/Analytics.jsx`
 
+### Batch Payment Amount Distribution Fix (July 17, 2026)
+- **Bug:** When updating payment status for a batch delivery, every item received the same `amount_paid` value (e.g., 2 items at $50 each, entering $30 partial, set each to $30 — total $60 instead of $30)
+- **Fix:** Amount is now distributed proportionally across items: each item gets `(item_cost / total_cost) × entered_amount`. For "paid" status, each item gets its own `total_cost`. For "unpaid", amounts set to 0.
+- **Bug:** "Remaining: ₱X" always showed even when batch was fully paid
+- **Fix:** Remaining column now hidden when batch status is "paid"
+- **Files changed:** `src/components/Deliveries.jsx`, `src/components/ProductDeliveries.jsx`
+
 ## Recent Changes (Session Log)
 
 ### Supplier Delivery Tracking & Integration (June 2026)
