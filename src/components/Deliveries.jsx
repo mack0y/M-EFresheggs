@@ -257,19 +257,26 @@ export default function Deliveries() {
     }
   }
 
-  async function handlePaymentUpdate(id, status, amount = 0, totalCost = 0) {
+  async function handleBatchPaymentUpdate(batchItems, status, totalPaid) {
     try {
-      await updateDeliveryPayment(id, status, parseFloat(amount || 0));
-      
-      let message = `Payment marked as ${status}`;
-      if (status === 'partial' && parseFloat(amount) > 0) {
-        const remaining = totalCost - parseFloat(amount);
-        message += ` — ₱${remaining.toFixed(2)} remaining`;
-      }
-      
-      toast(message);
+      const totalCost = batchTotalCost(batchItems);
+      const updates = batchItems.map(item => {
+        let itemAmount;
+        if (status === 'paid') {
+          itemAmount = parseFloat(item.total_cost || 0);
+        } else if (status === 'unpaid') {
+          itemAmount = 0;
+        } else {
+          itemAmount = totalCost > 0
+            ? Math.round((parseFloat(totalPaid) * parseFloat(item.total_cost) / totalCost) * 100) / 100
+            : 0;
+        }
+        return updateDeliveryPayment(item.id, status, itemAmount);
+      });
+      await Promise.all(updates);
+      toast(`Payment marked as ${status}`);
       setEditingPayment(null);
-      setPartialAmountInput(0);
+      setPartialAmountInput("0");
       loadData();
     } catch (err) {
       console.error('Update payment error:', err);
@@ -668,9 +675,11 @@ export default function Deliveries() {
                   </span>
                   <span className="delivery-qty">{batchTotalQty(batch.items)} trays</span>
                     <span className="delivery-cost">{formatPeso(batchTotalCost(batch.items))}</span>
-                    <span className="delivery-remaining">
-                      Remaining: {formatPeso(batchTotalCost(batch.items) - batchAmountPaid(batch.items))}
-                    </span>
+                    {bpStatus !== 'paid' && (
+                      <span className="delivery-remaining">
+                        Remaining: {formatPeso(batchTotalCost(batch.items) - batchAmountPaid(batch.items))}
+                      </span>
+                    )}
                   <span className="delivery-payment">
                     {batch.isSingle ? (
                       <span
@@ -786,15 +795,11 @@ export default function Deliveries() {
                     <button 
                       className="btn btn-primary btn-sm" 
                       style={{ marginTop: '0.5rem' }}
-                      onClick={() => {
-                        const items = batch.items;
-                        Promise.all(items.map(item => handlePaymentUpdate(
-                          item.id, 
-                          paymentStatusInput, 
-                          parseFloat(partialAmountInput) || 0, 
-                          batchTotalCost(batch.items)
-                        )));
-                      }}
+                      onClick={() => handleBatchPaymentUpdate(
+                        batch.items,
+                        paymentStatusInput,
+                        parseFloat(partialAmountInput) || 0
+                      )}
                     >
                       Update Payment
                     </button>

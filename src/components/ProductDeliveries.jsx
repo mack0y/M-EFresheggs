@@ -160,7 +160,7 @@ export default function ProductDeliveries() {
       if (status === 'partial' && parseFloat(amount) > 0) msg += ` — ₱${(parseFloat(amount)).toFixed(2)} paid`;
       toast(msg);
       setEditingPayment(null);
-      setPartialAmountInput(0);
+      setPartialAmountInput("0");
       loadData();
     } catch (err) {
       console.error('Payment update error:', err);
@@ -382,7 +382,7 @@ export default function ProductDeliveries() {
                   </span>
                   <span className="num">
                     <div className="delivery-actions">
-                      <button className="btn-icon" onClick={() => { setEditingPayment(editingPayment === d.id ? null : d.id); setPaymentStatusInput(d.payment_status || 'unpaid'); setPartialAmountInput(parseFloat(d.amount_paid || 0)); }} title="Update payment">
+                      <button className="btn-icon" onClick={() => { setEditingPayment(editingPayment === d.id ? null : d.id); setPaymentStatusInput(d.payment_status || 'unpaid'); setPartialAmountInput(parseFloat(d.amount_paid || 0).toString()); }} title="Update payment">
                         <Edit3 size={14} />
                       </button>
                       <button className="btn-icon btn-icon-danger" onClick={() => setDeleteTarget(d)} title="Delete">
