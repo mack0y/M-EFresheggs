@@ -259,6 +259,7 @@ export default function Deliveries() {
 
   async function handleBatchPaymentUpdate(batchItems, status, totalPaid) {
     try {
+      const currentPaid = batchAmountPaid(batchItems);
       const totalCost = batchTotalCost(batchItems);
       const updates = batchItems.map(item => {
         let itemAmount;
@@ -267,9 +268,21 @@ export default function Deliveries() {
         } else if (status === 'unpaid') {
           itemAmount = 0;
         } else {
-          itemAmount = totalCost > 0
-            ? Math.round((parseFloat(totalPaid) * parseFloat(item.total_cost) / totalCost) * 100) / 100
-            : 0;
+          const itemCost = parseFloat(item.total_cost || 0);
+          const existing = parseFloat(item.amount_paid || 0);
+          if (existing >= itemCost) {
+            itemAmount = itemCost;
+          } else {
+            const delta = Math.max(0, totalPaid - currentPaid);
+            const unpaidCost = batchItems.reduce(
+              (s, i) => s + Math.max(0, parseFloat(i.total_cost || 0) - parseFloat(i.amount_paid || 0)),
+              0
+            );
+            const thisRemaining = itemCost - existing;
+            const share = unpaidCost > 0 ? thisRemaining / unpaidCost : 0;
+            itemAmount = Math.round((existing + delta * share) * 100) / 100;
+            if (itemAmount > itemCost) itemAmount = itemCost;
+          }
         }
         return updateDeliveryPayment(item.id, status, itemAmount);
       });
@@ -333,7 +346,7 @@ export default function Deliveries() {
   function batchPaymentStatus(items) {
     const statuses = items.map(d => d.payment_status);
     if (statuses.every(s => s === 'paid')) return 'paid';
-    if (statuses.some(s => s === 'paid')) return 'partial';
+    if (statuses.some(s => s === 'paid' || s === 'partial')) return 'partial';
     return 'unpaid';
   }
 
@@ -703,6 +716,13 @@ export default function Deliveries() {
                         className="btn-icon"
                         onClick={(e) => {
                           e.stopPropagation();
+                          const bStatus = batchPaymentStatus(batch.items);
+                          setPaymentStatusInput(bStatus);
+                          setPartialAmountInput(
+                            bStatus === 'paid'
+                              ? batchTotalCost(batch.items).toFixed(2)
+                              : batchAmountPaid(batch.items).toString()
+                          );
                           setEditingPayment(editingPayment === batch.batchId ? null : batch.batchId);
                         }}
                         title="Update payment"
@@ -761,6 +781,8 @@ export default function Deliveries() {
                             setPartialAmountInput(batchTotalCost(batch.items).toFixed(2));
                           } else if (status === 'partial') {
                             if (parseFloat(partialAmountInput) === 0) setPartialAmountInput("0");
+                          } else {
+                            setPartialAmountInput("0");
                           }
                         }}
                       >

@@ -398,6 +398,7 @@ export default function ProductDeliveries() {
                       <button key={status} className={`delivery-payment-option ${paymentStatusInput === status ? 'active' : ''}`} onClick={() => {
                         setPaymentStatusInput(status);
                         if (status === 'paid') setPartialAmountInput(parseFloat(d.total_cost || 0).toFixed(2));
+                        if (status === 'unpaid') setPartialAmountInput("0");
                       }}>
                         {status === 'paid' && <CheckCircle size={14} />}
                         {status === 'partial' && <Clock size={14} />}
