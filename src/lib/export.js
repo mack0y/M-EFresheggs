@@ -3,7 +3,7 @@ import { fetchInventory } from './inventory';
 import { fetchPriceSettings } from './pricing';
 import { fetchProducts } from './products';
 
-export const APP_VERSION = import.meta.env.VITE_APP_VERSION || '1.2.0';
+export const APP_VERSION = import.meta.env.VITE_APP_VERSION || '1.3.0';
 
 /** Calculate inventory monetary value — eggs, products, and combined total */
 export async function fetchInventoryValue() {

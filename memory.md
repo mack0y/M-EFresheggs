@@ -1285,6 +1285,9 @@ Added comprehensive documentation of recent SalesLog.jsx cleanup and other compo
 ### Sidebar Update
 - **`Layout.jsx`** — Added "New Product Sale" link to the SALES nav section with ShoppingCart icon
 
+### APP_VERSION Bumped to 1.3.0
+- Updated from 1.2.0 to 1.3.0 for the comprehensive bug fix & lint cleanup release
+
 ---
 
 ## Session: Comprehensive Bug Fixes & Lint Cleanup (July 19, 2026)
