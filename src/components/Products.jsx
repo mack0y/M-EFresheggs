@@ -42,6 +42,7 @@ export default function Products() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
   const [pricingMode, setPricingMode] = useState('markup');
+  const [markupInput, setMarkupInput] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -69,10 +70,13 @@ export default function Products() {
   function openAdd() {
     setForm({ ...emptyForm });
     setPricingMode('markup');
+    setMarkupInput('');
     setShowForm(true);
   }
 
   function openEdit(p) {
+    const cost = p.cost || '';
+    const price = p.price || '';
     setForm({
       id: p.id,
       name: p.name || '',
@@ -80,11 +84,12 @@ export default function Products() {
       unitOfSale: p.unit || 'pcs',
       purchaseUnit: p.purchase_unit || 'pcs',
       qtyPerPurchase: p.purchase_qty_per_unit || 1,
-      costPrice: p.cost || '',
-      sellingPrice: p.price || '',
+      costPrice: cost,
+      sellingPrice: price,
       quantityOnHand: p.quantity_on_hand || 0,
     });
     setPricingMode(p.markup_percentage ? 'markup' : 'direct');
+    setMarkupInput(p.markup_percentage ? String(p.markup_percentage) : '');
     setShowForm(true);
   }
 
@@ -109,6 +114,12 @@ export default function Products() {
       }
       return updated;
     });
+    // Recompute markup from current selling price
+    const price = parseFloat(form.sellingPrice) || 0;
+    if (pricingMode === 'markup' && cost > 0 && price > 0) {
+      const m = ((price - cost) / cost) * 100;
+      setMarkupInput(m > 0 ? m.toFixed(1) : '');
+    }
   }
 
   function handleSellingPriceChange(val) {
@@ -120,16 +131,22 @@ export default function Products() {
       }
       return updated;
     });
+    // Recompute markup from current cost price
+    const cost = parseFloat(form.costPrice) || 0;
+    const price = parseFloat(val) || 0;
+    if (pricingMode === 'markup' && cost > 0 && price > 0) {
+      const m = ((price - cost) / cost) * 100;
+      setMarkupInput(m > 0 ? m.toFixed(1) : '');
+    }
   }
 
   function handleMarkupChange(val) {
-    setForm(prev => {
-      const updated = { ...prev, sellingPrice: prev.sellingPrice };
-      if (prev.costPrice > 0 && val) {
-        updated.sellingPrice = calculateSellingPrice(parseFloat(prev.costPrice), parseFloat(val));
-      }
-      return updated;
-    });
+    setMarkupInput(val);
+    const cost = parseFloat(form.costPrice) || 0;
+    if (cost > 0 && val) {
+      const newPrice = calculateSellingPrice(cost, parseFloat(val));
+      setForm(prev => ({ ...prev, sellingPrice: String(newPrice) }));
+    }
   }
 
   async function handleSubmit(e) {
@@ -320,7 +337,7 @@ export default function Products() {
                 {pricingMode === 'markup' ? (
                   <div className="input-group">
                     <label htmlFor="prod-markup">Markup %</label>
-                    <input id="prod-markup" type="number" min="0" step="0.1" className="input" placeholder="e.g. 30" value={form.sellingPrice && form.costPrice ? (((parseFloat(form.sellingPrice) - parseFloat(form.costPrice)) / parseFloat(form.costPrice)) * 100).toFixed(1) : ''} onChange={e => handleMarkupChange(e.target.value)} />
+                    <input id="prod-markup" type="number" min="0" step="0.1" className="input" placeholder="e.g. 30" value={markupInput} onChange={e => handleMarkupChange(e.target.value)} />
                   </div>
                 ) : null}
                 <div className="input-group">
