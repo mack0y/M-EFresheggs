@@ -260,7 +260,6 @@ export default function Deliveries() {
   async function handleBatchPaymentUpdate(batchItems, status, totalPaid) {
     try {
       const currentPaid = batchAmountPaid(batchItems);
-      const totalCost = batchTotalCost(batchItems);
       const updates = batchItems.map(item => {
         let itemAmount;
         if (status === 'paid') {
@@ -321,6 +320,7 @@ export default function Deliveries() {
 
   const totalCostAll = deliveries.reduce((sum, d) => sum + parseFloat(d.total_cost || 0), 0);
   const amountPaidTotal = deliveries.reduce((sum, d) => sum + parseFloat(d.amount_paid || 0), 0);
+  const totalUnpaid = totalCostAll - amountPaidTotal;
   const todayDeliveries = deliveries.filter(d => d.delivery_date === today);
   const todayCost = todayDeliveries.reduce((sum, d) => sum + parseFloat(d.total_cost || 0), 0);
 
@@ -332,7 +332,6 @@ export default function Deliveries() {
       paid: deliveries.filter(d => d.payment_status === status).reduce((sum, d) => sum + parseFloat(d.amount_paid || 0), 0),
     };
   });
-
 
 
   function batchTotalQty(items) {
@@ -402,7 +401,7 @@ export default function Deliveries() {
         <div className="delivery-stat-card">
           <Clock size={18} />
           <div>
-            <span className="delivery-stat-value">{formatPeso(totalCostAll - amountPaidTotal)}</span>
+            <span className="delivery-stat-value">{formatPeso(totalUnpaid)}</span>
             <span className="delivery-stat-label">remaining unpaid</span>
           </div>
         </div>

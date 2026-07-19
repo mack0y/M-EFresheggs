@@ -7,7 +7,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { deleteProductSale, deleteProductSales, recordProductSale, fetchProductSales, fetchProducts, formatPeso, getLocalDate } from '../lib/api';
+import { deleteProductSale, deleteProductSales, recordProductSale, fetchProductSales, formatPeso, getLocalDate } from '../lib/api';
 import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
@@ -38,7 +38,6 @@ function groupByDate(salesList, todayStr) {
 
 export default function ProductSales() {
   const navigate = useNavigate();
-  const [products, setProducts] = useState([]);
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -58,12 +57,8 @@ export default function ProductSales() {
     try {
       setLoading(true);
       setError(null);
-      const [salesData, productData] = await Promise.all([
-        fetchProductSales({ limit: 500, offset: 0, startDate, endDate }),
-        fetchProducts(),
-      ]);
+      const salesData = await fetchProductSales({ limit: 500, offset: 0, startDate, endDate });
       setSales(salesData || []);
-      setProducts(productData || []);
     } catch (err) {
       console.error('Product sales load error:', err);
       setError(err);

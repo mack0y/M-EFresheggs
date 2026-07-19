@@ -1,15 +1,21 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "openai/qwen3.6:35b-a3b",
+  "model": "z-ai/glm-5.2-free",
   "provider": {
     "openai": {
       "options": {
-        "baseURL": "https://matw6oa85qb1ms-11434.proxy.runpod.net/v1",
-        "apiKey": "ollama"
+        "baseURL": "https://api.tokenrouter.com/v1",
+        "apiKey": "sk-ZYrbe46TSm45Bb84YVhssKnVu3HL1YJ8th7qyp5jIgeQeX7r"
       },
       "models": {
-        "qwen3.6:35b-a3b": {
-          "reasoning": true
+        "z-ai/glm-5.2-free": {
+          "name": "z-ai/glm-5.2-free",
+          "tool_call": true,
+          "reasoning": true,
+          "limit": {
+            "context": 128000,
+            "output": 64000
+          }
         }
       }
     }

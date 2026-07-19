@@ -1,8 +1,6 @@
 const logger = {
   debug: (...args) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.debug('[DEBUG]', ...args);
-    }
+    console.debug('[DEBUG]', ...args);
   },
   info: (...args) => {
     console.info('[INFO]', ...args);

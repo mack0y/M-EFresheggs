@@ -40,13 +40,18 @@ export default function NewProductSale() {
     }
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    const id = setTimeout(() => loadData(), 0);
+    return () => clearTimeout(id);
+  }, [loadData]);
 
-  const filteredProducts = useMemo(() => products
-    .filter(p => parseFloat(p.quantity_on_hand || 0) > 0)
-    .filter(p => !productSearch || p.name.toLowerCase().includes(productSearch.toLowerCase())),
-    [products, productSearch]
-  );
+  const filteredProducts = useMemo(() => {
+    let result = products.filter(p => parseFloat(p.quantity_on_hand || 0) > 0);
+    if (productSearch) {
+      result = result.filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase()));
+    }
+    return result;
+  }, [products, productSearch]);
 
   async function handleAddProduct() {
     const pId = parseInt(productId, 10);
@@ -241,8 +246,6 @@ export default function NewProductSale() {
                             disabled={!qty || parseFloat(qty) <= 0}
                             onClick={e => {
                               e.stopPropagation();
-                              setProductId(p.id);
-                              const prevId = productId;
                               setProductId(p.id);
                               setTimeout(() => handleAddProduct(), 0);
                             }}

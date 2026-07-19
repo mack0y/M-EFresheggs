@@ -146,6 +146,8 @@ export default function ExpensesFunds() {
     setDateStart(start);
     setDateEnd(end);
     setShowDatePicker(false);
+    setSearchQuery('');
+    clearSelection();
     loadExpenses(start, end);
   }
 
@@ -500,6 +502,9 @@ export default function ExpensesFunds() {
               onClick={() => {
                 setDateStart(today);
                 setDateEnd(today);
+                setShowDatePicker(false);
+                setSearchQuery('');
+                clearSelection();
                 loadExpenses(today, today);
               }}
             >

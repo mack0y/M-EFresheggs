@@ -272,8 +272,6 @@ export default function Reports() {
 
   const productRevenue = (productReport || []).reduce((sum, s) => sum + parseFloat(s.total_amount || 0), 0);
   const productQty = (productReport || []).reduce((sum, s) => sum + parseFloat(s.quantity || 0), 0);
-  const productSalesCount = (productReport || []).length;
-
   const totalDeliveryCost = reportDeliveries.reduce(
     (sum, d) => sum + parseFloat(d.total_cost || 0),
     0

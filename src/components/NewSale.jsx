@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingCart, ArrowLeft, Egg, Check, Search, Trash2, Plus, Minus, User } from 'lucide-react';
+import { ShoppingCart, ArrowLeft, Egg, Check, Search, Trash2, Plus, User } from 'lucide-react';
 import { useCart } from './CartContext';
 import { fetchInventory, fetchPriceSettings, fetchProducts, fetchCustomers, recordTransaction, formatPeso, formatInventory, TRAY_SIZE } from '../lib/api';
 import { toast } from '../lib/toastFn';
@@ -54,7 +54,10 @@ export default function NewSale() {
     }
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    const id = setTimeout(() => loadData(), 0);
+    return () => clearTimeout(id);
+  }, [loadData]);
 
   // === Egg helpers ===
   function getEggPriceDisplay() {

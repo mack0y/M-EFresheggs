@@ -1,30 +1,21 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   ShoppingCart,
-  X,
   AlertTriangle,
   RefreshCw,
   ClipboardCheck,
-  Egg,
   TrendingUp,
   Trash2,
-  Check,
 } from 'lucide-react';
-import { fetchSales, recordSale, deleteSale, deleteSales, fetchInventory, fetchPriceSettings, getEggCount, formatPeso, formatInventory, getLocalDate, TRAY_SIZE } from '../lib/api';
+import { fetchSales, fetchInventory, recordSale, deleteSale, deleteSales, getEggCount, formatPeso, formatInventory, getLocalDate, TRAY_SIZE } from '../lib/api';
 
 import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
 
-// Module-level ref to store sales-to-restore data for Undo without stale closures
-
-
-const QUICK_QTY = { piece: [1, 5, 10, 30], tray: [1, 2, 5, 10] };
-
 export default function SalesLog() {
   const [sales, setSales] = useState([]);
   const [inventory, setInventory] = useState([]);
-  const [priceSettings, setPriceSettings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const today = getLocalDate();
@@ -50,16 +41,14 @@ export default function SalesLog() {
       setLoading(true);
       setError(null);
       const limit = filter === 'today' || (startDate && endDate) ? 500 : 100;
-      const [salesData, invData, priceData] = await Promise.all([
+      const [salesData, invData] = await Promise.all([
         fetchSales({ limit, offset: 0, startDate, endDate }),
         fetchInventory(),
-        fetchPriceSettings(),
       ]);
       setSales(salesData || []);
+      setInventory(invData || []);
       setHasMore(salesData && salesData.length === limit);
       setPage(0);
-      setInventory(invData || []);
-      setPriceSettings(priceData || []);
     } catch (err) {
       console.error('Sales load error:', err);
       setError(err);
@@ -153,87 +142,6 @@ export default function SalesLog() {
   function sortIcon(field) {
     if (sortField !== field) return ' ↕';
     return sortDir === 'asc' ? ' ▲' : ' ▼';
-  }
-
-  function calculateTotalAmount() {
-    if (!form.eggSizeId || !form.quantity) return null;
-    const qty = parseInt(form.quantity, 10);
-    if (isNaN(qty) || qty <= 0) return null;
-    const eggSizeId = parseInt(form.eggSizeId, 10);
-    const price = priceSettings.find(p => p.egg_size_id === eggSizeId);
-    if (!price) return null;
-    const perUnitPrice = form.unit === 'tray'
-      ? parseFloat(price.price_per_tray || 0)
-      : parseFloat(price.price_per_piece || 0);
-    const total = qty * perUnitPrice;
-    return total > 0 ? total : null;
-  }
-
-  function getFormEggCount() {
-    if (!form.eggSizeId || !form.quantity) return null;
-    const qty = parseInt(form.quantity, 10);
-    if (isNaN(qty) || qty <= 0) return null;
-    if (form.unit === 'tray') {
-      return qty * TRAY_SIZE;
-    }
-    return qty;
-  }
-
-  function getFormPriceDisplay() {
-    if (!form.eggSizeId) return null;
-    const eggSizeId = parseInt(form.eggSizeId, 10);
-    const price = priceSettings.find(p => p.egg_size_id === eggSizeId);
-    if (!price) return null;
-    const pp = parseFloat(price.price_per_piece || 0);
-    const pt = parseFloat(price.price_per_tray || 0);
-    return `${pp > 0 ? formatPeso(pp) + '/pc' : ''}${pp > 0 && pt > 0 ? ' | ' : ''}${pt > 0 ? formatPeso(pt) + '/tray' : ''}`;
-  }
-
-  function addQuickQty(delta) {
-    const current = parseInt(form.quantity, 10) || 0;
-    setForm({ ...form, quantity: String(current + delta) });
-  }
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    if (!form.eggSizeId || !form.quantity) {
-      toast('Please fill in all fields', 'error');
-      return;
-    }
-    const qty = parseInt(form.quantity, 10);
-    if (isNaN(qty) || qty <= 0) {
-      toast('Enter a valid quantity', 'error');
-      return;
-    }
-    const eggSizeId = parseInt(form.eggSizeId, 10);
-    const ts = form.unit === 'tray' ? TRAY_SIZE : 1;
-    const totalEggs = form.unit === 'tray' ? qty * ts : qty;
-    const invItem = inventory.find(i => i.egg_size_id === eggSizeId);
-    const stock = invItem?.quantity_on_hand || 0;
-    if (totalEggs > stock) {
-      toast(`Not enough stock — only ${stock} eggs available`, 'error');
-      return;
-    }
-    setConfirmSale({
-      eggSizeId, quantity: qty, unit: form.unit,
-      traySize: form.unit === 'tray' ? TRAY_SIZE : null,
-    });
-  }
-
-  async function executeSale(saleData) {
-    setSubmitting(true);
-    try {
-      await recordSale(saleData);
-      toast('Sale recorded!');
-      setForm({ eggSizeId: '', quantity: '', unit: 'piece' });
-      setShowForm(false);
-      loadData();
-    } catch (err) {
-      console.error('Sale record error:', err);
-      toast('Failed to record sale', 'error');
-    } finally {
-      setSubmitting(false);
-    }
   }
 
   function changeFilter(key) {
@@ -564,7 +472,7 @@ export default function SalesLog() {
         confirmLabel="Record Sale"
         variant="primary"
         icon={ClipboardCheck}
-        onConfirm={() => { const d = confirmSale; setConfirmSale(null); executeSale(d); }}
+        onConfirm={() => { const d = confirmSale; setConfirmSale(null); recordSale(d); }}
         onCancel={() => setConfirmSale(null)}
       />
 

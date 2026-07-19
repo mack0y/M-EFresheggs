@@ -10,7 +10,7 @@ import {
   Egg,
   ChevronDown,
 } from 'lucide-react';
-import { fetchCostsPerEgg, fetchPriceSettings, fetchSalesReport, fetchExpenses, formatPeso, EGG_SIZES, TRAY_SIZE, getLocalDate, fetchProductSales } from '../lib/api';
+import { fetchCostsPerEgg, fetchCostsPerProduct, fetchPriceSettings, fetchSalesReport, fetchExpenses, formatPeso, EGG_SIZES, TRAY_SIZE, getLocalDate, fetchProductSales } from '../lib/api';
 import { getUserFriendlyError } from '../lib/errors';
 
 const PERIODS = [
@@ -55,6 +55,7 @@ export default function Profits() {
   const [sales, setSales] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [costsPerEgg, setCostsPerEgg] = useState({});
+  const [costsPerProduct, setCostsPerProduct] = useState({});
   const [priceSettings, setPriceSettings] = useState([]);
   const [expandedSize, setExpandedSize] = useState(null);
   const [viewFilter, setViewFilter] = useState('all'); // 'all' | 'eggs' | 'products'
@@ -83,9 +84,10 @@ export default function Profits() {
       setLoading(true);
       setError(null);
 
-      const [priceData, costData, salesData, expensesData, prodSalesData] = await Promise.all([
+      const [priceData, costData, productCostData, salesData, expensesData, prodSalesData] = await Promise.all([
         fetchPriceSettings(),
         fetchCostsPerEgg(),
+        fetchCostsPerProduct(),
         fetchSalesReport({ startDate, endDate, startTime: '00:00', endTime: '23:59' }),
         fetchExpenses({ startDate, endDate }),
         fetchProductSales({ startDate, endDate }),
@@ -93,6 +95,7 @@ export default function Profits() {
 
       setPriceSettings(priceData || []);
       setCostsPerEgg(costData || {});
+      setCostsPerProduct(productCostData || {});
       setSales(salesData || []);
       setExpenses(expensesData || []);
       setProductSales(prodSalesData || []);
@@ -164,18 +167,25 @@ export default function Profits() {
       })
       .filter(Boolean);
 
-    const totalRevenue = rows.reduce((s, r) => s + r.revenue, 0);
-    const totalCOGS = rows.reduce((s, r) => s + r.cogs, 0);
+    // Include product sales in revenue and COGS
+    const productRevenue = productSales.reduce((s, ps) => s + parseFloat(ps.total_amount || 0), 0);
+    const productCOGS = productSales.reduce((s, ps) => {
+      const costPerUnit = costsPerProduct[ps.product_id] || 0;
+      return s + costPerUnit * parseFloat(ps.quantity || 0);
+    }, 0);
+
+    const totalRevenue = rows.reduce((s, r) => s + r.revenue, 0) + productRevenue;
+    const totalCOGS = rows.reduce((s, r) => s + r.cogs, 0) + productCOGS;
     const totalExpensesAmount = expenses.reduce((s, e) => s + parseFloat(e.amount || 0), 0);
     const grossProfit = Math.round((totalRevenue - totalCOGS) * 100) / 100;
     const revenueCut = Math.round(totalRevenue * 0.01 * 100) / 100;
     const adjustedRevenue = Math.round((totalRevenue - revenueCut) * 100) / 100;
-    // Net profit = adjusted revenue minus COGS only
+    // Net profit = adjusted revenue minus COGS
     // (expenses are paid from operational funds, funded by the 1% cut)
     const netProfit = Math.round((adjustedRevenue - totalCOGS) * 100) / 100;
     const totalEggs = rows.reduce((s, r) => s + r.totalEggs, 0);
 
-    return { rows, totalRevenue, totalCOGS, totalExpenses: totalExpensesAmount, grossProfit, revenueCut, adjustedRevenue, netProfit, salesCount: sales.length, totalEggs };
+    return { rows, totalRevenue, totalCOGS, totalExpenses: totalExpensesAmount, grossProfit, revenueCut, adjustedRevenue, netProfit, salesCount: sales.length, totalEggs, productRevenue, productCOGS };
   })();
 
   return (

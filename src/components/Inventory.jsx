@@ -40,7 +40,10 @@ export default function Inventory() {
     }
   }, []);
 
-  useEffect(() => { loadInventory(); }, [loadInventory]);
+  useEffect(() => {
+    const id = setTimeout(() => loadInventory(), 0);
+    return () => clearTimeout(id);
+  }, [loadInventory]);
 
   async function executeAdjust(item, delta) {
     setAdjusting(item.egg_size_id);
@@ -49,19 +52,30 @@ export default function Inventory() {
       const newQty = Math.max(0, currentQty + delta);
       await updateInventory(item.egg_size_id, newQty);
       const actualDelta = newQty - currentQty;
+      const name = item.egg_sizes?.name || 'Unknown';
       if (delta < 0 && actualDelta !== delta) {
-        toast(`Could only remove ${Math.abs(actualDelta)} from ${item.egg_sizes?.name} — all remaining stock cleared (was ${currentQty})`);
+        toast(`Could only remove ${Math.abs(actualDelta)} from ${name} — all remaining stock cleared (was ${currentQty})`);
       } else {
-        toast(
-          delta > 0
-            ? `Added ${delta} to ${item.egg_sizes?.name}`
-            : `Removed ${Math.abs(delta)} from ${item.egg_sizes?.name}`
-        );
+        const msg = delta > 0
+          ? `Added ${delta} to ${name}`
+          : `Removed ${Math.abs(delta)} from ${name}`;
+        toast(msg, 'success', {
+          label: 'Undo',
+          onClick: async () => {
+            try {
+              await updateInventory(item.egg_size_id, currentQty);
+              toast(`${name} restored to ${formatInventory(currentQty)}`);
+              loadInventory();
+            } catch {
+              toast('Failed to undo adjustment', 'error');
+            }
+          },
+        });
       }
       loadInventory();
     } catch (err) {
       console.error('Inventory adjust error:', err);
-      toast('Failed to adjust inventory', 'error');
+      toast(getUserFriendlyError(err), 'error');
     } finally {
       setAdjusting(null);
     }

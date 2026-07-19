@@ -1,6 +1,35 @@
-import { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import { createContext, useContext, useState, useCallback, useMemo, useRef, useEffect } from 'react';
 
 const CartContext = createContext(null);
+const CART_STORAGE_KEY = 'mefresh_cart';
+const CART_CUSTOMER_KEY = 'mefresh_cart_customer';
+
+/* eslint-disable react-refresh/only-export-components */
+
+function loadPersistedItems() {
+  try {
+    const raw = localStorage.getItem(CART_STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {
+    // Ignore localStorage read errors
+  }
+  return [];
+}
+
+function loadPersistedCustomer() {
+  try {
+    const raw = localStorage.getItem(CART_CUSTOMER_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {
+    // Ignore localStorage read errors
+  }
+  return null;
+}
+
+function getInitialCounter() {
+  const items = loadPersistedItems();
+  return items.reduce((max, i) => Math.max(max, i.cartId || 0), 0);
+}
 
 export function useCart() {
   const ctx = useContext(CartContext);
@@ -9,10 +38,31 @@ export function useCart() {
 }
 
 export function CartProvider({ children }) {
-  const [items, setItems] = useState([]);
-  const [customer, setCustomer] = useState(null);
+  const [items, setItems] = useState(loadPersistedItems);
+  const [customer, setCustomer] = useState(loadPersistedCustomer);
+  const cartIdCounter = useRef(getInitialCounter());
 
-  let cartIdCounter = 0;
+  // Persist items to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
+    } catch {
+      // Ignore localStorage write errors
+    }
+  }, [items]);
+
+  // Persist customer to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      if (customer) {
+        localStorage.setItem(CART_CUSTOMER_KEY, JSON.stringify(customer));
+      } else {
+        localStorage.removeItem(CART_CUSTOMER_KEY);
+      }
+    } catch {
+      // Ignore localStorage write errors
+    }
+  }, [customer]);
 
   const addItem = useCallback((newItem) => {
     setItems(prev => {
@@ -31,8 +81,8 @@ export function CartProvider({ children }) {
         };
         return updated;
       }
-      cartIdCounter += 1;
-      return [...prev, { ...newItem, cartId: cartIdCounter }];
+      cartIdCounter.current += 1;
+      return [...prev, { ...newItem, cartId: cartIdCounter.current }];
     });
   }, []);
 
@@ -57,6 +107,12 @@ export function CartProvider({ children }) {
   const clearCart = useCallback(() => {
     setItems([]);
     setCustomer(null);
+    try {
+      localStorage.removeItem(CART_STORAGE_KEY);
+      localStorage.removeItem(CART_CUSTOMER_KEY);
+    } catch {
+      // Ignore localStorage errors
+    }
   }, []);
 
   const getCartTotal = useCallback(() => {

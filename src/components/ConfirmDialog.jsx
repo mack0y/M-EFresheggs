@@ -2,11 +2,7 @@ import { useEffect, useRef } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import PropTypes from 'prop-types';
 
-function focusTrapRef(el) {
-  if (!el) return;
-  const focusable = el.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
-  if (focusable.length > 0) focusable[0].focus();
-}
+
 
 function handleKeyDown(e, onCancel, onConfirm) {
   if (e.key === 'Escape') { e.stopPropagation(); onCancel?.(); return; }

@@ -8,6 +8,11 @@ export function getLocalDate(date) {
   return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' }); // en-CA gives YYYY-MM-DD format
 }
 
+// ===== Environment =====
+export function isProduction() {
+  return typeof window !== 'undefined' && window.location?.hostname?.includes('localhost') ? false : true;
+}
+
 // ===== Egg Count Helpers =====
 
 /** Convert a sale record to total egg count */
