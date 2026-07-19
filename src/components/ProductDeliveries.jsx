@@ -153,11 +153,21 @@ export default function ProductDeliveries() {
     }
   }
 
-  async function handlePaymentUpdate(id, status, amount) {
+  async function handlePaymentUpdate(delivery, status, amount) {
     try {
-      await updateProductDeliveryPayment(id, status, parseFloat(amount || 0));
+      // Enforce consistency: 'paid' = full cost, 'unpaid' = 0
+      let finalAmount;
+      if (status === 'paid') {
+        finalAmount = parseFloat(delivery.total_cost || 0);
+      } else if (status === 'unpaid') {
+        finalAmount = 0;
+      } else {
+        finalAmount = Math.min(parseFloat(amount || 0), parseFloat(delivery.total_cost || 0));
+      }
+
+      await updateProductDeliveryPayment(delivery.id, status, finalAmount);
       let msg = `Payment marked as ${status}`;
-      if (status === 'partial' && parseFloat(amount) > 0) msg += ` — ₱${(parseFloat(amount)).toFixed(2)} paid`;
+      if (status === 'partial' && finalAmount > 0) msg += ` — ₱${finalAmount.toFixed(2)} paid`;
       toast(msg);
       setEditingPayment(null);
       setPartialAmountInput("0");
@@ -417,7 +427,7 @@ export default function ProductDeliveries() {
                         }
                       }} placeholder="0.00" />
                     </div>
-                    <button className="btn btn-primary btn-sm" style={{ marginTop: '0.5rem' }} onClick={() => handlePaymentUpdate(d.id, paymentStatusInput, parseFloat(partialAmountInput) || 0)}>
+                    <button className="btn btn-primary btn-sm" style={{ marginTop: '0.5rem' }} onClick={() => handlePaymentUpdate(d, paymentStatusInput, parseFloat(partialAmountInput) || 0)}>
                       Update Payment
                     </button>
                   </div>

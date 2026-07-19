@@ -259,32 +259,29 @@ export default function Deliveries() {
 
   async function handleBatchPaymentUpdate(batchItems, status, totalPaid) {
     try {
-      const currentPaid = batchAmountPaid(batchItems);
-      const updates = batchItems.map(item => {
+      const totalCost = batchItems.reduce((s, i) => s + parseFloat(i.total_cost || 0), 0);
+
+      // Pre-calculate proportional distribution for 'partial' status
+      let amounts;
+      if (status === 'partial') {
+        const paid = Math.min(totalPaid, totalCost);
+        amounts = distributeProportionally(paid, batchItems);
+      }
+
+      const updates = batchItems.map((item, idx) => {
         let itemAmount;
         if (status === 'paid') {
+          // Mark fully paid regardless of entered amount
           itemAmount = parseFloat(item.total_cost || 0);
         } else if (status === 'unpaid') {
           itemAmount = 0;
         } else {
-          const itemCost = parseFloat(item.total_cost || 0);
-          const existing = parseFloat(item.amount_paid || 0);
-          if (existing >= itemCost) {
-            itemAmount = itemCost;
-          } else {
-            const delta = Math.max(0, totalPaid - currentPaid);
-            const unpaidCost = batchItems.reduce(
-              (s, i) => s + Math.max(0, parseFloat(i.total_cost || 0) - parseFloat(i.amount_paid || 0)),
-              0
-            );
-            const thisRemaining = itemCost - existing;
-            const share = unpaidCost > 0 ? thisRemaining / unpaidCost : 0;
-            itemAmount = Math.round((existing + delta * share) * 100) / 100;
-            if (itemAmount > itemCost) itemAmount = itemCost;
-          }
+          // Distribute the entered amount proportionally from scratch
+          itemAmount = Math.min(amounts[idx], parseFloat(item.total_cost || 0));
         }
         return updateDeliveryPayment(item.id, status, itemAmount);
       });
+
       await Promise.all(updates);
       toast(`Payment marked as ${status}`);
       setEditingPayment(null);
@@ -340,6 +337,28 @@ export default function Deliveries() {
 
   function batchTotalCost(items) {
     return items.reduce((sum, d) => sum + parseFloat(d.total_cost || 0), 0);
+  }
+
+  /** Distribute totalAmount proportionally across items based on their cost share */
+  function distributeProportionally(totalAmount, items) {
+    const totalCost = items.reduce((s, i) => s + parseFloat(i.total_cost || 0), 0);
+    if (totalCost === 0) return items.map(() => 0);
+
+    // Floor each amount to 2 decimals
+    const amounts = items.map(item => {
+      const itemCost = parseFloat(item.total_cost || 0);
+      return Math.floor((totalAmount * (itemCost / totalCost)) * 100) / 100;
+    });
+
+    // Add rounding remainder to the largest item
+    const distributed = amounts.reduce((s, a) => s + a, 0);
+    const remainder = Math.round((totalAmount - distributed) * 100) / 100;
+    if (remainder !== 0 && amounts.length > 0) {
+      const maxIdx = amounts.reduce((idx, a, i, arr) => a > arr[idx] ? i : idx, 0);
+      amounts[maxIdx] = Math.round((amounts[maxIdx] + remainder) * 100) / 100;
+    }
+
+    return amounts;
   }
 
   function batchPaymentStatus(items) {

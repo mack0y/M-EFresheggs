@@ -1288,6 +1288,12 @@ Added comprehensive documentation of recent SalesLog.jsx cleanup and other compo
 ### APP_VERSION Bumped to 1.3.0
 - Updated from 1.2.0 to 1.3.0 for the comprehensive bug fix & lint cleanup release
 
+### Delivery Payment Distribution Fix (July 19, 2026)
+- **Bug:** `handleBatchPaymentUpdate()` used delta-based distribution that could only INCREASE payments (`Math.max(0, totalPaid - currentPaid)`). Entering a lower amount silently did nothing. Rounding errors compounded over multiple updates.
+- **Fix:** Replaced with `distributeProportionally()` helper that distributes the TOTAL entered amount from scratch each time. Uses `Math.floor` for each item's share then adds rounding remainder to the largest item. Users can now freely increase or decrease payments on any update.
+- **ProductDeliveries.jsx** — Updated `handlePaymentUpdate` to enforce consistency: 'paid' always sets full cost, 'unpaid' always sets 0, 'partial' uses the entered amount capped at total cost.
+- **Files changed:** `src/components/Deliveries.jsx`, `src/components/ProductDeliveries.jsx`
+
 ---
 
 ## Session: Comprehensive Bug Fixes & Lint Cleanup (July 19, 2026)
