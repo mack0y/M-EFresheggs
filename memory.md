@@ -1294,6 +1294,12 @@ Added comprehensive documentation of recent SalesLog.jsx cleanup and other compo
 - **ProductDeliveries.jsx** — Updated `handlePaymentUpdate` to enforce consistency: 'paid' always sets full cost, 'unpaid' always sets 0, 'partial' uses the entered amount capped at total cost.
 - **Files changed:** `src/components/Deliveries.jsx`, `src/components/ProductDeliveries.jsx`
 
+### Delivery amount_paid Not Set on Create (July 19, 2026)
+- **Root Cause:** `recordDeliveryBatch()`, `recordDelivery()`, and `recordProductDelivery()` did not set `amount_paid` when creating deliveries. Even when `payment_status = 'paid'`, the `amount_paid` column defaulted to 0. This caused 'paid' deliveries to display a green badge but contribute ZERO to the "amount paid" stat — inflating "remaining unpaid" by their full cost.
+- **Fix:** All three create functions now set `amount_paid = total_cost` when `paymentStatus === 'paid'`, otherwise 0. `recordProductDelivery()` additionally was missing the `payment_status` field entirely from the insert — now properly sets it.
+- **Backfill Migration:** `migration_fix_amount_paid_on_create.sql` — run in Supabase SQL Editor to fix existing records: `UPDATE deliveries SET amount_paid = total_cost WHERE payment_status = 'paid' AND (amount_paid IS NULL OR amount_paid = 0);`
+- **Files changed:** `src/lib/deliveries.js`, `src/lib/productDeliveries.js`, `src/components/ProductDeliveries.jsx`, `migration_fix_amount_paid_on_create.sql`
+
 ---
 
 ## Session: Comprehensive Bug Fixes & Lint Cleanup (July 19, 2026)

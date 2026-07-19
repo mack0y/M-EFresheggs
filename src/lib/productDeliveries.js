@@ -17,9 +17,10 @@ export async function fetchProductDeliveries({ limit = 50, offset = 0, startDate
   return data || [];
 }
 
-export async function recordProductDelivery({ supplierId, productId, purchaseQuantity, costPerPurchaseUnit, deliveryDate, notes }) {
+export async function recordProductDelivery({ supplierId, productId, purchaseQuantity, costPerPurchaseUnit, deliveryDate, notes, paymentStatus }) {
   const today = getLocalDate();
   const totalCost = parseFloat(purchaseQuantity) * parseFloat(costPerPurchaseUnit);
+  const amountPaid = paymentStatus === 'paid' ? totalCost : 0;
 
   const { data, error } = await supabase
     .from('product_deliveries')
@@ -29,6 +30,8 @@ export async function recordProductDelivery({ supplierId, productId, purchaseQua
       purchase_quantity: purchaseQuantity,
       cost_per_purchase_unit: costPerPurchaseUnit,
       total_cost: totalCost,
+      payment_status: paymentStatus || 'unpaid',
+      amount_paid: amountPaid,
       delivery_date: deliveryDate || today,
       notes,
     })

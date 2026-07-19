@@ -20,6 +20,9 @@ export async function fetchDeliveries({ limit = 50, offset = 0, startDate, endDa
 }
 
 export async function recordDelivery({ supplierId, eggSizeId, quantity, unit, traySize, costPerTray, totalCost, paymentStatus, notes, deliveryDate }) {
+  // Set amount_paid based on initial payment status
+  const amountPaid = paymentStatus === 'paid' ? parseFloat(totalCost || 0) : 0;
+
   const { data, error } = await supabase
     .from('deliveries')
     .insert({
@@ -31,6 +34,7 @@ export async function recordDelivery({ supplierId, eggSizeId, quantity, unit, tr
       cost_per_egg: costPerTray,
       total_cost: totalCost,
       payment_status: paymentStatus,
+      amount_paid: amountPaid,
       notes,
       delivery_date: deliveryDate,
     })
@@ -45,19 +49,25 @@ export async function recordDeliveryBatch({ supplierId, items, unit, traySize, p
     throw new Error('No items to record');
   }
   const batchId = crypto.randomUUID();
-  const rows = items.map(item => ({
-    supplier_id: supplierId,
-    egg_size_id: item.eggSizeId,
-    quantity: item.quantity,
-    unit,
-    tray_size: traySize || 30,
-    cost_per_egg: item.costPerTray,
-    total_cost: item.quantity * parseFloat(item.costPerTray || 0),
-    payment_status: paymentStatus,
-    notes: (notes || '').trim(),
-    delivery_date: deliveryDate,
-    batch_id: batchId,
-  }));
+  const rows = items.map(item => {
+    const totalCost = item.quantity * parseFloat(item.costPerTray || 0);
+    // Set amount_paid based on initial payment status
+    const amountPaid = paymentStatus === 'paid' ? totalCost : 0;
+    return {
+      supplier_id: supplierId,
+      egg_size_id: item.eggSizeId,
+      quantity: item.quantity,
+      unit,
+      tray_size: traySize || 30,
+      cost_per_egg: item.costPerTray,
+      total_cost: totalCost,
+      amount_paid: amountPaid,
+      payment_status: paymentStatus,
+      notes: (notes || '').trim(),
+      delivery_date: deliveryDate,
+      batch_id: batchId,
+    };
+  });
   const { data, error } = await supabase
     .from('deliveries')
     .insert(rows)

@@ -114,6 +114,7 @@ export default function ProductDeliveries() {
         costPerPurchaseUnit: parseFloat(form.costPerUnit),
         deliveryDate: form.date,
         notes: form.notes.trim(),
+        paymentStatus: form.paymentStatus,
       });
       const createdId = newDelivery?.id;
       toast('Product delivery recorded', 'success', {
