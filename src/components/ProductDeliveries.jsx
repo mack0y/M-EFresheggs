@@ -154,22 +154,24 @@ export default function ProductDeliveries() {
     }
   }
 
-  async function handlePaymentUpdate(delivery, status, amount) {
+  async function handlePaymentUpdate(delivery, amount) {
     try {
-      // Enforce consistency: 'paid' = full cost, 'unpaid' = 0
+      const totalCost = parseFloat(delivery.total_cost || 0);
+      const paid = Math.min(parseFloat(amount || 0), totalCost);
+      // Derive status from the actual amount paid
+      const status = paid >= totalCost ? 'paid' : (paid > 0 ? 'partial' : 'unpaid');
+
       let finalAmount;
       if (status === 'paid') {
-        finalAmount = parseFloat(delivery.total_cost || 0);
+        finalAmount = totalCost;
       } else if (status === 'unpaid') {
         finalAmount = 0;
       } else {
-        finalAmount = Math.min(parseFloat(amount || 0), parseFloat(delivery.total_cost || 0));
+        finalAmount = paid;
       }
 
       await updateProductDeliveryPayment(delivery.id, status, finalAmount);
-      let msg = `Payment marked as ${status}`;
-      if (status === 'partial' && finalAmount > 0) msg += ` — ₱${finalAmount.toFixed(2)} paid`;
-      toast(msg);
+      toast(`Payment updated: ${formatPeso(finalAmount)} paid (${status})`);
       setEditingPayment(null);
       setPartialAmountInput("0");
       loadData();
@@ -390,6 +392,9 @@ export default function ProductDeliveries() {
                     <span className="delivery-payment-badge" style={{ background: bpStyle.bg, color: bpStyle.color }}>
                       {d.payment_status}
                     </span>
+                    <span className="delivery-payment-amount" style={{ fontSize: '0.7rem', color: bpStyle.color, marginLeft: '0.3rem' }}>
+                      {formatPeso(parseFloat(d.amount_paid || 0))} / {formatPeso(parseFloat(d.total_cost || 0))}
+                    </span>
                   </span>
                   <span className="num">
                     <div className="delivery-actions">
@@ -428,7 +433,7 @@ export default function ProductDeliveries() {
                         }
                       }} placeholder="0.00" />
                     </div>
-                    <button className="btn btn-primary btn-sm" style={{ marginTop: '0.5rem' }} onClick={() => handlePaymentUpdate(d, paymentStatusInput, parseFloat(partialAmountInput) || 0)}>
+                    <button className="btn btn-primary btn-sm" style={{ marginTop: '0.5rem' }} onClick={() => handlePaymentUpdate(d, parseFloat(partialAmountInput) || 0)}>
                       Update Payment
                     </button>
                   </div>

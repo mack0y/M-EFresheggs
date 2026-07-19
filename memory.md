@@ -605,6 +605,20 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 
 ---
 
+## Recent Changes (Session Log)
+
+### Auto-Update Inventory on Delivery (July 20, 2026)
+- **Critical bug:** Delivering eggs (via Deliveries page) or products (via ProductDeliveries page) NEVER updated inventory/stock. No DB trigger or app code existed to add stock when a delivery was recorded. Products always showed 0 stock, egg inventory stayed at 0.
+- **Fix:** Created `migration_auto_inventory_on_delivery.sql` with 4 DB trigger functions and 4 triggers:
+  - `after_delivery_insert` — On egg delivery insert, adds `quantity × tray_size` to `inventory.quantity_on_hand`
+  - `after_delivery_delete` — On egg delivery delete, subtracts eggs from inventory (with `GREATEST(0, ...)` guard)
+  - `after_product_delivery_insert` — On product delivery insert, adds `purchase_quantity × purchase_qty_per_unit` to `products.quantity_on_hand`
+  - `after_product_delivery_delete` — On product delivery delete, subtracts stock (with `GREATEST(0, ...)` guard)
+- **Backfill:** Reset all inventory/stock to 0 and recomputed from historical deliveries, then subtracted existing sales and spoilage to get accurate current values
+- **Fix SQL:** `migration_fix_inventory_backfill.sql` added `COALESCE(tray_size, 30)` for NULL safety and corrected backfill by subtracting sales + spoilage + product sales from recalculated values
+- **Result:** Egg inventory now shows correct values (Pullet: 1,456, Small: 8,368, Medium: 2,140, etc.) — verified in browser with 0 console errors
+- **Files changed:** `migration_auto_inventory_on_delivery.sql`, `migration_fix_inventory_backfill.sql`
+
 ## Bug Fixes Applied
 
 ### Critical/High
@@ -1294,10 +1308,13 @@ Added comprehensive documentation of recent SalesLog.jsx cleanup and other compo
 - **ProductDeliveries.jsx** — Updated `handlePaymentUpdate` to enforce consistency: 'paid' always sets full cost, 'unpaid' always sets 0, 'partial' uses the entered amount capped at total cost.
 - **Files changed:** `src/components/Deliveries.jsx`, `src/components/ProductDeliveries.jsx`
 
-### Delivery amount_paid Not Set on Create (July 19, 2026)
-- **Root Cause:** `recordDeliveryBatch()`, `recordDelivery()`, and `recordProductDelivery()` did not set `amount_paid` when creating deliveries. Even when `payment_status = 'paid'`, the `amount_paid` column defaulted to 0. This caused 'paid' deliveries to display a green badge but contribute ZERO to the "amount paid" stat — inflating "remaining unpaid" by their full cost.
-- **Fix:** All three create functions now set `amount_paid = total_cost` when `paymentStatus === 'paid'`, otherwise 0. `recordProductDelivery()` additionally was missing the `payment_status` field entirely from the insert — now properly sets it.
-- **Backfill Migration:** `migration_fix_amount_paid_on_create.sql` — run in Supabase SQL Editor to fix existing records: `UPDATE deliveries SET amount_paid = total_cost WHERE payment_status = 'paid' AND (amount_paid IS NULL OR amount_paid = 0);`
+### Delivery amount_paid Not Set on Create & Overpayment Bug (July 19, 2026)
+- **Bug #1 — `amount_paid` not set on create:** `recordDeliveryBatch()`, `recordDelivery()`, and `recordProductDelivery()` did not set `amount_paid` in the INSERT. Even with `payment_status = 'paid'`, the `amount_paid` column defaulted to 0. 'Paid' deliveries showed a green badge but contributed ZERO to "amount paid" — inflating "remaining unpaid" by their full cost.
+- **Bug #2 — Old distribution logic overpaid items:** The old `handleBatchPaymentUpdate()` delta-based code set `amount_paid` to the **batch total** for each item instead of each item's individual cost. Three batches (10 items) were overpaid by a total of ₱96,980 (e.g., batch with costs ₱3,200+₱4,800+₱2,600 had ALL items set to ₱10,600 each).
+- **JS Fix:** All three create functions now set `amount_paid = total_cost` when `paymentStatus === 'paid'`. `recordProductDelivery()` additionally was missing `payment_status` entirely — now properly set. The new `distributeProportionally()` helper prevents the overpayment bug going forward.
+- **First Migration (too conservative):** Initially only fixed items with `amount_paid = 0` — missed the overpaid items.
+- **Corrected Migration:** `UPDATE deliveries SET amount_paid = total_cost WHERE payment_status = 'paid'` — resets ALL paid items to their own individual cost. Run in Supabase SQL Editor.
+- **Result after migration:** Total cost ₱477,199, Amount paid ₱427,635, Remaining ₱49,564 (correct, positive).
 - **Files changed:** `src/lib/deliveries.js`, `src/lib/productDeliveries.js`, `src/components/ProductDeliveries.jsx`, `migration_fix_amount_paid_on_create.sql`
 
 ---

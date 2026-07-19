@@ -257,9 +257,11 @@ export default function Deliveries() {
     }
   }
 
-  async function handleBatchPaymentUpdate(batchItems, status, totalPaid) {
+  async function handleBatchPaymentUpdate(batchItems, totalPaid) {
     try {
       const totalCost = batchItems.reduce((s, i) => s + parseFloat(i.total_cost || 0), 0);
+      // Derive status from the actual amount entered, not a user selection
+      const status = totalPaid >= totalCost ? 'paid' : (totalPaid > 0 ? 'partial' : 'unpaid');
 
       // Pre-calculate proportional distribution for 'partial' status
       let amounts;
@@ -283,7 +285,8 @@ export default function Deliveries() {
       });
 
       await Promise.all(updates);
-      toast(`Payment marked as ${status}`);
+      const displayAmount = Math.min(totalPaid, totalCost);
+      toast(`Payment updated: ${formatPeso(displayAmount)} paid (${status})`);
       setEditingPayment(null);
       setPartialAmountInput("0");
       loadData();
@@ -362,9 +365,11 @@ export default function Deliveries() {
   }
 
   function batchPaymentStatus(items) {
-    const statuses = items.map(d => d.payment_status);
-    if (statuses.every(s => s === 'paid')) return 'paid';
-    if (statuses.some(s => s === 'paid' || s === 'partial')) return 'partial';
+    // Derive status from actual amounts paid, not stored status labels
+    const totalCost = batchTotalCost(items);
+    const totalPaid = batchAmountPaid(items);
+    if (totalPaid >= totalCost) return 'paid';
+    if (totalPaid > 0) return 'partial';
     return 'unpaid';
   }
 
@@ -712,21 +717,15 @@ export default function Deliveries() {
                       </span>
                     )}
                   <span className="delivery-payment">
-                    {batch.isSingle ? (
-                      <span
-                        className="delivery-payment-badge"
-                        style={{ background: bpStyle.bg, color: bpStyle.color }}
-                      >
-                        {bpStatus}
-                      </span>
-                    ) : (
-                      <span
-                        className="delivery-payment-badge"
-                        style={{ background: bpStyle.bg, color: bpStyle.color }}
-                      >
-                        {bpStatus}
-                      </span>
-                    )}
+                    <span
+                      className="delivery-payment-badge"
+                      style={{ background: bpStyle.bg, color: bpStyle.color }}
+                    >
+                      {bpStatus}
+                    </span>
+                    <span className="delivery-payment-amount" style={{ fontSize: '0.7rem', color: bpStyle.color, marginLeft: '0.3rem' }}>
+                      {formatPeso(batchAmountPaid(batch.items))} / {formatPeso(batchTotalCost(batch.items))}
+                    </span>
                   </span>
                   <span className="num">
                     <div className="delivery-actions">
@@ -778,7 +777,7 @@ export default function Deliveries() {
                               color: paymentColors[item.payment_status]?.color,
                             }}
                           >
-                            {item.payment_status}
+                            {formatPeso(parseFloat(item.amount_paid || 0))} / {formatPeso(parseFloat(item.total_cost || 0))}
                           </span>
                         </div>
                       ))}
@@ -831,13 +830,12 @@ export default function Deliveries() {
                       />
                     </div>
 
-                    {/* Save Button */}
+                    {/* Save Button - derives status from entered amount */}
                     <button 
                       className="btn btn-primary btn-sm" 
                       style={{ marginTop: '0.5rem' }}
                       onClick={() => handleBatchPaymentUpdate(
                         batch.items,
-                        paymentStatusInput,
                         parseFloat(partialAmountInput) || 0
                       )}
                     >
