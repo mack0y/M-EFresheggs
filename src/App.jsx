@@ -1,6 +1,7 @@
-import { lazy, Suspense, Component } from 'react';
+import { lazy, Suspense, Component, useState, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
+import SplashScreen from './components/SplashScreen';
 import { ToastContainer } from './components/Toast';
 const Dashboard = lazy(() => import('./components/Dashboard'));
 const Inventory = lazy(() => import('./components/Inventory'));
@@ -59,8 +60,12 @@ class ChunkErrorBoundary extends Component {
 }
 
 export default function App() {
+  const [showSplash, setShowSplash] = useState(true);
+  const handleSplashFinish = useCallback(() => setShowSplash(false), []);
+
   return (
     <BrowserRouter basename="/M-EFresheggs">
+      {showSplash && <SplashScreen onFinish={handleSplashFinish} />}
       <Layout>
         <ChunkErrorBoundary>
           <Suspense fallback={<PageLoading />}>

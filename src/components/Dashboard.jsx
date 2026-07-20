@@ -34,51 +34,6 @@ function getGreetingEmoji() {
   return '🌙';
 }
 
-// ===== Animated Number Counter =====
-function AnimatedNumber({ value, formatter, duration = 800, delay = 0 }) {
-  const [displayVal, setDisplayVal] = useState(0);
-  const [started, setStarted] = useState(false);
-  const rafRef = useRef(null);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setStarted(true), delay);
-    return () => clearTimeout(timer);
-  }, [delay]);
-
-  useEffect(() => {
-    if (!started) return;
-    const endVal = typeof value === 'number' && !isNaN(value) ? value : 0;
-    const startTime = performance.now();
-
-    function animate(now) {
-      const elapsed = now - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
-      const current = (endVal - 0) * eased;
-      setDisplayVal(current);
-      if (progress < 1) {
-        rafRef.current = requestAnimationFrame(animate);
-      } else {
-        setDisplayVal(endVal);
-      }
-    }
-    rafRef.current = requestAnimationFrame(animate);
-    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-  }, [started, value, duration]);
-
-  const formatted = formatter ? formatter(displayVal) : displayVal.toLocaleString();
-  if (!started) return <span style={{ opacity: 0.4 }}>{formatter ? formatter(0) : '0'}</span>;
-  return <>{formatted}</>;
-}
-
-function AnimatedPeso({ value, ...rest }) {
-  return <AnimatedNumber value={value} formatter={v => formatPeso(v)} {...rest} />;
-}
-
-function AnimatedInteger({ value, ...rest }) {
-  return <AnimatedNumber value={value} formatter={v => Math.round(v).toLocaleString()} {...rest} />;
-}
-
 export default function Dashboard() {
   const navigate = useNavigate();
   const [inventory, setInventory] = useState([]);
@@ -436,7 +391,7 @@ export default function Dashboard() {
           </div>
           <div className="primary-stat-info">
             <span className="primary-stat-label">Today's Revenue</span>
-            <span className="primary-stat-value">{loading ? <span className="skeleton" style={{ display: 'inline-block', width: 80, height: 28 }}>&nbsp;</span> : <AnimatedPeso value={combinedRevenue} duration={900} />}</span>
+            <span className="primary-stat-value stat-value-anim" data-animated="true">{loading ? <span className="skeleton" style={{ display: 'inline-block', width: 80, height: 28 }}>&nbsp;</span> : formatPeso(combinedRevenue)}</span>
             {!loading && (
               <span className="primary-stat-sub">Eggs {formatPeso(todayRevenue)} · Products {formatPeso(todayProductRevenue)}</span>
             )}
@@ -457,7 +412,7 @@ export default function Dashboard() {
           </div>
           <div className="primary-stat-info">
             <span className="primary-stat-label">Net Profit</span>
-            <span className="primary-stat-value">{loading ? <span className="skeleton" style={{ display: 'inline-block', width: 80, height: 28 }}>&nbsp;</span> : <AnimatedPeso value={netProfit} duration={900} delay={100} />}</span>
+            <span className="primary-stat-value stat-value-anim" data-animated="true">{loading ? <span className="skeleton" style={{ display: 'inline-block', width: 80, height: 28 }}>&nbsp;</span> : formatPeso(netProfit)}</span>
           </div>
         </div>
       </div>
@@ -470,7 +425,7 @@ export default function Dashboard() {
           </div>
           <div className="stat-card-content">
             <span className="stat-card-value">
-              {loading ? <span className="skeleton" style={{ display: 'inline-block', width: 50, height: 24 }}>&nbsp;</span> : <AnimatedInteger value={totalStock} duration={800} delay={200} />}
+              {loading ? <span className="skeleton" style={{ display: 'inline-block', width: 50, height: 24 }}>&nbsp;</span> : <span className="stat-value-anim" data-animated="true">{Math.round(totalStock).toLocaleString()}</span>}
             </span>
             <span className="stat-card-label">{inventory.length} size{inventory.length !== 1 ? 's' : ''} in stock</span>
           </div>

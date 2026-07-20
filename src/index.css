@@ -408,6 +408,26 @@ input, select, textarea { font-family: inherit; }
   to { transform: rotate(360deg); }
 }
 
+@keyframes statGlow {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes splashLogo {
+  0% {
+    opacity: 0;
+    transform: scale(0.85) translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
 .fade-in {
   animation: fadeIn 0.35s ease-out;
 }
@@ -471,11 +491,99 @@ input, select, textarea { font-family: inherit; }
   color: var(--color-text-secondary);
 }
 
+/* ===== Stat Value Background Animation ===== */
+.stat-value-anim[data-animated="true"] {
+  position: relative;
+  display: inline-block;
+}
+
+.stat-value-anim[data-animated="true"]::before {
+  content: '';
+  position: absolute;
+  inset: -4px -8px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 10%,
+    rgba(46, 125, 50, 0.12) 30%,
+    rgba(46, 125, 50, 0.06) 50%,
+    transparent 70%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: statGlow 1.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.stat-value-anim[data-animated="true"] {
+  z-index: 1;
+  position: relative;
+}
+
+/* ===== Splash Screen ===== */
+.splash-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  background: rgba(46, 125, 50, 0.65);
+  transition: opacity 0.4s ease-out;
+}
+
+/* backdrop-filter where supported — adds frosted glass effect */
+@supports (backdrop-filter: blur(8px)) or (-webkit-backdrop-filter: blur(8px)) {
+  .splash-overlay {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+}
+
+.splash-overlay.fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.splash-logo {
+  width: 160px;
+  height: 160px;
+  object-fit: contain;
+  animation: splashLogo 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.splash-title {
+  color: #fff;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  animation: splashLogo 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s both;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.2);
+}
+
+.splash-sub {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.875rem;
+  animation: splashLogo 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s both;
+  text-shadow: 0 1px 8px rgba(0,0,0,0.15);
+}
+
+.splash-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite, splashLogo 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s both;
+  margin-top: 0.75rem;
+}
+
 /* ===== Toast Notifications ===== */
 /* Toast styles are defined in Toast.jsx component */
-
-
-
 /* ===== Page Header Pattern ===== */
 .page-header-row {
   display: flex;

@@ -1394,3 +1394,17 @@ Achieved **ESLint 0 errors, 0 warnings** and clean build:
 - **Mobile touch feedback** (`index.css`) — Added `@media (hover: none) and (pointer: coarse)` block with instant `scale(0.96)` press-down feedback (60ms) on all interactive elements. Uses GPU-friendly `transform: scale()` only.
 - **Files changed:** `Toast.jsx`, `ConfirmDialog.jsx`, `Dashboard.jsx`, `index.css`
 - **Verification:** ESLint 0 errors, build passes, browser-tested with 0 console errors.
+
+### Splash Screen & Stat Glow Animations (July 2026)
+- **Removed AnimatedNumber counters** (Dashboard.jsx) — Deleted `AnimatedNumber`, `AnimatedPeso`, `AnimatedInteger` components. Stat values (Revenue, Net Profit, Stock) now display immediately without counting animation.
+- **Stat value background glow** (index.css) — Added `.stat-value-anim[data-animated="true"]::before` pseudo-element with a sweeping green gradient animation (`statGlow` keyframe) that passes behind stat numbers once when data loads. GPU-friendly `background-position` animation, 1.2s duration.
+- **Splash screen** (new `SplashScreen.jsx` + `App.jsx`) — Full-screen loading overlay with:
+  - Translucent green background (`rgba(46, 125, 50, 0.65)`) with frosted glass blur (`backdrop-filter: blur(8px)`) — dashboard visible behind
+  - Original colored logo at 160px (2× larger than before) with spring scale-up animation
+  - Title, subtitle, and spinner with staggered spring animations
+  - Fades out after 1.2s, fully removed from DOM after 1.7s
+  - Graceful `@supports` fallback for browsers without backdrop-filter support
+  - Both `setTimeout` handles properly cleaned up (no memory leaks)
+  - Only shows on initial page load — not on subsequent navigation
+- **Files changed:** `src/components/Dashboard.jsx`, `src/components/SplashScreen.jsx` (new), `src/App.jsx`, `src/index.css`
+- **Verification:** ESLint 0 errors, build passes (4.7s), browser-tested with 0 console errors
