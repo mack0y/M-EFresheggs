@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingCart, ArrowLeft, Egg, Check, Search, Trash2, Plus, User } from 'lucide-react';
+import { ShoppingCart, ArrowLeft, Egg, Check, Search, Trash2, Plus, User, Zap, ChevronDown } from 'lucide-react';
 import { useCart } from './CartContext';
 import { fetchInventory, fetchPriceSettings, fetchProducts, fetchCustomers, recordTransaction, formatPeso, formatInventory, TRAY_SIZE } from '../lib/api';
 import { toast } from '../lib/toastFn';
@@ -32,6 +32,14 @@ export default function NewSale() {
   const [productQtys, setProductQtys] = useState({});
 
   const [confirmCheckout, setConfirmCheckout] = useState(false);
+  const [quickSaleOpen, setQuickSaleOpen] = useState(() => {
+    const stored = localStorage.getItem('ns_quick_sale_open');
+    return stored !== null ? stored === 'true' : true;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('ns_quick_sale_open', String(quickSaleOpen));
+  }, [quickSaleOpen]);
 
   const loadData = useCallback(async () => {
     try {
@@ -224,6 +232,117 @@ export default function NewSale() {
         </div>
       )}
 
+      {/* Quick-Sale Grid — one-click add for common items */}
+      {!loading && (
+        <div className="qs-section">
+          <button className="qs-toggle" onClick={() => setQuickSaleOpen(!quickSaleOpen)}>
+            <Zap size={16} />
+            <span>Quick Sale — {activeTab === 'eggs' ? 'Eggs' : 'Products'}</span>
+            <ChevronDown size={14} className={`qs-chevron ${quickSaleOpen ? 'open' : ''}`} />
+          </button>
+          {quickSaleOpen && (
+            <div className="qs-grid">
+              {activeTab === 'eggs' && (
+                <>
+                  {/* Egg quick-sale cards: each size shows 1, 2, 5 tray options */}
+                  {sortedInventory.filter(i => (i.quantity_on_hand || 0) >= TRAY_SIZE).slice(0, 7).map(item => {
+                    const price = priceSettings.find(p => p.egg_size_id === item.egg_size_id);
+                    const trayPrice = price ? parseFloat(price.price_per_tray || 0) : 0;
+                    const maxTrays = Math.floor((item.quantity_on_hand || 0) / TRAY_SIZE);
+                    const qtys = [1, 2, 5].filter(q => q <= maxTrays);
+                    return (
+                      <div key={`qs-egg-${item.egg_size_id}`} className="qs-card qs-card-egg">
+                        <div className="qs-card-header">
+                          <Egg size={14} />
+                          <span className="qs-card-name">{item.egg_sizes?.name}</span>
+                        </div>
+                        <div className="qs-card-chips">
+                          {qtys.map(qty => (
+                            <button
+                              key={qty}
+                              className="qs-chip"
+                              onClick={() => {
+                                addItem({
+                                  type: 'egg',
+                                  id: item.egg_size_id,
+                                  name: item.egg_sizes?.name || 'Unknown',
+                                  quantity: qty,
+                                  unit: 'tray',
+                                  traySize: TRAY_SIZE,
+                                  pricePerUnit: trayPrice,
+                                  total: qty * trayPrice,
+                                });
+                                toast(`Added ${qty} tray${qty > 1 ? 's' : ''} ${item.egg_sizes?.name}`);
+                              }}
+                              title={`${qty} tray${qty > 1 ? 's' : ''} — ${formatPeso(qty * trayPrice)}`}
+                            >
+                              <span className="qs-chip-qty">{qty}</span>
+                              <span className="qs-chip-unit">tray{qty > 1 ? 's' : ''}</span>
+                              {trayPrice > 0 && <span className="qs-chip-price">{formatPeso(qty * trayPrice)}</span>}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {sortedInventory.filter(i => (i.quantity_on_hand || 0) >= TRAY_SIZE).length === 0 && (
+                    <div className="qs-empty">No eggs with enough stock for quick sale</div>
+                  )}
+                </>
+              )}
+              {activeTab === 'products' && (
+                <>
+                  {/* Product quick-sale cards: each product shows 1, 2, 5 unit options */}
+                  {products.filter(p => parseFloat(p.quantity_on_hand || 0) > 0).slice(0, 6).map(p => {
+                    const prodPrice = parseFloat(p.price || 0);
+                    const stock = parseFloat(p.quantity_on_hand || 0);
+                    const unit = p.unit || 'units';
+                    const qtys = [1, 2, 5].filter(q => q <= Math.ceil(stock));
+                    return (
+                      <div key={`qs-prod-${p.id}`} className="qs-card qs-card-product">
+                        <div className="qs-card-header">
+                          <ShoppingCart size={14} />
+                          <span className="qs-card-name">{p.name}</span>
+                        </div>
+                        <div className="qs-card-chips">
+                          {qtys.map(qty => (
+                            <button
+                              key={qty}
+                              className="qs-chip"
+                              onClick={() => {
+                                addItem({
+                                  type: 'product',
+                                  id: p.id,
+                                  name: p.name,
+                                  quantity: qty,
+                                  unit,
+                                  traySize: null,
+                                  pricePerUnit: prodPrice,
+                                  total: qty * prodPrice,
+                                });
+                                toast(`Added ${qty} ${unit} ${p.name}`);
+                              }}
+                              title={`${qty} ${unit} ${p.name} — ${formatPeso(qty * prodPrice)}`}
+                            >
+                              <span className="qs-chip-qty">{qty}</span>
+                              <span className="qs-chip-unit">{unit}</span>
+                              {prodPrice > 0 && <span className="qs-chip-price">{formatPeso(qty * prodPrice)}</span>}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {products.filter(p => parseFloat(p.quantity_on_hand || 0) > 0).length === 0 && (
+                    <div className="qs-empty">No products with stock for quick sale</div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="ns-layout">
         {/* Item Selector */}
         <div className="ns-selector">
@@ -274,6 +393,7 @@ export default function NewSale() {
                           onClick={() => {
                             if (qty > 0) setEggForm({ ...eggForm, eggSizeId: String(item.egg_size_id), quantity: '' });
                           }}
+                          disabled={qty === 0}
                         >
                           {selected && <span className="ns-size-check"><Check size={14} /></span>}
                           <span className="ns-size-name">{item.egg_sizes?.name || 'Unknown'}</span>
@@ -513,6 +633,148 @@ export default function NewSale() {
       />
 
       <style>{`
+        /* Quick-Sale Grid */
+        .qs-section {
+          margin-bottom: 1rem;
+          background: var(--color-card);
+          border: 1px solid var(--color-border-light);
+          border-radius: var(--radius-lg);
+          overflow: hidden;
+          box-shadow: var(--shadow-sm);
+        }
+
+        .qs-toggle {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          width: 100%;
+          padding: 0.625rem 1rem;
+          border: none;
+          background: var(--color-primary);
+          color: white;
+          font-size: 0.8125rem;
+          font-weight: 700;
+          cursor: pointer;
+          transition: background var(--transition-fast);
+        }
+        .qs-toggle:hover {
+          background: var(--color-primary-dark, #1B5E20);
+        }
+        .qs-toggle svg:first-child {
+          flex-shrink: 0;
+        }
+        .qs-chevron {
+          margin-left: auto;
+          transition: transform var(--transition-fast);
+        }
+        .qs-chevron.open {
+          transform: rotate(180deg);
+        }
+
+        .qs-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+          gap: 0.5rem;
+          padding: 0.625rem;
+        }
+
+        .qs-card {
+          border: 1.5px solid var(--color-border);
+          border-radius: var(--radius-md);
+          background: var(--color-card);
+          overflow: hidden;
+          transition: all var(--transition-fast);
+        }
+        .qs-card:hover {
+          box-shadow: var(--shadow-sm);
+        }
+
+        .qs-card-egg {
+          border-color: #A5D6A7;
+        }
+        .qs-card-product {
+          border-color: #CE93D8;
+        }
+
+        .qs-card-header {
+          display: flex;
+          align-items: center;
+          gap: 0.375rem;
+          padding: 0.375rem 0.5rem;
+          font-size: 0.75rem;
+          font-weight: 700;
+          background: var(--color-bg);
+          border-bottom: 1px solid var(--color-border-light);
+        }
+        .qs-card-egg .qs-card-header svg { color: var(--color-primary); }
+        .qs-card-product .qs-card-header svg { color: #7B1FA2; }
+
+        .qs-card-name {
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .qs-card-chips {
+          display: flex;
+          gap: 0.25rem;
+          padding: 0.375rem;
+        }
+
+        .qs-chip {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.0625rem;
+          padding: 0.3rem 0.25rem;
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-sm);
+          background: var(--color-card);
+          cursor: pointer;
+          transition: all var(--transition-fast);
+          min-width: 0;
+        }
+        .qs-chip:hover {
+          transform: translateY(-1px);
+          box-shadow: var(--shadow-xs);
+        }
+        .qs-card-egg .qs-chip:hover {
+          border-color: var(--color-primary);
+          background: var(--color-primary-light);
+        }
+        .qs-card-product .qs-chip:hover {
+          border-color: #7B1FA2;
+          background: #F3E5F5;
+        }
+
+        .qs-chip-qty {
+          font-weight: 800;
+          font-size: 0.9375rem;
+          line-height: 1.1;
+        }
+        .qs-chip-unit {
+          font-size: 0.5rem;
+          color: var(--color-text-muted);
+          text-transform: uppercase;
+          letter-spacing: 0.03em;
+          line-height: 1;
+        }
+        .qs-chip-price {
+          font-size: 0.6rem;
+          font-weight: 700;
+          color: var(--color-success);
+          line-height: 1;
+        }
+
+        .qs-empty {
+          grid-column: 1 / -1;
+          padding: 1rem;
+          text-align: center;
+          color: var(--color-text-muted);
+          font-size: 0.8125rem;
+        }
+
         .ns-customer-bar {
           display: flex;
           align-items: center;
@@ -614,6 +876,7 @@ export default function NewSale() {
         .ns-size-card:hover:not(.out-of-stock) { border-color: var(--color-primary); }
         .ns-size-card.selected { border-color: var(--color-primary); background: var(--color-primary-light); }
         .ns-size-card.out-of-stock { opacity: 0.45; cursor: not-allowed; }
+        .ns-size-card:disabled { opacity: 0.45; cursor: not-allowed; }
         .ns-size-check { position: absolute; top: 4px; right: 4px; color: var(--color-primary); }
         .ns-size-name { font-weight: 700; font-size: 0.875rem; text-align: center; }
         .ns-size-stock { font-size: 0.75rem; color: var(--color-text-muted); }

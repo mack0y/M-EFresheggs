@@ -1385,3 +1385,12 @@ Achieved **ESLint 0 errors, 0 warnings** and clean build:
 - **Product Deliveries batch form:** Converted from single-product-at-a-time to batch grid showing ALL products at once (like egg deliveries form). Fill in qty + cost per unit for any products received, submit all at once. Each active product is submitted individually via API, with bulk undo that deletes all created records.
 - **Files changed:** `src/components/Products.jsx`, `src/components/ProductDeliveries.jsx`, `src/lib/products.js`, `src/lib/api.js`, `migration_fix_products_unit_constraint.sql`
 - **Verification:** ESLint 0 errors, npm run build passes
+
+### Animations & Mobile Touch Sprint (July 2026)
+- **Toast exit animation** (`Toast.jsx`) — Added `toastOut` keyframe (shrink + fade up) before removal via `toast-leaving` class + 300ms setTimeout. Entrance uses spring `toastIn` (scale up + fade). Click-to-dismiss. Full-width on mobile, auto-width on desktop.
+- **ConfirmDialog enhanced entrance** (`ConfirmDialog.jsx`) — New `dialogIn` keyframe: `scale(0.9) + translateY(10px)` → `scale(1)` with spring easing. New `overlayIn` keyframe for smooth backdrop fade.
+- **Animated number counters** (`Dashboard.jsx`) — New `AnimatedNumber` component with `requestAnimationFrame` + ease-out cubic easing. `AnimatedPeso` and `AnimatedInteger` wrappers. Applied to: Revenue (900ms), Net Profit (900ms + 100ms delay), Stock count (800ms + 200ms delay). Values count up from 0 on data load. Proper cleanup via `cancelAnimationFrame`.
+- **Removed Today's Summary Card** from Dashboard — found repetitive vs Primary Stats. Animated Primary Stats now serve as the main data display.
+- **Mobile touch feedback** (`index.css`) — Added `@media (hover: none) and (pointer: coarse)` block with instant `scale(0.96)` press-down feedback (60ms) on all interactive elements. Uses GPU-friendly `transform: scale()` only.
+- **Files changed:** `Toast.jsx`, `ConfirmDialog.jsx`, `Dashboard.jsx`, `index.css`
+- **Verification:** ESLint 0 errors, build passes, browser-tested with 0 console errors.

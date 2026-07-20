@@ -27,10 +27,10 @@ export { EXPENSE_CATEGORIES, fetchExpenses, fetchTodayExpenses, recordExpense, d
 export { SPOILAGE_REASONS, recordSpoilage, deleteSpoilageRecords, fetchSpoilageByIds, restoreInventoryForSpoilage } from './spoilage';
 
 // Customers
-export { fetchCustomers, addCustomer, deleteCustomer } from './customers';
+export { fetchCustomers, addCustomer, updateCustomer, deleteCustomer, fetchCustomerSales } from './customers';
 
 // Suppliers
-export { fetchSuppliers, addSupplier, deleteSupplier } from './suppliers';
+export { fetchSuppliers, addSupplier, updateSupplier, deleteSupplier } from './suppliers';
 
 // Deliveries
 export { PAYMENT_STATUSES, fetchDeliveries, recordDeliveryBatch, deleteDeliveryBatch, updateDeliveryPayment, deleteDelivery } from './deliveries';

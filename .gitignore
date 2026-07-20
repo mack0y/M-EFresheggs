@@ -33,3 +33,4 @@ supabase.txt
 *.njsproj
 *.sln
 *.sw?
+.hermes

@@ -640,6 +640,47 @@ input, select, textarea { font-family: inherit; }
   }
 }
 
+/* ===== Mobile Touch Feedback ===== */
+@media (hover: none) and (pointer: coarse) {
+  .btn:active {
+    transform: scale(0.96);
+    transition-duration: 60ms;
+  }
+
+  .btn-icon:active {
+    transform: scale(0.92);
+  }
+
+  .qa-btn:active {
+    transform: scale(0.97);
+    transition-duration: 60ms;
+  }
+
+  .stock-item:active {
+    background: var(--color-primary-50);
+  }
+
+  .ns-size-card:active:not(.out-of-stock) {
+    transform: scale(0.97);
+    transition-duration: 60ms;
+  }
+
+  .ns-chip:active {
+    transform: scale(0.95);
+    transition-duration: 60ms;
+  }
+
+  .qs-chip:active {
+    transform: scale(0.95);
+    transition-duration: 60ms;
+  }
+
+  .today-summary-item:active {
+    transform: scale(0.98);
+    transition-duration: 60ms;
+  }
+}
+
 /* ===== Accessibility ===== */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

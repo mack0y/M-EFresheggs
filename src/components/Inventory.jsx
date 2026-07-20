@@ -166,7 +166,7 @@ export default function Inventory() {
               if (qty === 0) {
                 statusClass = 'badge-danger';
                 statusText = 'Out of Stock';
-              } else if (qty <= 50) {
+              } else if (qty <= (item.reorder_level ?? 30)) {
                 statusClass = 'badge-warning';
                 statusText = 'Low Stock';
               }

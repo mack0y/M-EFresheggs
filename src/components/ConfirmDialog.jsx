@@ -62,7 +62,12 @@ export default function ConfirmDialog({ open, title, message, confirmLabel = 'Co
           justify-content: center;
           z-index: 6000;
           padding: 1rem;
-          animation: fadeIn 0.15s ease-out;
+          animation: overlayIn 0.2s ease-out;
+        }
+
+        @keyframes overlayIn {
+          0% { opacity: 0; }
+          100% { opacity: 1; }
         }
 
         .confirm-dialog {
@@ -74,7 +79,18 @@ export default function ConfirmDialog({ open, title, message, confirmLabel = 'Co
           width: 100%;
           box-shadow: var(--shadow-xl);
           text-align: center;
-          animation: scaleIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+          animation: dialogIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+
+        @keyframes dialogIn {
+          0% {
+            opacity: 0;
+            transform: scale(0.9) translateY(10px);
+          }
+          100% {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
         }
 
         .confirm-icon {

@@ -7,17 +7,21 @@ export function ToastContainer() {
   const timersRef = useRef({});
 
   const removeToast = useCallback((id) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
-    if (timersRef.current[id]) {
-      clearTimeout(timersRef.current[id]);
-      delete timersRef.current[id];
-    }
+    // Mark as leaving, then actually remove after animation
+    setToasts(prev => prev.map(t => t.id === id ? { ...t, leaving: true } : t));
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+      if (timersRef.current[id]) {
+        clearTimeout(timersRef.current[id]);
+        delete timersRef.current[id];
+      }
+    }, 300); // match exit animation duration
   }, []);
 
   const addToast = useCallback((message, type = 'success', action = null) => {
     const id = ++idRef.current;
     const duration = action ? 5000 : 3000;
-    setToasts(prev => [...prev, { id, message, type, action }]);
+    setToasts(prev => [...prev, { id, message, type, action, leaving: false }]);
     timersRef.current[id] = setTimeout(() => {
       removeToast(id);
     }, duration);
@@ -35,7 +39,11 @@ export function ToastContainer() {
   return (
     <div className="toast-container">
       {toasts.map(t => (
-        <div key={t.id} className={`toast toast-${t.type}`}>
+        <div
+          key={t.id}
+          className={`toast toast-${t.type} ${t.leaving ? 'toast-leaving' : ''}`}
+          onClick={() => t.leaving ? null : removeToast(t.id)}
+        >
           {t.type === 'success' && (
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
               <path d="M13.5 4.5L6 12L2.5 8.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -50,7 +58,8 @@ export function ToastContainer() {
           {t.action && (
             <button
               className="toast-action"
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 t.action.onClick();
                 removeToast(t.id);
               }}
@@ -66,9 +75,11 @@ export function ToastContainer() {
           position: fixed;
           bottom: 5rem;
           right: 1rem;
+          left: 1rem;
           z-index: 9999;
           display: flex;
           flex-direction: column;
+          align-items: flex-end;
           gap: 0.5rem;
           pointer-events: none;
         }
@@ -82,10 +93,40 @@ export function ToastContainer() {
           font-size: 0.875rem;
           font-weight: var(--font-weight-medium);
           box-shadow: var(--shadow-xl);
-          animation: slideUp 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-          max-width: 360px;
+          max-width: 100%;
           pointer-events: auto;
           line-height: 1.3;
+          cursor: pointer;
+
+          /* Entrance: slide up + fade in with spring */
+          transform-origin: bottom center;
+          animation: toastIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+
+        .toast.toast-leaving {
+          animation: toastOut 0.25s ease-in forwards;
+        }
+
+        @keyframes toastIn {
+          0% {
+            opacity: 0;
+            transform: translateY(20px) scale(0.95);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+
+        @keyframes toastOut {
+          0% {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+          100% {
+            opacity: 0;
+            transform: translateY(-10px) scale(0.95);
+          }
         }
 
         .toast-success { background: var(--color-success); color: white; }
@@ -114,6 +155,17 @@ export function ToastContainer() {
           .toast-container {
             bottom: 1.5rem;
             right: 1.5rem;
+            left: auto;
+          }
+
+          .toast {
+            max-width: 360px;
+          }
+        }
+
+        @media (hover: none) and (pointer: coarse) {
+          .toast {
+            max-width: calc(100vw - 2rem);
           }
         }
       `}</style>

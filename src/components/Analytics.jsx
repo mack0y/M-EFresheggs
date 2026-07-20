@@ -28,8 +28,8 @@ import { formatDateShort } from '../lib/formatters';
 import { getUserFriendlyError } from '../lib/errors';
 
 const COLORS = [
-  '#8B4513', '#A0522D', '#D4A574', '#F5DEB3',
-  '#CD853F', '#DEB887', '#8B7355',
+  '#2E7D32', '#66BB6A', '#A5D6A7',
+  '#388E3C', '#81C784', '#1B5E20', '#43A047',
 ];
 
 function CustomTooltip({ active, payload, label }) {

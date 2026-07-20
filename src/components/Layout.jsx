@@ -76,7 +76,7 @@ const navSections = [
 const bottomNavItems = [
   { to: '/', icon: LayoutDashboard, label: 'Home' },
   { to: '/inventory', icon: Package, label: 'Stock' },
-  { to: '/sales', icon: ShoppingCart, label: 'Eggs' },
+  { to: '/prices', icon: DollarSign, label: 'Prices' },
   { to: '/expenses-funds', icon: TrendingDown, label: 'Costs' },
   { to: '/analytics', icon: TrendingUp, label: 'Stats' },
 ];

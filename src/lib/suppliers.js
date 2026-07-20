@@ -22,6 +22,18 @@ export async function addSupplier({ name, phone, notes }) {
   return data;
 }
 
+export async function updateSupplier(id, { name, phone, notes }) {
+  if (!name || !name.trim()) throw new Error('Supplier name is required');
+  const { data, error } = await supabase
+    .from('suppliers')
+    .update({ name: name.trim(), phone, notes })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 export async function deleteSupplier(id) {
   const { error } = await supabase
     .from('suppliers')

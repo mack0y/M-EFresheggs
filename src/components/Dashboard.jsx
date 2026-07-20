@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Package,
@@ -16,7 +16,7 @@ import {
   BarChart3,
   Plus,
 } from 'lucide-react';
-import { fetchInventory, fetchTodaySales, fetchTodayExpenses, fetchDeliveries, fetchCostsPerEgg, fetchCostsPerProduct, getOperationalBalance, fetchSales, fetchSalesTrend, incrementInventory, getEggCount, formatInventory, formatPeso, getLocalDate, TRAY_SIZE, fetchProducts, fetchTodayProductSales, fetchProductSales, fetchPriceSettings } from '../lib/api';
+import { fetchInventory, fetchTodaySales, fetchTodayExpenses, fetchExpenses, fetchOperationalFunds, fetchDeliveries, fetchCostsPerEgg, fetchCostsPerProduct, getOperationalBalance, fetchSales, fetchSalesTrend, incrementInventory, getEggCount, formatInventory, formatPeso, getLocalDate, TRAY_SIZE, fetchProducts, fetchTodayProductSales, fetchProductSales, fetchPriceSettings } from '../lib/api';
 import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 
@@ -34,6 +34,51 @@ function getGreetingEmoji() {
   return '🌙';
 }
 
+// ===== Animated Number Counter =====
+function AnimatedNumber({ value, formatter, duration = 800, delay = 0 }) {
+  const [displayVal, setDisplayVal] = useState(0);
+  const [started, setStarted] = useState(false);
+  const rafRef = useRef(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setStarted(true), delay);
+    return () => clearTimeout(timer);
+  }, [delay]);
+
+  useEffect(() => {
+    if (!started) return;
+    const endVal = typeof value === 'number' && !isNaN(value) ? value : 0;
+    const startTime = performance.now();
+
+    function animate(now) {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+      const current = (endVal - 0) * eased;
+      setDisplayVal(current);
+      if (progress < 1) {
+        rafRef.current = requestAnimationFrame(animate);
+      } else {
+        setDisplayVal(endVal);
+      }
+    }
+    rafRef.current = requestAnimationFrame(animate);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, [started, value, duration]);
+
+  const formatted = formatter ? formatter(displayVal) : displayVal.toLocaleString();
+  if (!started) return <span style={{ opacity: 0.4 }}>{formatter ? formatter(0) : '0'}</span>;
+  return <>{formatted}</>;
+}
+
+function AnimatedPeso({ value, ...rest }) {
+  return <AnimatedNumber value={value} formatter={v => formatPeso(v)} {...rest} />;
+}
+
+function AnimatedInteger({ value, ...rest }) {
+  return <AnimatedNumber value={value} formatter={v => Math.round(v).toLocaleString()} {...rest} />;
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const [inventory, setInventory] = useState([]);
@@ -46,6 +91,12 @@ export default function Dashboard() {
   const [yesterdaySales, setYesterdaySales] = useState([]);
   const [trendData, setTrendData] = useState([]);
   const [quickAdding, setQuickAdding] = useState(null);
+  const [quickAddPopover, setQuickAddPopover] = useState(null);
+  const [customTrayInput, setCustomTrayInput] = useState({});
+  const [opexWhyOpen, setOpexWhyOpen] = useState(false);
+  const [opexRecentExpenses, setOpexRecentExpenses] = useState([]);
+  const [opexRecentFunds, setOpexRecentFunds] = useState([]);
+  const scrollRef = useRef(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [productCount, setProductCount] = useState(0);
@@ -99,12 +150,42 @@ export default function Dashboard() {
     }
   }
 
+  // Visibility-aware auto-refresh: poll only when tab is visible
   useEffect(() => {
-    // Defer to microtask to avoid cascading render warning from setState calls
+    scrollRef.current = window.scrollY;
     Promise.resolve().then(() => loadData());
-    const interval = setInterval(loadData, 30000);
-    return () => clearInterval(interval);
+
+    let interval = setInterval(() => {
+      scrollRef.current = window.scrollY;
+      loadData();
+    }, 30000);
+
+    function handleVisibility() {
+      if (document.visibilityState === 'visible') {
+        scrollRef.current = window.scrollY;
+        loadData();
+        interval = setInterval(() => {
+          scrollRef.current = window.scrollY;
+          loadData();
+        }, 30000);
+      } else {
+        clearInterval(interval);
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, []);
+
+  // Restore scroll position after data refreshes
+  useEffect(() => {
+    if (!loading && scrollRef.current > 0) {
+      requestAnimationFrame(() => window.scrollTo(0, scrollRef.current));
+    }
+  }, [loading]);
 
   const todayDeliveryCount = useMemo(() => todayDeliveries.length, [todayDeliveries]);
 
@@ -237,12 +318,14 @@ export default function Dashboard() {
     return { sparklineValues: values, maxSpark: Math.max(...values, 1) };
   }, [trendData]);
 
-  // Quick-add tray to inventory
-  const handleQuickAdd = useCallback(async (item) => {
+  // Multi-tray quick-add to inventory
+  const handleQuickAdd = useCallback(async (item, trays) => {
+    setQuickAddPopover(null);
     setQuickAdding(item.egg_size_id);
     try {
-      await incrementInventory(item.egg_size_id, TRAY_SIZE);
-      toast(`Added 1 tray to ${item.egg_sizes?.name}`);
+      const qty = trays * TRAY_SIZE;
+      await incrementInventory(item.egg_size_id, qty);
+      toast(`Added ${trays} tray${trays > 1 ? 's' : ''} (${qty} eggs) to ${item.egg_sizes?.name}`);
       loadData();
     } catch (err) {
       console.error('Quick add error:', err);
@@ -252,8 +335,32 @@ export default function Dashboard() {
     }
   }, []);
 
+  const handleCustomTrayAdd = useCallback(async (item) => {
+    const val = parseInt(customTrayInput[item.egg_size_id], 10);
+    if (isNaN(val) || val <= 0) {
+      toast('Enter a valid number of trays', 'error');
+      return;
+    }
+    await handleQuickAdd(item, val);
+    setCustomTrayInput(prev => ({ ...prev, [item.egg_size_id]: '' }));
+  }, [customTrayInput, handleQuickAdd]);
+
+  // Load recent opex entries for the "Why?" popover
+  const loadOpexDetails = useCallback(async () => {
+    try {
+      const [expenses, funds] = await Promise.all([
+        fetchExpenses({ limit: 3 }),
+        fetchOperationalFunds({ limit: 3 }),
+      ]);
+      setOpexRecentExpenses(expenses || []);
+      setOpexRecentFunds(funds || []);
+    } catch (err) {
+      console.error('Failed to load opex details:', err);
+    }
+  }, []);
+
   const lowStockItems = useMemo(() =>
-    inventory.filter(item => item.quantity_on_hand <= 50 && item.quantity_on_hand > 0),
+    inventory.filter(item => (item.quantity_on_hand || 0) <= (item.reorder_level ?? 30) && item.quantity_on_hand > 0),
     [inventory]
   );
 
@@ -329,7 +436,7 @@ export default function Dashboard() {
           </div>
           <div className="primary-stat-info">
             <span className="primary-stat-label">Today's Revenue</span>
-            <span className="primary-stat-value">{loading ? <span className="skeleton" style={{ display: 'inline-block', width: 80, height: 28 }}>&nbsp;</span> : formatPeso(combinedRevenue)}</span>
+            <span className="primary-stat-value">{loading ? <span className="skeleton" style={{ display: 'inline-block', width: 80, height: 28 }}>&nbsp;</span> : <AnimatedPeso value={combinedRevenue} duration={900} />}</span>
             {!loading && (
               <span className="primary-stat-sub">Eggs {formatPeso(todayRevenue)} · Products {formatPeso(todayProductRevenue)}</span>
             )}
@@ -350,7 +457,7 @@ export default function Dashboard() {
           </div>
           <div className="primary-stat-info">
             <span className="primary-stat-label">Net Profit</span>
-            <span className="primary-stat-value">{loading ? <span className="skeleton" style={{ display: 'inline-block', width: 80, height: 28 }}>&nbsp;</span> : formatPeso(netProfit)}</span>
+            <span className="primary-stat-value">{loading ? <span className="skeleton" style={{ display: 'inline-block', width: 80, height: 28 }}>&nbsp;</span> : <AnimatedPeso value={netProfit} duration={900} delay={100} />}</span>
           </div>
         </div>
       </div>
@@ -363,7 +470,7 @@ export default function Dashboard() {
           </div>
           <div className="stat-card-content">
             <span className="stat-card-value">
-              {loading ? <span className="skeleton" style={{ display: 'inline-block', width: 50, height: 24 }}>&nbsp;</span> : totalStock.toLocaleString()}
+              {loading ? <span className="skeleton" style={{ display: 'inline-block', width: 50, height: 24 }}>&nbsp;</span> : <AnimatedInteger value={totalStock} duration={800} delay={200} />}
             </span>
             <span className="stat-card-label">{inventory.length} size{inventory.length !== 1 ? 's' : ''} in stock</span>
           </div>
@@ -405,14 +512,30 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="stat-card-item stat-card-opex">
+        <div
+          className="stat-card-item stat-card-opex"
+          style={{ cursor: 'pointer' }}
+          onClick={() => navigate('/expenses-funds')}
+          title={opexBalance.balance < 0 ? `Expenses exceed funds by ${formatPeso(Math.abs(opexBalance.balance))}. Add funds or review recent expenses.` : `Funds: ${formatPeso(opexBalance.totalFunds)} · Expenses: ${formatPeso(opexBalance.totalExpenses)}`}
+        >
           <div className="stat-card-icon" style={{ background: opexBalance.balance >= 0 ? '#E8F5E9' : '#FFEBEE', color: opexBalance.balance >= 0 ? '#2E7D32' : '#C62828' }}>
             <Wallet size={18} />
           </div>
           <div className="stat-card-content">
-            <span className="stat-card-value" style={{ color: opexBalance.balance >= 0 ? 'inherit' : 'var(--color-danger)' }}>
-              {loading ? '—' : formatPeso(opexBalance.balance)}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+              <span className="stat-card-value" style={{ color: opexBalance.balance >= 0 ? 'inherit' : 'var(--color-danger)' }}>
+                {loading ? '—' : formatPeso(opexBalance.balance)}
+              </span>
+              {!loading && (
+                <button
+                  className="opex-why-btn"
+                  onClick={e => { e.stopPropagation(); loadOpexDetails(); setOpexWhyOpen(!opexWhyOpen); }}
+                  title="Why?"
+                >
+                  Why?
+                </button>
+              )}
+            </div>
             <span className="stat-card-label">Operational Funds</span>
             {!loading && opexBalance.totalFunds > 0 && (
               <div className="opex-bar-wrap">
@@ -424,6 +547,36 @@ export default function Dashboard() {
                       background: opexBalance.balance >= 0 ? 'var(--color-success)' : 'var(--color-danger)',
                     }}
                   />
+                </div>
+              </div>
+            )}
+            {opexWhyOpen && !loading && (
+              <div className="opex-why-popover" onClick={e => e.stopPropagation()}>
+                <div className="opex-why-section">
+                  <span className="opex-why-section-title">Recent Expenses</span>
+                  {opexRecentExpenses.length === 0 ? (
+                    <span className="opex-why-empty">No recent expenses</span>
+                  ) : (
+                    opexRecentExpenses.map(e => (
+                      <div key={e.id} className="opex-why-row">
+                        <span>{e.description || e.category || 'Expense'}</span>
+                        <span className="opex-why-amount">-{formatPeso(e.amount)}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div className="opex-why-section">
+                  <span className="opex-why-section-title">Recent Funds</span>
+                  {opexRecentFunds.length === 0 ? (
+                    <span className="opex-why-empty">No recent funds added</span>
+                  ) : (
+                    opexRecentFunds.map(f => (
+                      <div key={f.id} className="opex-why-row">
+                        <span>{f.source || 'Funds added'}</span>
+                        <span className="opex-why-amount opex-why-amount-add">+{formatPeso(f.amount)}</span>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             )}
@@ -632,7 +785,7 @@ export default function Dashboard() {
                   if (qty === 0) {
                     statusClass = 'badge-danger';
                     label = 'Out';
-                  } else if (qty <= 50) {
+                  } else if (qty <= (item.reorder_level ?? 30)) {
                     statusClass = 'badge-warning';
                     label = 'Low';
                   }
@@ -651,14 +804,35 @@ export default function Dashboard() {
                           {formatInventory(qty)}
                         </span>
                         <span className={`badge ${statusClass}`}>{label}</span>
-                        <button
-                          className="btn-icon btn-icon-quick stock-add-btn"
-                          onClick={() => handleQuickAdd(item)}
-                          disabled={isAdding}
-                          title="Add 1 tray"
-                        >
-                          <Plus size={14} />
-                        </button>
+                        <div className="stock-quick-add-wrap">
+                          <button
+                            className="btn-icon btn-icon-quick stock-add-btn"
+                            onClick={() => setQuickAddPopover(quickAddPopover === item.egg_size_id ? null : item.egg_size_id)}
+                            disabled={isAdding}
+                            title="Quick add trays"
+                          >
+                            {isAdding ? <span className="spinner-sm" /> : <Plus size={14} />}
+                          </button>
+                          {quickAddPopover === item.egg_size_id && (
+                            <div className="stock-quick-popover">
+                              <button className="stock-qp-btn" onClick={() => handleQuickAdd(item, 1)}>+1</button>
+                              <button className="stock-qp-btn" onClick={() => handleQuickAdd(item, 5)}>+5</button>
+                              <button className="stock-qp-btn" onClick={() => handleQuickAdd(item, 10)}>+10</button>
+                              <div className="stock-qp-custom">
+                                <input
+                                  type="number"
+                                  min="1"
+                                  className="stock-qp-input"
+                                  placeholder="Custom"
+                                  value={customTrayInput[item.egg_size_id] || ''}
+                                  onChange={e => setCustomTrayInput(prev => ({ ...prev, [item.egg_size_id]: e.target.value }))}
+                                  onKeyDown={e => { if (e.key === 'Enter') handleCustomTrayAdd(item); }}
+                                />
+                                <button className="stock-qp-go" onClick={() => handleCustomTrayAdd(item)}>Go</button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -1401,6 +1575,158 @@ export default function Dashboard() {
           .insight-row {
             gap: 0.5rem;
           }
+        }
+
+        .stock-quick-add-wrap {
+          position: relative;
+          display: inline-flex;
+        }
+
+        .stock-quick-popover {
+          position: absolute;
+          top: calc(100% + 4px);
+          right: 0;
+          z-index: 50;
+          background: var(--color-card);
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-md);
+          box-shadow: var(--shadow-lg);
+          padding: 0.375rem;
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+          min-width: 120px;
+          animation: fadeIn 0.15s ease-out;
+        }
+
+        .stock-qp-btn {
+          padding: 0.375rem 0.75rem;
+          border: none;
+          border-radius: var(--radius-sm);
+          background: transparent;
+          color: var(--color-text);
+          font-size: 0.8125rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all var(--transition-fast);
+          text-align: left;
+        }
+
+        .stock-qp-btn:hover {
+          background: var(--color-primary-light);
+          color: var(--color-primary);
+        }
+
+        .stock-qp-custom {
+          display: flex;
+          align-items: center;
+          gap: 0.25rem;
+          padding: 0.25rem 0.375rem;
+          border-top: 1px solid var(--color-border-light);
+          margin-top: 0.125rem;
+          padding-top: 0.375rem;
+        }
+
+        .stock-qp-input {
+          flex: 1;
+          min-width: 0;
+          width: 50px;
+          padding: 0.25rem 0.375rem;
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-sm);
+          font-size: 0.75rem;
+          color: var(--color-text);
+          background: var(--color-bg);
+          outline: none;
+        }
+        .stock-qp-input:focus { border-color: var(--color-primary); }
+
+        .stock-qp-go {
+          padding: 0.25rem 0.5rem;
+          border: none;
+          border-radius: var(--radius-sm);
+          background: var(--color-primary);
+          color: white;
+          font-size: 0.6875rem;
+          font-weight: 700;
+          cursor: pointer;
+        }
+        .stock-qp-go:hover { opacity: 0.9; }
+
+        .opex-why-btn {
+          padding: 0.0625rem 0.375rem;
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-full);
+          background: var(--color-bg);
+          color: var(--color-text-muted);
+          font-size: 0.6rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all var(--transition-fast);
+          line-height: 1.3;
+        }
+        .opex-why-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
+
+        .opex-why-popover {
+          margin-top: 0.5rem;
+          padding: 0.5rem 0.625rem;
+          background: var(--color-bg);
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-sm);
+          animation: fadeIn 0.15s ease-out;
+        }
+
+        .opex-why-section {
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+        .opex-why-section:not(:last-child) {
+          margin-bottom: 0.5rem;
+          padding-bottom: 0.5rem;
+          border-bottom: 1px dashed var(--color-border);
+        }
+
+        .opex-why-section-title {
+          font-size: 0.625rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          color: var(--color-text-muted);
+        }
+
+        .opex-why-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          font-size: 0.75rem;
+          color: var(--color-text-secondary);
+        }
+
+        .opex-why-amount {
+          font-weight: 600;
+          font-variant-numeric: tabular-nums;
+        }
+        .opex-why-amount-add { color: var(--color-success); }
+
+        .opex-why-empty {
+          font-size: 0.6875rem;
+          color: var(--color-text-muted);
+          font-style: italic;
+        }
+
+        .spinner-sm {
+          display: inline-block;
+          width: 14px;
+          height: 14px;
+          border: 2px solid var(--color-border);
+          border-top-color: var(--color-primary);
+          border-radius: 50%;
+          animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
         }
       `}</style>
     </div>
