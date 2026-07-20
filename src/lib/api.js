@@ -50,7 +50,7 @@ export {
 export { fetchSalesBySize, fetchSalesByHour, fetchSalesTrend, fetchCostsPerEgg, fetchCostsPerProduct, fetchProfitMargins, fetchProductSalesBySize, fetchProductSalesByHour, fetchProductSalesTrend } from './analytics';
 
 // ===== Products & Deliveries =====
-export { fetchProducts, addProduct, updateProduct, deleteProduct, calculateSellingPrice, autoFillPricing } from './products';
+export { fetchProducts, addProduct, updateProduct, deleteProduct, updateProductStock, calculateSellingPrice, autoFillPricing } from './products';
 export { fetchProductDeliveries, recordProductDelivery, updateProductDeliveryPayment, deleteProductDelivery } from './productDeliveries';
 
 // ===== Product Sales =====

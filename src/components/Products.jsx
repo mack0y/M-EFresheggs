@@ -2,14 +2,16 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Package,
   Plus,
+  Minus,
   Edit3,
   Trash2,
+  PackagePlus,
   AlertTriangle,
   RefreshCw,
   Tag,
   Search,
 } from 'lucide-react';
-import { fetchProducts, addProduct, updateProduct, deleteProduct, calculateSellingPrice, autoFillPricing, formatPeso } from '../lib/api';
+import { fetchProducts, addProduct, updateProduct, deleteProduct, updateProductStock, calculateSellingPrice, autoFillPricing, formatPeso } from '../lib/api';
 import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
@@ -47,6 +49,9 @@ export default function Products() {
   const [submitting, setSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
+  const [adjusting, setAdjusting] = useState(null);
+  const [adjustInputs, setAdjustInputs] = useState({});
+  const [confirmAdj, setConfirmAdj] = useState(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -214,6 +219,60 @@ export default function Products() {
       console.error('Delete error:', err);
       toast('Failed to delete product', 'error');
     }
+  }
+
+  async function executeAdjust(product, delta) {
+    setAdjusting(product.id);
+    try {
+      const currentQty = parseFloat(product.quantity_on_hand || 0);
+      const newQty = Math.max(0, currentQty + delta);
+      await updateProductStock(product.id, newQty);
+      const actualDelta = newQty - currentQty;
+      const name = product.name || 'Unknown';
+      if (delta < 0 && actualDelta !== delta) {
+        toast(`Could only remove ${Math.abs(actualDelta)} from ${name} — all remaining stock cleared (was ${currentQty})`);
+      } else {
+        const msg = delta > 0
+          ? `Added ${delta} to ${name}`
+          : `Removed ${Math.abs(delta)} from ${name}`;
+        toast(msg, 'success', {
+          label: 'Undo',
+          onClick: async () => {
+            try {
+              await updateProductStock(product.id, currentQty);
+              toast(`${name} restored to ${currentQty}`);
+              loadData();
+            } catch {
+              toast('Failed to undo adjustment', 'error');
+            }
+          },
+        });
+      }
+      loadData();
+    } catch (err) {
+      console.error('Stock adjust error:', err);
+      toast(getUserFriendlyError(err), 'error');
+    } finally {
+      setAdjusting(null);
+    }
+  }
+
+  function handleAdd(product) {
+    const val = parseInt(adjustInputs[product.id], 10);
+    if (isNaN(val) || val <= 0) {
+      toast('Enter a valid quantity to add', 'error');
+      return;
+    }
+    setConfirmAdj({ product, delta: val, isRemove: false });
+  }
+
+  function handleRemove(product) {
+    const val = parseInt(adjustInputs[product.id], 10);
+    if (isNaN(val) || val <= 0) {
+      toast('Enter a valid quantity to remove', 'error');
+      return;
+    }
+    setConfirmAdj({ product, delta: -val, isRemove: true });
   }
 
   const filtered = products.filter(p => {
@@ -399,6 +458,7 @@ export default function Products() {
             const price = parseFloat(p.price || 0);
             const cost = parseFloat(p.cost || 0);
             const m = cost > 0 && price > 0 ? Math.round(((price - cost) / price) * 100) : 0;
+            const isAdjusting = adjusting === p.id;
             return (
               <div key={p.id} className="prod-card" style={{ animationDelay: `${i * 0.03}s` }}>
                 <div className="prod-card-top">
@@ -419,6 +479,45 @@ export default function Products() {
                     {qty === 0 ? 'Out of Stock' : `${qty.toLocaleString()} ${p.unit}`}
                   </span>
                 </div>
+
+                {/* Stock Adjust Controls */}
+                <div className="prod-adjust-row">
+                  <div className="prod-adjust-input-group">
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      className="prod-adjust-input"
+                      placeholder="Qty"
+                      value={adjustInputs[p.id] || ''}
+                      onChange={e =>
+                        setAdjustInputs(prev => ({ ...prev, [p.id]: e.target.value }))
+                      }
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && adjustInputs[p.id]) handleAdd(p);
+                      }}
+                      disabled={isAdjusting}
+                    />
+                    <button
+                      type="button"
+                      className="btn-icon prod-adjust-btn prod-adjust-add"
+                      onClick={() => handleAdd(p)}
+                      disabled={isAdjusting || !adjustInputs[p.id]}
+                      title="Add stock"
+                    >
+                      <Plus size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-icon btn-icon-danger prod-adjust-btn prod-adjust-remove"
+                      onClick={() => handleRemove(p)}
+                      disabled={isAdjusting || qty === 0 || !adjustInputs[p.id]}
+                      title="Remove stock"
+                    >
+                      <Minus size={14} />
+                    </button>
+                  </div>
+                </div>
               </div>
             );
           })}
@@ -434,6 +533,25 @@ export default function Products() {
         icon={Trash2}
         onConfirm={() => { const t = deleteTarget; setDeleteTarget(null); handleDelete(t.id); }}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={!!confirmAdj}
+        title={confirmAdj?.isRemove ? 'Remove stock?' : 'Add stock?'}
+        message={confirmAdj
+          ? confirmAdj.isRemove
+            ? `Remove ${Math.abs(confirmAdj.delta)} from "${confirmAdj.product.name}"? Current stock: ${confirmAdj.product.quantity_on_hand || 0}.`
+            : `Add ${confirmAdj.delta} to "${confirmAdj.product.name}"? Current stock: ${confirmAdj.product.quantity_on_hand || 0}.`
+          : ''}
+        confirmLabel={confirmAdj?.isRemove ? 'Remove' : 'Add'}
+        icon={confirmAdj?.isRemove ? Trash2 : PackagePlus}
+        onConfirm={() => {
+          const { product, delta } = confirmAdj;
+          setConfirmAdj(null);
+          executeAdjust(product, delta);
+          setAdjustInputs(prev => ({ ...prev, [product.id]: '' }));
+        }}
+        onCancel={() => setConfirmAdj(null)}
       />
 
       <style>{`
@@ -481,6 +599,16 @@ export default function Products() {
         .prod-stock-badge.low { background: var(--color-warning-bg); color: var(--color-warning); }
         .prod-stock-badge.out { background: var(--color-danger-bg); color: var(--color-danger); }
         .prod-card-skeleton { height: 160px; border-radius: var(--radius-md); }
+
+        .prod-adjust-row { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--color-border); }
+        .prod-adjust-input-group { display: flex; align-items: center; gap: 0.25rem; }
+        .prod-adjust-input { flex: 1; min-width: 0; padding: 0.4rem 0.5rem; border: 1px solid var(--color-border); border-radius: var(--radius-sm); font-size: 0.8125rem; text-align: center; background: var(--color-card); color: var(--color-text); outline: none; }
+        .prod-adjust-input:focus { border-color: var(--color-primary); background: var(--color-primary-light); }
+        .prod-adjust-input::placeholder { color: var(--color-text-muted); font-size: 0.6875rem; }
+        .prod-adjust-btn { padding: 0.4rem 0.5rem !important; border-radius: var(--radius-sm) !important; }
+        .prod-adjust-add { color: var(--color-primary) !important; }
+        .prod-adjust-add:hover { background: var(--color-primary-light) !important; border-color: var(--color-primary) !important; }
+        .prod-adjust-remove:hover { background: var(--color-danger-bg) !important; border-color: var(--color-danger) !important; }
 
         @media (max-width: 640px) {
           .prod-stats { grid-template-columns: 1fr; }

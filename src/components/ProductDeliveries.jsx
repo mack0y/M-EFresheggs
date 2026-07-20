@@ -27,7 +27,6 @@ const paymentColors = {
 export default function ProductDeliveries() {
   const navigate = useNavigate();
   const [deliveries, setDeliveries] = useState([]);
-  const [products, setProducts] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -42,9 +41,7 @@ export default function ProductDeliveries() {
 
   const [form, setForm] = useState({
     supplierId: '',
-    productId: '',
-    quantity: '',
-    costPerUnit: '',
+    items: [],
     paymentStatus: 'unpaid',
     notes: '',
     date: today,
@@ -60,8 +57,21 @@ export default function ProductDeliveries() {
         fetchSuppliers(),
       ]);
       setDeliveries(delData || []);
-      setProducts(prodData || []);
       setSuppliers(suppData || []);
+
+      // Initialize form items when products load
+      if (prodData && prodData.length > 0) {
+        setForm(prev => ({
+          ...prev,
+          items: prodData.map(p => ({
+            productId: p.id,
+            name: p.name,
+            unit: p.purchase_unit || 'units',
+            quantity: '',
+            costPerUnit: '',
+          })),
+        }));
+      }
     } catch (err) {
       console.error('Product deliveries load error:', err);
       setError(err);
@@ -75,63 +85,74 @@ export default function ProductDeliveries() {
     return () => clearTimeout(id);
   }, [loadData]);
 
-  function resetForm() {
-    setForm({
-      supplierId: '',
-      productId: '',
-      quantity: '',
-      costPerUnit: '',
-      paymentStatus: 'unpaid',
-      notes: '',
-      date: today,
+  function updateItem(index, field, value) {
+    setForm(prev => {
+      const items = [...prev.items];
+      items[index] = { ...items[index], [field]: value };
+      return { ...prev, items };
     });
   }
 
-  function getSelectedProduct() {
-    if (!form.productId) return null;
-    return products.find(p => p.id === parseInt(form.productId, 10));
+  function activeItems() {
+    return form.items.filter(i => parseFloat(i.quantity) > 0);
   }
 
-  function calculateTotalCost() {
-    const qty = parseFloat(form.quantity) || 0;
-    const cost = parseFloat(form.costPerUnit) || 0;
-    return qty * cost;
+  function calculateBatchTotal() {
+    return form.items.reduce((sum, i) => {
+      const qty = parseFloat(i.quantity) || 0;
+      const cost = parseFloat(i.costPerUnit) || 0;
+      return sum + (qty * cost);
+    }, 0);
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
     if (!form.supplierId) { toast('Please select a supplier', 'error'); return; }
-    if (!form.productId) { toast('Please select a product', 'error'); return; }
-    if (!form.quantity || parseFloat(form.quantity) <= 0) { toast('Enter a valid quantity', 'error'); return; }
-    if (!form.costPerUnit || parseFloat(form.costPerUnit) < 0) { toast('Enter a valid cost', 'error'); return; }
+    const active = activeItems();
+    if (active.length === 0) { toast('Enter quantity for at least one product', 'error'); return; }
+    for (const item of active) {
+      if (!item.costPerUnit || parseFloat(item.costPerUnit) < 0) {
+        toast(`Enter cost per unit for ${item.name}`, 'error');
+        return;
+      }
+    }
 
     setSubmitting(true);
+    const createdIds = [];
     try {
-      const newDelivery = await recordProductDelivery({
-        supplierId: parseInt(form.supplierId, 10),
-        productId: parseInt(form.productId, 10),
-        purchaseQuantity: parseFloat(form.quantity),
-        costPerPurchaseUnit: parseFloat(form.costPerUnit),
-        deliveryDate: form.date,
-        notes: form.notes.trim(),
-        paymentStatus: form.paymentStatus,
-      });
-      const createdId = newDelivery?.id;
-      toast('Product delivery recorded', 'success', {
+      for (const item of active) {
+        const newDelivery = await recordProductDelivery({
+          supplierId: parseInt(form.supplierId, 10),
+          productId: parseInt(item.productId, 10),
+          purchaseQuantity: parseFloat(item.quantity),
+          costPerPurchaseUnit: parseFloat(item.costPerUnit),
+          deliveryDate: form.date,
+          notes: form.notes.trim(),
+          paymentStatus: form.paymentStatus,
+        });
+        if (newDelivery?.id) createdIds.push(newDelivery.id);
+      }
+      toast(`Delivery recorded (${active.length} product${active.length > 1 ? 's' : ''})`, 'success', {
         label: 'Undo',
         onClick: async () => {
           try {
-            if (createdId) {
-              await deleteProductDelivery(createdId);
-              toast('Delivery undone');
-              loadData();
-            }
+            const results = await Promise.allSettled(createdIds.map(id => deleteProductDelivery(id)));
+            const succeeded = results.filter(r => r.status === 'fulfilled').length;
+            toast(succeeded > 0 ? `Undone ${succeeded} delivery(ies)` : 'Failed to undo', succeeded > 0 ? 'success' : 'error');
+            loadData();
           } catch {
             toast('Failed to undo', 'error');
           }
         },
       });
-      resetForm();
+      setForm(prev => ({
+        ...prev,
+        supplierId: '',
+        items: prev.items.map(i => ({ ...i, quantity: '', costPerUnit: '' })),
+        paymentStatus: 'unpaid',
+        notes: '',
+        date: today,
+      }));
       setShowForm(false);
       loadData();
     } catch (err) {
@@ -289,21 +310,6 @@ export default function ProductDeliveries() {
                   </select>
                 </div>
                 <div className="input-group">
-                  <label htmlFor="pdel-product">Product</label>
-                  <select id="pdel-product" className="select" value={form.productId} onChange={e => setForm({ ...form, productId: e.target.value })} required>
-                    <option value="">Select product...</option>
-                    {products.map(p => <option key={p.id} value={p.id}>{p.name} ({p.purchase_unit || 'pcs'})</option>)}
-                  </select>
-                </div>
-                <div className="input-group">
-                  <label htmlFor="pdel-qty">Quantity ({getSelectedProduct()?.purchase_unit || 'units'})</label>
-                  <input id="pdel-qty" type="number" min="1" step="any" className="input" placeholder="0" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} required />
-                </div>
-                <div className="input-group">
-                  <label htmlFor="pdel-cost">Cost per Purchase Unit (₱)</label>
-                  <input id="pdel-cost" type="number" min="0" step="0.01" className="input" placeholder="0.00" value={form.costPerUnit} onChange={e => setForm({ ...form, costPerUnit: e.target.value })} required />
-                </div>
-                <div className="input-group">
                   <label htmlFor="pdel-date">Date</label>
                   <input id="pdel-date" type="date" className="input" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
                 </div>
@@ -315,20 +321,70 @@ export default function ProductDeliveries() {
                 </div>
               </div>
 
+              {/* Product grid */}
+              <div className="delivery-sizes-grid">
+                <div className="delivery-sizes-header" style={{ gridTemplateColumns: '1fr 90px 110px 100px' }}>
+                  <span className="delivery-sizes-label">Product</span>
+                  <span className="delivery-sizes-label">Qty</span>
+                  <span className="delivery-sizes-label">Cost/Unit</span>
+                  <span className="delivery-sizes-label num">Subtotal</span>
+                </div>
+                {form.items.length === 0 ? (
+                  <div className="delivery-size-row" style={{ gridTemplateColumns: '1fr', textAlign: 'center', color: 'var(--color-text-muted)', padding: '1rem' }}>
+                    No products in catalog. Add products first.
+                  </div>
+                ) : (
+                  form.items.map((item, i) => {
+                    const subtotal = (parseFloat(item.quantity) || 0) * (parseFloat(item.costPerUnit) || 0);
+                    return (
+                      <div key={item.productId} className="delivery-size-row" style={{ gridTemplateColumns: '1fr 90px 110px 100px' }}>
+                        <span className="delivery-size-name">
+                          {item.name}
+                          <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginLeft: '0.25rem' }}>
+                            ({item.unit})
+                          </span>
+                        </span>
+                        <input
+                          type="number"
+                          className="input delivery-size-input"
+                          min="0"
+                          step="any"
+                          placeholder="0"
+                          value={item.quantity}
+                          onChange={e => updateItem(i, 'quantity', e.target.value)}
+                        />
+                        <input
+                          type="number"
+                          className="input delivery-size-input"
+                          min="0"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={item.costPerUnit}
+                          onChange={e => updateItem(i, 'costPerUnit', e.target.value)}
+                        />
+                        <span className="delivery-size-subtotal num">
+                          {subtotal > 0 ? formatPeso(subtotal) : '—'}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
               <div className="input-group" style={{ marginTop: '0.75rem' }}>
                 <label htmlFor="pdel-notes">Notes</label>
                 <input id="pdel-notes" type="text" className="input" placeholder="Optional notes..." value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
               </div>
 
-              {calculateTotalCost() > 0 && (
+              {activeItems().length > 0 && (
                 <div className="delivery-cost-preview">
-                  <span>Total Cost:</span>
-                  <strong>{formatPeso(calculateTotalCost())}</strong>
+                  <span>Total Cost ({activeItems().length} product{activeItems().length > 1 ? 's' : ''}):</span>
+                  <strong>{formatPeso(calculateBatchTotal())}</strong>
                 </div>
               )}
 
               <button type="submit" className="btn btn-primary btn-block" style={{ marginTop: '1rem' }} disabled={submitting}>
-                {submitting ? 'Recording...' : 'Record Delivery'}
+                {submitting ? 'Recording...' : activeItems().length > 0 ? `Record ${activeItems().length} Product${activeItems().length > 1 ? 's' : ''}` : 'Review & Record'}
               </button>
             </form>
           )}
@@ -456,6 +512,13 @@ export default function ProductDeliveries() {
       />
 
       <style>{`
+        .delivery-sizes-grid { margin-top: 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow: hidden; }
+        .delivery-sizes-header { display: grid; gap: 0.5rem; padding: 0.5rem 0.75rem; background: var(--color-bg); border-bottom: 1px solid var(--color-border); font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted); }
+        .delivery-size-row { display: grid; gap: 0.5rem; align-items: center; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--color-border); }
+        .delivery-size-row:last-child { border-bottom: none; }
+        .delivery-size-name { font-size: 0.875rem; font-weight: 500; }
+        .delivery-size-input { height: 2rem !important; font-size: 0.8125rem !important; padding: 0 0.5rem !important; }
+        .delivery-size-subtotal { font-size: 0.8125rem; font-weight: 600; color: var(--color-primary); }
         .delivery-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1.25rem; }
         .delivery-stat-card { display: flex; align-items: center; gap: 0.75rem; padding: 0.875rem 1rem; background: var(--color-card); border: 1px solid var(--color-border); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); }
         .delivery-stat-card svg { color: var(--color-primary); flex-shrink: 0; }

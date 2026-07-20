@@ -1377,3 +1377,11 @@ Achieved **ESLint 0 errors, 0 warnings** and clean build:
 - **Build:** `npm run build` passes clean
 - **Browser test:** All 13 pages load with 0 console errors on live Supabase database
 - **Pages tested:** Dashboard, Inventory, Sales Log, Profits, Expenses & Funds, Products, Deliveries, Reports, Analytics, Price Settings, Spoilage, Customers, Suppliers
+
+### Product Stock Adjustments & Batch Product Deliveries (July 20, 2026)
+- **New feature:** Products page now has manual add/remove stock controls on each product card — number input + Add (+)/Remove (-) buttons, confirmation dialog, and undo toast (same pattern as egg inventory)
+- **API:** Added `updateProductStock(productId, quantity)` in `src/lib/products.js` — directly updates `quantity_on_hand` on a product by ID (exported via barrel api.js)
+- **Bug fix:** Products unit CHECK constraint was too restrictive (only allowed kg/box/tray/pack). Frontend uses pcs as default. Created `migration_fix_products_unit_constraint.sql` that drops old constraint and adds new one allowing all 8 unit values: pcs, kg, box, tray, can, pack, bottle, sachet
+- **Product Deliveries batch form:** Converted from single-product-at-a-time to batch grid showing ALL products at once (like egg deliveries form). Fill in qty + cost per unit for any products received, submit all at once. Each active product is submitted individually via API, with bulk undo that deletes all created records.
+- **Files changed:** `src/components/Products.jsx`, `src/components/ProductDeliveries.jsx`, `src/lib/products.js`, `src/lib/api.js`, `migration_fix_products_unit_constraint.sql`
+- **Verification:** ESLint 0 errors, npm run build passes

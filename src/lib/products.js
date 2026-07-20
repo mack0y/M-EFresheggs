@@ -81,3 +81,14 @@ export async function deleteProduct(id) {
   
   if (error) throw error;
 }
+
+export async function updateProductStock(productId, quantity) {
+  const { data, error } = await supabase
+    .from('products')
+    .update({ quantity_on_hand: quantity, updated_at: new Date().toISOString() })
+    .eq('id', productId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
