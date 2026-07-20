@@ -1250,7 +1250,7 @@ export default function Dashboard() {
         }
 
         .primary-stat-sub {
-          font-size: 0.6875rem;
+          font-size: 0.9375rem;
           color: var(--color-text-muted);
           margin-top: 0.0625rem;
         }
