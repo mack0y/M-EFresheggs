@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShoppingCart, ArrowLeft, Egg, Check, Search, Trash2, Plus, User, Zap, ChevronDown } from 'lucide-react';
 import { useCart } from './CartContext';
@@ -21,6 +21,7 @@ export default function NewSale() {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   // was: showReceipt / lastTransaction — replaced with toast
 
   // Egg form state
@@ -152,6 +153,8 @@ export default function NewSale() {
 
   // === Checkout ===
   async function executeCheckout() {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const eggItems = cartItems.filter(i => i.type === 'egg');
@@ -174,6 +177,7 @@ export default function NewSale() {
       console.error('Checkout error:', err);
       toast(getUserFriendlyError(err), 'error');
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
       setConfirmCheckout(false);
     }

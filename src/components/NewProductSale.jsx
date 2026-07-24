@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShoppingCart, ArrowLeft, Check, Search, Trash2, Plus, Minus, User } from 'lucide-react';
 import { useCart } from './CartContext';
@@ -16,6 +16,7 @@ export default function NewProductSale() {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
 
   const [productId, setProductId] = useState('');
   const [productSearch, setProductSearch] = useState('');
@@ -88,6 +89,8 @@ export default function NewProductSale() {
   }
 
   async function executeCheckout() {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const result = await recordTransaction({
@@ -104,6 +107,7 @@ export default function NewProductSale() {
       console.error('Checkout error:', err);
       toast(getUserFriendlyError(err), 'error');
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
       setConfirmCheckout(false);
     }
