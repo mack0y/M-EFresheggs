@@ -26,13 +26,32 @@ export default function NewSale() {
   const productSearchRef = useRef(null);
   // was: showReceipt / lastTransaction — replaced with toast
 
+  // Egg form state
+  const [eggForm, setEggForm] = useState({ eggSizeId: '', quantity: '', unit: 'piece' });
+
+  // Product form state
+  const [productId, setProductId] = useState('');
+  const [productSearch, setProductSearch] = useState('');
+  const [productQtys, setProductQtys] = useState({});
+
+  const [confirmCheckout, setConfirmCheckout] = useState(false);
+  const [quickSaleOpen, setQuickSaleOpen] = useState(() => {
+    const stored = localStorage.getItem('ns_quick_sale_open');
+    return stored !== null ? stored === 'true' : true;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('ns_quick_sale_open', String(quickSaleOpen));
+  }, [quickSaleOpen]);
+
   // Global keyboard shortcuts
   useEffect(() => {
     function handleKeyDown(e) {
       // / → focus product search
       if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) {
         e.preventDefault();
-        productSearchRef.current?.focus();
+        if (activeTab !== 'products') setActiveTab('products');
+        setTimeout(() => productSearchRef.current?.focus(), 0);
         return;
       }
       // Escape → close confirm or clear search
@@ -52,25 +71,7 @@ export default function NewSale() {
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [confirmCheckout, productSearch, cartItems.length, submitting]);
-
-  // Egg form state
-  const [eggForm, setEggForm] = useState({ eggSizeId: '', quantity: '', unit: 'piece' });
-
-  // Product form state
-  const [productId, setProductId] = useState('');
-  const [productSearch, setProductSearch] = useState('');
-  const [productQtys, setProductQtys] = useState({});
-
-  const [confirmCheckout, setConfirmCheckout] = useState(false);
-  const [quickSaleOpen, setQuickSaleOpen] = useState(() => {
-    const stored = localStorage.getItem('ns_quick_sale_open');
-    return stored !== null ? stored === 'true' : true;
-  });
-
-  useEffect(() => {
-    localStorage.setItem('ns_quick_sale_open', String(quickSaleOpen));
-  }, [quickSaleOpen]);
+  }, [confirmCheckout, productSearch, activeTab, cartItems.length, submitting]);
 
   const loadData = useCallback(async () => {
     try {
