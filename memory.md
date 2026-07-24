@@ -666,7 +666,17 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 - **Fix:** Amount is now distributed proportionally across items: each item gets `(item_cost / total_cost) × entered_amount`. For "paid" status, each item gets its own `total_cost`. For "unpaid", amounts set to 0.
 - **Bug:** "Remaining: ₱X" always showed even when batch was fully paid
 - **Fix:** Remaining column now hidden when batch status is "paid"
+- **Bug:** `batchPaymentStatus` returned 'unpaid' when all items were 'partial' (missing `s === 'partial'` check)
+- **Bug:** Payment dropdown didn't pre-fill current batch values (unlike ProductDeliveries)
+- **Bug:** Clicking 'unpaid' status button didn't clear the amount to 0
+- **Bug:** `handleBatchPaymentUpdate` overwrote existing partial payments instead of adding to them
 - **Files changed:** `src/components/Deliveries.jsx`, `src/components/ProductDeliveries.jsx`
+
+### Checkout Stock Error Fix (July 17, 2026)
+- **Bug:** `executeCheckout` in `NewSale.jsx` and `NewProductSale.jsx` didn't pass `name` in the mapped item objects to `recordTransaction`. The stock validation fallback used `item.name` in error messages, producing "Not enough undefined stock" — which `getUserFriendlyError` didn't recognize, returning a generic "Something went wrong" instead.
+- **Fix:** Added `name: i.name` to both `eggItems` and `productItems` mappings
+- **Fix:** Added `stock` error type to `errors.js` with "Not enough stock..." message, triggered by "Not enough" or "Insufficient stock" patterns
+- **Files changed:** `src/components/NewSale.jsx`, `src/components/NewProductSale.jsx`, `src/lib/errors.js`
 
 ## Recent Changes (Session Log)
 
