@@ -97,7 +97,17 @@ export async function deleteProductSale(id) {
     .update({ quantity_on_hand: newQty, updated_at: new Date().toISOString() })
     .eq('id', sale.product_id);
   
-  if (updateErr) throw updateErr;
+  // If inventory restore fails, re-insert the sale to keep data consistent
+  if (updateErr) {
+    await supabase.from('product_sales').insert({
+      product_id: sale.product_id,
+      quantity: sale.quantity,
+      total_amount: sale.total_amount,
+      sale_date: sale.sale_date,
+      sale_time: sale.sale_time,
+    });
+    throw updateErr;
+  }
 
   return sale;
 }
@@ -159,7 +169,23 @@ export async function deleteProductSales(ids) {
       .from('products')
       .update({ quantity_on_hand: newQty, updated_at: new Date().toISOString() })
       .eq('id', productId);
-    if (updateErr) throw updateErr;
+
+    // If inventory restore fails, re-insert the affected sales to keep data consistent
+    if (updateErr) {
+      const toRestore = sales.filter(s => s.product_id === parseInt(productId));
+      if (toRestore.length > 0) {
+        await supabase.from('product_sales').insert(
+          toRestore.map(s => ({
+            product_id: s.product_id,
+            quantity: s.quantity,
+            total_amount: s.total_amount,
+            sale_date: s.sale_date,
+            sale_time: s.sale_time,
+          }))
+        );
+      }
+      throw updateErr;
+    }
   }
 
   return sales;

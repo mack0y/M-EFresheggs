@@ -7,6 +7,7 @@ import {
   Calendar,
   DollarSign,
 } from 'lucide-react';
+import { supabase } from '../lib/supabaseClient';
 import { fetchSpoilageWithCost, recordSpoilage, deleteSpoilageRecords, fetchSpoilageByIds, restoreInventoryForSpoilage, fetchInventory, SPOILAGE_REASONS, formatPeso, getLocalDate } from '../lib/api';
 import { formatDate } from '../lib/formatters';
 import { toast } from '../lib/toastFn';
@@ -120,7 +121,9 @@ export default function Spoilage() {
         onClick: async () => {
           if (!lastSpoilageRef.current) return;
           try {
-            await deleteSpoilageRecords([lastSpoilageRef.current.id]);
+            const record = lastSpoilageRef.current;
+            await deleteSpoilageRecords([record.id]);
+            await restoreInventoryForSpoilage([record]);
             lastSpoilageRef.current = null;
             loadData();
           } catch {
@@ -224,8 +227,20 @@ export default function Spoilage() {
       // Delete the records
       await deleteSpoilageRecords(ids);
 
-      // Restore inventory
-      await restoreInventoryForSpoilage(spoilageRecords);
+      // Restore inventory — if this fails, re-insert the records to stay consistent
+      try {
+        await restoreInventoryForSpoilage(spoilageRecords);
+      } catch (restoreErr) {
+        await supabase.from('spoilage').insert(
+          spoilageRecords.map(s => ({
+            egg_size_id: s.egg_size_id,
+            quantity: s.quantity,
+            reason: s.reason,
+            spoilage_date: s.spoilage_date,
+          }))
+        );
+        throw restoreErr;
+      }
 
       setSelectedIds(new Set());
       loadData();

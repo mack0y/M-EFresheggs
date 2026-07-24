@@ -192,8 +192,13 @@ M-EFresheggs/
 | created_at | TIMESTAMPTZ | Auto |
 
 ### Triggers
-- **`after_sale_insert`** — Automatically deducts inventory when a sale is recorded. Converts trays to egg count (qty × tray_size) before deducting.
-- **`after_spoilage_insert`** — Automatically deducts inventory when spoilage is recorded.
+- **`after_sale_insert`** — Automatically deducts `inventory.quantity_on_hand` when a sale is recorded. Converts trays to egg count (qty × tray_size) before deducting.
+- **`after_spoilage_insert`** — Automatically deducts `inventory.quantity_on_hand` when spoilage is recorded.
+- **`after_delivery_insert`** — Automatically adds to `inventory.quantity_on_hand` when an egg delivery is recorded.
+- **`after_delivery_delete`** — Automatically subtracts from `inventory.quantity_on_hand` (with `GREATEST(0,...)` guard) when a delivery is deleted.
+- **`after_product_delivery_insert`** — Automatically adds to `products.quantity_on_hand` (using `purchase_qty_per_unit` conversion) when a product delivery is recorded.
+- **`after_product_delivery_delete`** — Automatically subtracts from `products.quantity_on_hand` (with `GREATEST(0,...)` guard) when a product delivery is deleted.
+- **`after_product_sale_insert`** — Automatically deducts `products.quantity_on_hand` (with `GREATEST(0,...)` guard) when a product sale is recorded.
 
 ### RLS Policies
 All tables use permissive policies (`ALL USING true`) since this is a single-user app. Row Level Security is enabled but allows all operations.
@@ -1196,7 +1201,7 @@ All pages are optimized for mobile viewing (375px+). Desktop layouts use respons
 
 ---
 
-# Last updated: Mon Jul 13 2026
+# Last updated: Thu Jul 24 2026
 
 ---
 
@@ -1418,3 +1423,18 @@ Achieved **ESLint 0 errors, 0 warnings** and clean build:
   - Only shows on initial page load — not on subsequent navigation
 - **Files changed:** `src/components/Dashboard.jsx`, `src/components/SplashScreen.jsx` (new), `src/App.jsx`, `src/index.css`
 - **Verification:** ESLint 0 errors, build passes (4.7s), browser-tested with 0 console errors
+
+## Session: Inventory Stock Flow — Race Condition Fixes & Missing Triggers (July 24, 2026)
+
+### Race Condition Fix — Self-healing Delete Functions
+- **Bug race condition:** All delete functions (deleteSale, deleteSales, deleteProductSale, deleteProductSales) deleted the sale record FIRST, then restored inventory in a separate query. If the restore step failed (network error, constraint violation), the sale was permanently gone but inventory was never restored — eggs/products silently lost.
+- **Fix:** Added re-insert rollback to all 4 functions. If inventory restore fails, the function re-inserts the deleted sale record (using the fetched data saved before delete) before re-throwing the error. Data stays consistent and the operation can be retried safely.
+- **Same pattern found & fixed in Spoilage.jsx:** Bulk delete (`handleBulkDelete`) — re-inserts spoilage records if `restoreInventoryForSpoilage()` fails. Undo toast was missing `restoreInventoryForSpoilage()` entirely — now properly restores inventory after deleting the spoilage record.
+- **Files changed:** `src/lib/sales.js` (deleteSale, deleteSales), `src/lib/productSales.js` (deleteProductSale, deleteProductSales), `src/components/Spoilage.jsx` (handleBulkDelete, undo toast)
+
+### Missing Database Triggers Discovered & Created
+- **Missing `after_product_delivery_insert`:** Product deliveries never updated `products.quantity_on_hand` — stock stayed at 0 regardless of delivery input. Created via `migration_auto_inventory_on_delivery.sql` (safe re-run).
+- **Missing `after_product_sale_insert`:** Product sales never deducted from `products.quantity_on_hand` — sales didn't reduce stock. Created trigger with `GREATEST(0,...)` guard.
+- **Verification helper:** Created `get_triggers()` RPC function on Supabase to query `information_schema.triggers` via the REST API.
+- **All 7 inventory triggers now present:** after_sale_insert, after_spoilage_insert, after_delivery_insert, after_delivery_delete, after_product_delivery_insert, after_product_delivery_delete, after_product_sale_insert.
+- **Files changed:** `migration_auto_inventory_on_delivery.sql`, `memory.md`

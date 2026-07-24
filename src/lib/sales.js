@@ -101,7 +101,20 @@ export async function deleteSale(id) {
     .from('inventory')
     .update({ quantity_on_hand: newQty, updated_at: new Date().toISOString() })
     .eq('egg_size_id', sale.egg_size_id);
-  if (updateErr) throw updateErr;
+
+  // If inventory restore fails, re-insert the sale to keep data consistent
+  if (updateErr) {
+    await supabase.from('sales').insert({
+      egg_size_id: sale.egg_size_id,
+      quantity: sale.quantity,
+      unit: sale.unit,
+      tray_size: sale.tray_size,
+      total_amount: sale.total_amount,
+      sale_date: sale.sale_date,
+      sale_time: sale.sale_time,
+    });
+    throw updateErr;
+  }
 
   return sale;
 }
@@ -149,7 +162,25 @@ export async function deleteSales(ids) {
       .from('inventory')
       .update({ quantity_on_hand: newQty, updated_at: new Date().toISOString() })
       .eq('egg_size_id', eggSizeId);
-    if (updateErr) throw updateErr;
+
+    // If inventory restore fails, re-insert the affected sales to keep data consistent
+    if (updateErr) {
+      const toRestore = sales.filter(s => s.egg_size_id === parseInt(eggSizeId));
+      if (toRestore.length > 0) {
+        await supabase.from('sales').insert(
+          toRestore.map(s => ({
+            egg_size_id: s.egg_size_id,
+            quantity: s.quantity,
+            unit: s.unit,
+            tray_size: s.tray_size,
+            total_amount: s.total_amount,
+            sale_date: s.sale_date,
+            sale_time: s.sale_time,
+          }))
+        );
+      }
+      throw updateErr;
+    }
   }
 
   return sales;
