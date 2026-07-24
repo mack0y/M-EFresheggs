@@ -52,7 +52,7 @@ export default function ProductDeliveries() {
       setLoading(true);
       setError(null);
       const [delData, prodData, suppData] = await Promise.all([
-        fetchProductDeliveries({ limit: 500, offset: 0 }),
+        fetchProductDeliveries({ limit: 500, offset: 0, startDate: today, endDate: today }),
         fetchProducts(),
         fetchSuppliers(),
       ]);
