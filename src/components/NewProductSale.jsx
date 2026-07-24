@@ -17,6 +17,7 @@ export default function NewProductSale() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
+  const searchRef = useRef(null);
 
   const [productId, setProductId] = useState('');
   const [productSearch, setProductSearch] = useState('');
@@ -54,6 +55,32 @@ export default function NewProductSale() {
     return result;
   }, [products, productSearch]);
 
+  // Global keyboard shortcuts
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) {
+        e.preventDefault();
+        searchRef.current?.focus();
+        return;
+      }
+      if (e.key === 'Escape') {
+        if (confirmCheckout) { setConfirmCheckout(false); return; }
+        if (productSearch) { setProductSearch(''); searchRef.current?.focus(); return; }
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        const totalItems = cartItems.length;
+        if (totalItems > 0 && !submitting) {
+          e.preventDefault();
+          setConfirmCheckout(true);
+        }
+        return;
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [confirmCheckout, productSearch, cartItems.length, submitting]);
+
   async function handleAddProduct() {
     const pId = parseInt(productId, 10);
     if (!pId) { toast('Select a product', 'error'); return; }
@@ -86,6 +113,7 @@ export default function NewProductSale() {
     setProductSearch('');
     setProductQtys({});
     toast(`Added ${product.name} to cart`);
+    setTimeout(() => searchRef.current?.focus(), 0);
   }
 
   async function executeCheckout() {
@@ -178,11 +206,19 @@ export default function NewProductSale() {
           <div className="ns-search-wrapper">
             <Search size={16} className="ns-search-icon" />
             <input
+              ref={searchRef}
               className="ns-search-input"
               type="text"
               placeholder="Search products..."
               value={productSearch}
               onChange={e => setProductSearch(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && filteredProducts.length > 0) {
+                  const first = filteredProducts[0];
+                  setProductId(first.id);
+                }
+              }}
+              autoFocus
             />
           </div>
 
@@ -235,6 +271,12 @@ export default function NewProductSale() {
                               value={qty}
                               onClick={e => e.stopPropagation()}
                               onChange={e => setProductQty(p.id, e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' && qty && parseFloat(qty) > 0) {
+                                  setProductId(p.id);
+                                  setTimeout(() => handleAddProduct(), 0);
+                                }
+                              }}
                               aria-label={`Quantity for ${p.name}`}
                             />
                             <button

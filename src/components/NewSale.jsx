@@ -22,7 +22,37 @@ export default function NewSale() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
+  const eggQtyRef = useRef(null);
+  const productSearchRef = useRef(null);
   // was: showReceipt / lastTransaction — replaced with toast
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    function handleKeyDown(e) {
+      // / → focus product search
+      if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) {
+        e.preventDefault();
+        productSearchRef.current?.focus();
+        return;
+      }
+      // Escape → close confirm or clear search
+      if (e.key === 'Escape') {
+        if (confirmCheckout) { setConfirmCheckout(false); return; }
+        if (productSearch) { setProductSearch(''); productSearchRef.current?.focus(); return; }
+        return;
+      }
+      // Ctrl+Enter → checkout
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        if (cartItems.length > 0 && !submitting) {
+          e.preventDefault();
+          setConfirmCheckout(true);
+        }
+        return;
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [confirmCheckout, productSearch, cartItems.length, submitting]);
 
   // Egg form state
   const [eggForm, setEggForm] = useState({ eggSizeId: '', quantity: '', unit: 'piece' });
@@ -139,6 +169,35 @@ export default function NewSale() {
   }
 
   // === Product helpers ===
+
+  function handleAddProduct() {
+    if (!productId || !productQtys[productId]) {
+      toast('Select a product and enter quantity', 'error');
+      return;
+    }
+    const p = products.find(pr => pr.id === parseInt(productId, 10));
+    if (!p) { toast('Product not found', 'error'); return; }
+    const qty = parseFloat(productQtys[productId]);
+    if (isNaN(qty) || qty <= 0) { toast('Enter a valid quantity', 'error'); return; }
+    const stock = parseFloat(p.quantity_on_hand || 0);
+    if (qty > stock) { toast(`Not enough ${p.name} stock — only ${stock} available`, 'error'); return; }
+    const price = parseFloat(p.price || 0);
+    addItem({
+      type: 'product',
+      id: p.id,
+      name: p.name,
+      quantity: qty,
+      unit: p.unit || 'units',
+      traySize: null,
+      pricePerUnit: price,
+      total: qty * price,
+    });
+    setProductId('');
+    setProductQtys({});
+    setProductSearch('');
+    toast(`Added ${p.name} to cart`);
+    setTimeout(() => productSearchRef.current?.focus(), 0);
+  }
 
   const filteredProducts = useMemo(() => products
     .filter(p => parseFloat(p.quantity_on_hand || 0) > 0)
@@ -395,7 +454,10 @@ export default function NewSale() {
                           type="button"
                           className={`ns-size-card ${selected ? 'selected' : ''} ${qty === 0 ? 'out-of-stock' : ''}`}
                           onClick={() => {
-                            if (qty > 0) setEggForm({ ...eggForm, eggSizeId: String(item.egg_size_id), quantity: '' });
+                            if (qty > 0) {
+                              setEggForm({ ...eggForm, eggSizeId: String(item.egg_size_id), quantity: '' });
+                              setTimeout(() => eggQtyRef.current?.focus(), 0);
+                            }
                           }}
                           disabled={qty === 0}
                         >
@@ -425,10 +487,12 @@ export default function NewSale() {
               <div className="ns-field">
                 <label>Quantity ({eggForm.unit === 'tray' ? 'trays' : 'eggs'})</label>
                 <input
+                  ref={eggQtyRef}
                   type="number" min="1"
                   placeholder={eggForm.unit === 'tray' ? 'Number of trays' : 'Number of eggs'}
                   value={eggForm.quantity}
                   onChange={e => setEggForm({ ...eggForm, quantity: e.target.value })}
+                  onKeyDown={e => { if (e.key === 'Enter') handleAddEgg(); }}
                   className="ns-qty-input"
                 />
                 <div className="ns-quick-chips">
@@ -450,33 +514,7 @@ export default function NewSale() {
             <div className="ns-form-content">
               <button
                 className="btn btn-primary ns-add-btn"
-                onClick={() => {
-                  if (!productId || !productQtys[productId]) {
-                    toast('Select a product and enter quantity', 'error');
-                    return;
-                  }
-                  const p = products.find(pr => pr.id === parseInt(productId, 10));
-                  if (!p) { toast('Product not found', 'error'); return; }
-                  const qty = parseFloat(productQtys[productId]);
-                  if (isNaN(qty) || qty <= 0) { toast('Enter a valid quantity', 'error'); return; }
-                  const stock = parseFloat(p.quantity_on_hand || 0);
-                  if (qty > stock) { toast(`Not enough ${p.name} stock — only ${stock} available`, 'error'); return; }
-                  const price = parseFloat(p.price || 0);
-                  addItem({
-                    type: 'product',
-                    id: p.id,
-                    name: p.name,
-                    quantity: qty,
-                    unit: p.unit || 'units',
-                    traySize: null,
-                    pricePerUnit: price,
-                    total: qty * price,
-                  });
-                  setProductId('');
-                  setProductQtys({});
-                  setProductSearch('');
-                  toast(`Added ${p.name} to cart`);
-                }}
+                onClick={handleAddProduct}
                 disabled={!productId || !productQtys[productId]}
               >
                 <Plus size={18} /> Add to Cart
@@ -487,11 +525,19 @@ export default function NewSale() {
                 <div className="ns-search-wrapper">
                   <Search size={16} className="ns-search-icon" />
                   <input
+                    ref={productSearchRef}
                     type="text"
                     className="ns-search-input"
                     placeholder="Search products..."
                     value={productSearch}
                     onChange={e => setProductSearch(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && filteredProducts.length > 0) {
+                        const first = filteredProducts[0];
+                        setProductId(String(first.id));
+                        setProductQtys({ ...productQtys, [first.id]: '1' });
+                      }
+                    }}
                   />
                 </div>
                 <div className="ns-product-list">
@@ -549,6 +595,7 @@ export default function NewSale() {
                                   placeholder="Qty"
                                   value={qty}
                                   onChange={e => setProductQtys({ ...productQtys, [p.id]: e.target.value })}
+                                  onKeyDown={e => { if (e.key === 'Enter') handleAddProduct(); }}
                                   className="ns-product-qty-input"
                                   autoFocus
                                 />
