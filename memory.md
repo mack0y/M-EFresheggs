@@ -1438,3 +1438,10 @@ Achieved **ESLint 0 errors, 0 warnings** and clean build:
 - **Verification helper:** Created `get_triggers()` RPC function on Supabase to query `information_schema.triggers` via the REST API.
 - **All 7 inventory triggers now present:** after_sale_insert, after_spoilage_insert, after_delivery_insert, after_delivery_delete, after_product_delivery_insert, after_product_delivery_delete, after_product_sale_insert.
 - **Files changed:** `migration_auto_inventory_on_delivery.sql`, `memory.md`
+
+## Session: Inventory Audit Log + Trigger Fixes (July 24, 2026)
+- **New `inventory_audit` table** — Records every UPDATE to `inventory.quantity_on_hand` and `products.quantity_on_hand` with old/new values, timestamp, and source.
+- **New audit triggers** — `inventory_audit_trigger` (on inventory) and `product_stock_audit_trigger` (on products) fire on every quantity change and log to the audit table. Any future drift can be traced by querying `SELECT * FROM inventory_audit ORDER BY changed_at DESC`.
+- **Fixed product sale trigger** — Removed `GREATEST(0, ...)` from `update_product_inventory_on_sale()`. Product sales now fail on overselling (like egg sales) instead of silently clamping stock to 0.
+- **Fixed egg sale trigger** — Added `COALESCE(NEW.tray_size, 30)` to `update_inventory_on_sale()` so NULL tray_size doesn't crash the sale.
+- **Files changed:** `migration_inventory_audit.sql` (new), `memory.md`
