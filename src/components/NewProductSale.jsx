@@ -93,7 +93,7 @@ export default function NewProductSale() {
       const result = await recordTransaction({
         eggItems: [],
         productItems: cartItems.map(i => ({
-          id: i.id, quantity: i.quantity, total: i.total,
+          id: i.id, name: i.name, quantity: i.quantity, total: i.total,
         })),
         customerId: customer?.id || null,
       });

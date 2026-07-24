@@ -23,6 +23,7 @@ const ERROR_MESSAGES = {
   server: 'The server encountered an error. Please try again later.',
   unknown: 'Something went wrong. Please try again.',
   validation: 'Please check your input and try again.',
+  stock: 'Not enough stock for one or more items. Check product/egg stock levels and try again.',
   timeout: 'The request timed out. Please check your connection and try again.',
 };
 
@@ -45,6 +46,7 @@ export function getUserFriendlyError(error) {
   if (isNetworkError(error)) return ERROR_MESSAGES.network;
   if (msg.includes('JWT') || msg.includes('Auth') || msg.includes('auth') || msg.includes('key')) return ERROR_MESSAGES.auth;
   if (msg.includes('not found') || msg.includes('No rows')) return ERROR_MESSAGES.notFound;
+  if (msg.includes('Not enough') || msg.includes('Insufficient stock')) return ERROR_MESSAGES.stock;
   if (msg.includes('timeout') || msg.includes('Timed out')) return ERROR_MESSAGES.timeout;
   if (msg.includes('violates') || msg.includes('constraint') || msg.includes('invalid input')) return ERROR_MESSAGES.validation;
 
