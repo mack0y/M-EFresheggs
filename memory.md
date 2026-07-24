@@ -1445,3 +1445,10 @@ Achieved **ESLint 0 errors, 0 warnings** and clean build:
 - **Fixed product sale trigger** — Removed `GREATEST(0, ...)` from `update_product_inventory_on_sale()`. Product sales now fail on overselling (like egg sales) instead of silently clamping stock to 0.
 - **Fixed egg sale trigger** — Added `COALESCE(NEW.tray_size, 30)` to `update_inventory_on_sale()` so NULL tray_size doesn't crash the sale.
 - **Files changed:** `migration_inventory_audit.sql` (new), `memory.md`
+
+## Session: Math Audit — 3 Critical Report Query Limit Bugs (July 24, 2026)
+- **Bug found:** `fetchSalesReport()`, `fetchSalesBySize()`, and `fetchSalesByHour()` had NO `.limit()` or pagination. Supabase defaults to 1,000 rows max. With 2,452 total sales, **59% of data was silently dropped** from reports and analytics charts.
+- **Impact:** Reports showed 26,666 eggs and ₱205,950 revenue instead of the correct 66,408 eggs and ₱501,669 revenue.
+- **Fix:** Added chunked pagination (`.range()` in 1,000-row loops matching the `fetchSalesTrend()` pattern) to all three functions.
+- **Other math verified correct:** Egg count conversion, revenue-at-sale-time, COGS (latest delivery), Dashboard/Profits formulas, product stock.
+- **Files changed:** `src/lib/reports.js` (fetchSalesReport), `src/lib/analytics.js` (fetchSalesBySize, fetchSalesByHour), `memory.md`

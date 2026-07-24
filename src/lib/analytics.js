@@ -13,9 +13,20 @@ export async function fetchSalesBySize(startDate, endDate) {
   if (startDate) query = query.gte('sale_date', startDate);
   if (endDate) query = query.lte('sale_date', endDate);
 
-  const { data, error } = await query.order('sale_date', { ascending: true });
-  if (error) throw error;
-  return data;
+  query = query.order('sale_date', { ascending: true });
+
+  const pageSize = 1000;
+  let allData = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await query.range(from, from + pageSize - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    allData = allData.concat(data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  return allData;
 }
 
 export async function fetchSalesByHour(startDate, endDate) {
@@ -26,9 +37,20 @@ export async function fetchSalesByHour(startDate, endDate) {
   if (startDate) query = query.gte('sale_date', startDate);
   if (endDate) query = query.lte('sale_date', endDate);
 
-  const { data, error } = await query;
-  if (error) throw error;
-  return data;
+  query = query.order('sale_date', { ascending: true });
+
+  const pageSize = 1000;
+  let allData = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await query.range(from, from + pageSize - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    allData = allData.concat(data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  return allData;
 }
 
 export async function fetchSalesTrend(days = 30, endDate) {

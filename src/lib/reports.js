@@ -26,7 +26,18 @@ export async function fetchSalesReport({ startDate, endDate, startTime, endTime 
     }
   }
 
-  const { data, error } = await query.order('sale_time', { ascending: true });
-  if (error) throw error;
-  return data;
+  query = query.order('sale_time', { ascending: true });
+
+  const pageSize = 1000;
+  let allData = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await query.range(from, from + pageSize - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    allData = allData.concat(data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  return allData;
 }
