@@ -353,7 +353,10 @@ export default function Profits() {
                   </tr>
                 </thead>
                 <tbody>
-                  {profitData.rows.map(row => (
+                  {(viewFilter === 'all' ? profitData.rows : 
+                    viewFilter === 'eggs' ? profitData.rows.filter(row => row.eggSizeId !== null) : 
+                    viewFilter === 'products' ? [] : 
+                    profitData.rows).map(row => (
                     <tr key={row.name}>
                       <td className="size-cell">{row.name}</td>
                       <td className="num">{row.totalEggs.toLocaleString()}</td>
