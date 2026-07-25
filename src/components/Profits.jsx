@@ -250,18 +250,18 @@ export default function Profits() {
 
       {/* Summary Cards */}
       <div className="profit-summary-grid">
-        <div className="profit-summary-card profit-card-revenue">
-          <div className="profit-card-icon-wrap" style={{ background: '#E3F2FD', color: '#1565C0' }}>
-            <DollarSign size={20} />
-          </div>
-          <div className="profit-card-info">
-            <span className="profit-card-label">Adjusted Revenue</span>
-            <span className="profit-card-value">{loading ? '—' : formatPeso(profitData.adjustedRevenue)}</span>
-            {profitData.revenueCut > 0 && !loading && (
-              <span style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)' }}>After 1% cut ({formatPeso(profitData.revenueCut)})</span>
-            )}
-          </div>
+      <div className="profit-summary-card profit-card-revenue">
+        <div className="profit-card-icon-wrap" style={{ background: '#E3F2FD', color: '#1565C0' }}>
+          <DollarSign size={20} />
         </div>
+        <div className="profit-card-info">
+          <span className="profit-card-label">Adjusted Revenue</span>
+          <span className="profit-card-value">{loading ? '—' : formatPeso(profitData.adjustedRevenue)}</span>
+          {profitData.revenueCut > 0 && !loading && (
+            <span style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)' }}>After 1% cut ({formatPeso(Math.round(profitData.revenueCut * 100) / 100)})</span>
+          )}
+        </div>
+      </div>
         <div className="profit-summary-card profit-card-cogs">
           <div className="profit-card-icon-wrap" style={{ background: '#FFF3E0', color: '#E65100' }}>
             <ShoppingCart size={20} />
