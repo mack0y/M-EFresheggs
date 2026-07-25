@@ -444,10 +444,10 @@ export default function Profits() {
                 <span className="profit-net-amount" style={{ color: 'var(--color-primary)' }}>{formatPeso(profitData.totalRevenue)}</span>
               </div>
               <div className="profit-net-op"><TrendingDown size={14} /></div>
-              <div className="profit-net-item">
-                <span>1% Cut</span>
-                <span className="profit-net-amount" style={{ color: '#F57F17' }}>{formatPeso(profitData.revenueCut)}</span>
-              </div>
+                <div className="profit-net-item">
+                  <span>1% Cut</span>
+                  <span className="profit-net-amount" style={{ color: '#F57F17' }}>{formatPeso(Math.round(profitData.revenueCut * 100) / 100)}</span>
+                </div>
               <div className="profit-net-op"><TrendingDown size={14} /></div>
               <div className="profit-net-item">
                 <span>Adjusted Revenue</span>

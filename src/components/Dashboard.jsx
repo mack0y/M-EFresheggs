@@ -183,7 +183,7 @@ export default function Dashboard() {
     [todayProductSales, costsPerProduct]
   );
 
-  const dailyRevenueCut = combinedRevenue * 0.01;
+  const dailyRevenueCut = Math.round(combinedRevenue * 0.01 * 100) / 100;
   const adjustedRevenue = combinedRevenue - dailyRevenueCut;
   const netProfit = adjustedRevenue - todayCOGS - todayProductCOGS;
 

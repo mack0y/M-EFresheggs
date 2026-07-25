@@ -66,7 +66,7 @@ export async function getDailyRevenueCutPreview() {
   ) + (productSalesData || []).reduce(
     (sum, s) => sum + parseFloat(s.total_amount || 0), 0
   );
-  const cutAmount = Math.round(revenue * DAILY_CUT_PERCENT * 100) / 100;
+  const cutAmount = Math.round(revenue * 0.01 * 100) / 100;
 
   // Check if already recorded today
   const { data: existingFund, error: fundErr } = await supabase
