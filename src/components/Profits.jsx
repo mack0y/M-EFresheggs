@@ -57,7 +57,7 @@ export default function Profits() {
   const [costsPerEgg, setCostsPerEgg] = useState({});
   const [costsPerProduct, setCostsPerProduct] = useState({});
   const [priceSettings, setPriceSettings] = useState([]);
-  const [expandedSize, setExpandedSize] = useState(null);
+  const [expandedItem, setExpandedItem] = useState(null);  // Unified for eggs and products
   const [viewFilter, setViewFilter] = useState('all'); // 'all' | 'eggs' | 'products'
   const [productSales, setProductSales] = useState([]);
 
@@ -246,6 +246,239 @@ export default function Profits() {
         ].map(v => (
           <button key={v.key} className={`pr-view-btn ${viewFilter === v.key ? 'active' : ''}`} onClick={() => setViewFilter(v.key)}>{v.label}</button>
         ))}
+      </div>
+
+      <div className="profit-mobile-cards-container">
+        <div className="pr-tabs">
+          <div className="pr-tab-header">
+            <div className="pr-tab-title">Egg Sizes (Active Now)</div>
+            <div className="pr-tab-counts">
+              {viewFilter === 'all' || viewFilter === 'eggs' ? profitData.rows.length : 0} of {profitData.rows.length} shown
+            </div>
+          </div>
+
+          <div className="pr-tab-content">
+            <div className="pr-desktop-wrapper">
+              <table className="pr-table">
+                <thead>
+                  <tr>
+                    <th>Egg Size</th>
+                    <th className="num">Sold</th>
+                    <th className="num">Revenue</th>
+                    <th className="num">Cost/Tray</th>
+                    <th className="num">Cost/Egg</th>
+                    <th className="num">Sell/Tray</th>
+                    <th className="num">Sell/Egg</th>
+                    <th className="num">Profit/Tray</th>
+                    <th className="num">Profit/Egg</th>
+                    <th className="num">Margin</th>
+                    <th className="num">COGS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(viewFilter === 'all' || viewFilter === 'eggs' ? profitData.rows : []).map(row => (
+                    <tr key={row.name}>
+                      <td className="size-cell">{row.name}</td>
+                      <td className="num">{row.totalEggs.toLocaleString()}</td>
+                      <td className="num" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>{formatPeso(row.revenue)}</td>
+                      <td className="num">{row.costPerTray > 0 ? formatPeso(row.costPerTray) : '—'}</td>
+                      <td className="num">{row.costPerEgg > 0 ? formatPeso(row.costPerEgg) : '—'}</td>
+                      <td className="num">{row.sellPerTray > 0 ? formatPeso(row.sellPerTray) : '—'}</td>
+                      <td className="num">{row.sellPerPiece > 0 ? formatPeso(row.sellPerPiece) : '—'}</td>
+                      <td className="num" style={{ color: row.profitPerTray >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>
+                        {row.sellPerTray > 0 ? formatPeso(row.profitPerTray) : '—'}
+                      </td>
+                      <td className="num" style={{ color: row.profitPerEgg >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>
+                        {row.sellPerPiece > 0 ? formatPeso(row.profitPerEgg) : '—'}
+                      </td>
+                      <td className="num" style={{ color: row.marginPercent >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>
+                        {row.sellPerPiece > 0 ? `${row.marginPercent}%` : '—'}
+                      </td>
+                      <td className="num" style={{ color: 'var(--color-danger)' }}>{row.cogs > 0 ? formatPeso(row.cogs) : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="total-row">
+                    <td className="size-cell">Subtotal</td>
+                    <td className="num">{(viewFilter === 'all' || viewFilter === 'eggs' ? profitData.rows.reduce((s, r) => s + r.totalEggs, 0) : 0).toLocaleString()}</td>
+                    <td className="num" style={{ color: 'var(--color-primary)', fontWeight: 700 }}>{formatPeso(viewFilter === 'all' || viewFilter === 'eggs' ? profitData.rows.reduce((s, r) => s + r.revenue, 0) + (viewFilter === 'products' ? profitData.productRevenue : 0) : (profitData.rows.reduce((s, r) => s + r.revenue, 0) + profitData.productRevenue))}</td>
+                    <td colSpan={4}></td>
+                    <td colSpan={2} className="num" style={{ fontWeight: 800, color: (viewFilter === 'all' || viewFilter === 'eggs' ? profitData.rows.reduce((s, r) => s + r.revenue, 0) : 0) + (viewFilter === 'products' ? profitData.productRevenue : 0) > 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                      {formatPeso(viewFilter === 'all' || viewFilter === 'eggs' ? profitData.rows.reduce((s, r) => s + r.revenue, 0) + (viewFilter === 'products' ? profitData.productRevenue : 0) : 0)}
+                    </td>
+                    <td className="num" style={{ color: 'var(--color-text-muted)' }}>
+                      {profitData.totalRevenue > 0 ? `${Math.round((profitData.totalRevenue > 0 ? profitData.totalRevenue : 0) * 1000) / 10}%` : '—'}
+                    </td>
+                    <td className="num" style={{ color: 'var(--color-danger)' }}>{formatPeso(viewFilter === 'all' || viewFilter === 'eggs' ? profitData.rows.reduce((s, r) => s + r.cogs, 0) + (viewFilter === 'products' ? profitData.productCOGS : 0) : (profitData.rows.reduce((s, r) => s + r.cogs, 0) + profitData.productCOGS))}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            <div className="pr-mobile-tabs-container">
+              <div className="pr-mobile-tab-header">
+                <div className="pr-mobile-tab-title">Egg Sizes</div>
+                <div className="pr-mobile-tab-counts">
+                  {viewFilter === 'all' || viewFilter === 'eggs' ? profitData.rows.length : 0} items
+                </div>
+              </div>
+
+              <div className="pr-mobile-tab-content">
+                {(viewFilter === 'all' || viewFilter === 'eggs' ? profitData.rows : []).map(row => (
+                  <div key={row.name} className="pr-mobile-card">
+                    <div className="pr-mobile-header" onClick={() => setExpandedItem(expandedItem === row.name ? null : row.name)}>
+                      <div className="pr-mobile-left">
+                        <div className="pr-mobile-icon">
+                          <Egg size={16} />
+                        </div>
+                        <div>
+                          <span className="pr-mobile-name">{row.name}</span>
+                          <span className="pr-mobile-eggs">
+                            {row.trays > 0 ? `${row.trays} tray${row.trays > 1 ? 's' : ''}` : ''}
+                            {row.trays > 0 && row.pieces > 0 ? ' + ' : ''}
+                            {row.pieces > 0 ? `${row.pieces} pcs` : ''}
+                            {row.trays === 0 && row.pieces === 0 ? `${row.totalEggs} eggs` : ''}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="pr-mobile-right">
+                        <span className="pr-mobile-revenue">{formatPeso(row.revenue)}</span>
+                        <ChevronDown size={16} className={`pr-mobile-chevron ${expandedItem === row.name ? 'open' : ''}`} />
+                      </div>
+                    </div>
+                    {expandedItem === row.name && (
+                      <div className="pr-mobile-detail">
+                        <div className="pr-mobile-row"><span>Sold</span><span className="num">{row.totalEggs.toLocaleString()} eggs</span></div>
+                        <div className="pr-mobile-row"><span>Revenue</span><span className="num" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>{formatPeso(row.revenue)}</span></div>
+                        <div className="pr-mobile-row"><span>Cost/Tray</span><span className="num">{row.costPerTray > 0 ? formatPeso(row.costPerTray) : '—'}</span></div>
+                        <div className="pr-mobile-row"><span>Cost/Egg</span><span className="num">{row.costPerEgg > 0 ? formatPeso(row.costPerEgg) : '—'}</span></div>
+                        <div className="pr-mobile-row"><span>Sell/Tray</span><span className="num">{row.sellPerTray > 0 ? formatPeso(row.sellPerTray) : '—'}</span></div>
+                        <div className="pr-mobile-row"><span>Sell/Egg</span><span className="num">{row.sellPerPiece > 0 ? formatPeso(row.sellPerPiece) : '—'}</span></div>
+                        <div className="pr-mobile-row"><span>Profit/Tray</span><span className="num" style={{ color: row.profitPerTray >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>{row.sellPerTray > 0 ? formatPeso(row.profitPerTray) : '—'}</span></div>
+                        <div className="pr-mobile-row"><span>Profit/Egg</span><span className="num" style={{ color: row.profitPerEgg >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>{row.sellPerPiece > 0 ? formatPeso(row.profitPerEgg) : '—'}</span></div>
+                        <div className="pr-mobile-row"><span>Margin</span><span className={`pr-margin-badge-sm ${row.marginPercent >= 0 ? 'pos' : 'neg'}`}>{row.sellPerPiece > 0 ? `${row.marginPercent}%` : '—'}</span></div>
+                        <div className="pr-mobile-row"><span>COGS</span><span className="num" style={{ color: '#C62828' }}>{row.cogs > 0 ? formatPeso(row.cogs) : '—'}</span></div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="pr-tabs">
+          <div className="pr-tab-header">
+            <div className="pr-tab-title">Product Sales</div>
+            <div className="pr-tab-counts">
+              {viewFilter === 'all' || viewFilter === 'products' ? productSales.length : 0} of {productSales.length} shown
+            </div>
+          </div>
+
+          <div className="pr-tab-content">
+            <div className="pr-desktop-wrapper">
+              <table className="pr-table">
+                <thead>
+                  <tr>
+                    <th>Product Name</th>
+                    <th className="num">Qty</th>
+                    <th className="num">Unit Price</th>
+                    <th className="num">COGS/Unit</th>
+                    <th className="num">Revenue</th>
+                    <th className="num">Profit</th>
+                    <th className="num">Margin</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(viewFilter === 'all' || viewFilter === 'products' ? productSales : []).map((sale, i) => {
+                    const costPerUnit = costsPerProduct[sale.product_id] || 0;
+                    const revenue = parseFloat(sale.total_amount || 0);
+                    const profit = revenue - (costPerUnit * parseFloat(sale.quantity || 0));
+                    const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+
+                    return (
+                      <tr key={i}>
+                        <td className="size-cell">{sale.products?.name || `Product ${sale.product_id}`}</td>
+                        <td className="num">{(parseFloat(sale.quantity || 0)).toLocaleString()}</td>
+                        <td className="num">{(parseFloat(sale.total_amount || 0) / parseFloat(sale.quantity || 1)).toLocaleString()} each</td>
+                        <td className="num">{formatPeso(costPerUnit)}</td>
+                        <td className="num" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>{formatPeso(revenue)}</td>
+                        <td className="num" style={{ color: profit >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>{formatPeso(profit)}</td>
+                        <td className="num" style={{ color: margin >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>{margin > 0 ? `${margin.toFixed(1)}%` : '—'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="total-row">
+                    <td className="size-cell">Subtotal</td>
+                    <td className="num">{(viewFilter === 'all' || viewFilter === 'products' ? productSales.reduce((s, ps) => s + parseFloat(ps.quantity || 0), 0) : 0).toLocaleString()}</td>
+                    <td colSpan={2}></td>
+                    <td className="num" style={{ color: 'var(--color-primary)', fontWeight: 700 }}>{formatPeso(viewFilter === 'all' || viewFilter === 'products' ? productSales.reduce((s, ps) => s + parseFloat(ps.total_amount || 0), 0) : (viewFilter === 'eggs' ? 0 : profitData.productRevenue))}</td>
+                    <td className="num" style={{ color: profitData.netProfit >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>{formatPeso(viewFilter === 'all' || viewFilter === 'products' ? productSales.reduce((s, ps) => {
+                      const costPerUnit = costsPerProduct[ps.product_id] || 0;
+                      return s + (costPerUnit * parseFloat(ps.quantity || 0));
+                    }, 0) : (viewFilter === 'eggs' ? 0 : profitData.productCOGS))}</td>
+                    <td className="num" style={{ color: 'var(--color-text-muted)' }}>
+                      {profitData.totalRevenue > 0 ? `${Math.round(((viewFilter === 'all' || viewFilter === 'products' ? productSales.reduce((s, ps) => s + parseFloat(ps.total_amount || 0), 0) : 0) / profitData.totalRevenue) * 1000) / 10}%` : '—'}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            <div className="pr-mobile-tabs-container">
+              <div className="pr-mobile-tab-header">
+                <div className="pr-mobile-tab-title">Product Sales</div>
+                <div className="pr-mobile-tab-counts">
+                  {(viewFilter === 'all' || viewFilter === 'products' ? productSales : []).length} items
+                </div>
+              </div>
+
+              <div className="pr-mobile-tab-content">
+                {(viewFilter === 'all' || viewFilter === 'products' ? productSales : []).map((sale, i) => {
+                  const costPerUnit = costsPerProduct[sale.product_id] || 0;
+                  const revenue = parseFloat(sale.total_amount || 0);
+                  const profit = revenue - (costPerUnit * parseFloat(sale.quantity || 0));
+                  const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+
+                  return (
+                    <div key={`${sale.product_id || i}-${i}`} className="pr-mobile-card">
+                      <div className="pr-mobile-header" onClick={() => setExpandedItem(expandedItem === `${sale.product_id || i}-${i}` ? null : `${sale.product_id || i}-${i}`)}>
+                        <div className="pr-mobile-left">
+                          <div className="pr-mobile-icon">
+                            <ShoppingCart size={16} />
+                          </div>
+                          <div>
+                            <span className="pr-mobile-name">{sale.products?.name || `Product ${sale.product_id}`}</span>
+                            <span className="pr-mobile-eggs">
+                              {(parseFloat(sale.quantity || 0)).toLocaleString()} units
+                            </span>
+                          </div>
+                        </div>
+                        <div className="pr-mobile-right">
+                          <span className="pr-mobile-revenue">{formatPeso(revenue)}</span>
+                          <ChevronDown size={16} className={`pr-mobile-chevron ${expandedItem === `${sale.product_id || i}-${i}` ? 'open' : ''}`} />
+                        </div>
+                      </div>
+                      {expandedItem === `${sale.product_id || i}-${i}` && (
+                        <div className="pr-mobile-detail">
+                          <div className="pr-mobile-row"><span>Quantity</span><span className="num">{(parseFloat(sale.quantity || 0)).toLocaleString()}</span></div>
+                          <div className="pr-mobile-row"><span>Unit Price</span><span className="num">{(revenue / parseFloat(sale.quantity || 1)).toLocaleString()} each</span></div>
+                          <div className="pr-mobile-row"><span>COGS/Unit</span><span className="num">{formatPeso(costPerUnit)}</span></div>
+                          <div className="pr-mobile-row"><span>Revenue</span><span className="num" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>{formatPeso(revenue)}</span></div>
+                          <div className="pr-mobile-row"><span>Profit</span><span className="num" style={{ color: profit >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>{formatPeso(profit)}</span></div>
+                          <div className="pr-mobile-row"><span>Margin</span><span className={`pr-margin-badge-sm ${margin >= 0 ? 'pos' : 'neg'}`}>{margin > 0 ? `${margin.toFixed(1)}%` : '—'}</span></div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Summary Cards */}
