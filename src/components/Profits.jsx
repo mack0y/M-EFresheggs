@@ -57,7 +57,8 @@ export default function Profits() {
   const [costsPerEgg, setCostsPerEgg] = useState({});
   const [costsPerProduct, setCostsPerProduct] = useState({});
   const [priceSettings, setPriceSettings] = useState([]);
-  const [expandedItem, setExpandedItem] = useState(null);  // Unified for eggs and products
+  const [expandedSize, setExpandedSize] = useState(null);
+  const [expandedProduct, setExpandedProduct] = useState(null);
   const [viewFilter, setViewFilter] = useState('all'); // 'all' | 'eggs' | 'products'
   const [productSales, setProductSales] = useState([]);
 
@@ -88,7 +89,7 @@ export default function Profits() {
         fetchPriceSettings(),
         fetchCostsPerEgg(),
         fetchCostsPerProduct(),
-        fetchSalesReport({ startDate, endDate, startTime: '00:00', endTime: '23:59' }),
+        fetchSalesReport({ startDate, endDate }),
         fetchExpenses({ startDate, endDate }),
         fetchProductSales({ startDate, endDate }),
       ]);
@@ -167,6 +168,47 @@ export default function Profits() {
       })
       .filter(Boolean);
 
+    // Group product sales by product for per-product breakdown
+    const productMap = {};
+    productSales.forEach(ps => {
+      const pid = ps.product_id;
+      if (!productMap[pid]) {
+        productMap[pid] = {
+          name: ps.products?.name || `Product #${pid}`,
+          quantity: 0,
+          revenue: 0,
+          salesCount: 0,
+          productId: pid,
+        };
+      }
+      productMap[pid].quantity += parseFloat(ps.quantity || 0);
+      productMap[pid].revenue += parseFloat(ps.total_amount || 0);
+      productMap[pid].salesCount++;
+    });
+
+    const productRows = Object.values(productMap).map(p => {
+      const costPerUnit = costsPerProduct[p.productId] || 0;
+      const avgSellPrice = p.quantity > 0 ? Math.round((p.revenue / p.quantity) * 100) / 100 : 0;
+      const profitPerUnit = Math.round((avgSellPrice - costPerUnit) * 100) / 100;
+      const marginPercent = avgSellPrice > 0 ? Math.round((profitPerUnit / avgSellPrice) * 1000) / 10 : 0;
+      const cogs = Math.round(costPerUnit * p.quantity * 100) / 100;
+      const profitTotal = Math.round((p.revenue - cogs) * 100) / 100;
+
+      return {
+        name: p.name,
+        isProduct: true,
+        quantity: Math.round(p.quantity * 100) / 100,
+        revenue: p.revenue,
+        salesCount: p.salesCount,
+        costPerUnit,
+        sellPrice: avgSellPrice,
+        profitPerUnit,
+        marginPercent,
+        cogs,
+        profitTotal,
+      };
+    });
+
     // Include product sales in revenue and COGS
     const productRevenue = productSales.reduce((s, ps) => s + parseFloat(ps.total_amount || 0), 0);
     const productCOGS = productSales.reduce((s, ps) => {
@@ -185,7 +227,35 @@ export default function Profits() {
     const netProfit = Math.round((adjustedRevenue - totalCOGS) * 100) / 100;
     const totalEggs = rows.reduce((s, r) => s + r.totalEggs, 0);
 
-    return { rows, totalRevenue, totalCOGS, totalExpenses: totalExpensesAmount, grossProfit, revenueCut, adjustedRevenue, netProfit, salesCount: sales.length, totalEggs, productRevenue, productCOGS };
+    return { rows, productRows, totalRevenue, totalCOGS, totalExpenses: totalExpensesAmount, grossProfit, revenueCut, adjustedRevenue, netProfit, salesCount: sales.length, totalEggs, productRevenue, productCOGS };
+  })();
+
+  // Filter-aware totals: adjust summary cards to match active view filter
+  const ft = (() => {
+    const isEggs = viewFilter === 'all' || viewFilter === 'eggs';
+    const isProds = viewFilter === 'all' || viewFilter === 'products';
+
+    const eggRev = isEggs ? profitData.rows.reduce((s, r) => s + r.revenue, 0) : 0;
+    const eggCogs = isEggs ? profitData.rows.reduce((s, r) => s + r.cogs, 0) : 0;
+    const prodRev = isProds ? profitData.productRows.reduce((s, r) => s + r.revenue, 0) : 0;
+    const prodCogs = isProds ? profitData.productRows.reduce((s, r) => s + r.cogs, 0) : 0;
+
+    const totalRev = eggRev + prodRev;
+    const totalCogs = eggCogs + prodCogs;
+    const cut = Math.round(totalRev * 0.01 * 100) / 100;
+    const adjRev = Math.round((totalRev - cut) * 100) / 100;
+
+    return {
+      totalRevenue: totalRev,
+      totalCOGS: totalCogs,
+      revenueCut: cut,
+      adjustedRevenue: adjRev,
+      netProfit: Math.round((adjRev - totalCogs) * 100) / 100,
+      totalEggs: isEggs ? profitData.rows.reduce((s, r) => s + r.totalEggs, 0) : 0,
+      totalExpenses: profitData.totalExpenses,
+      productRevenue: prodRev,
+      productCount: isProds ? profitData.productRows.length : 0,
+    };
   })();
 
   return (
@@ -248,260 +318,27 @@ export default function Profits() {
         ))}
       </div>
 
-      <div className="profit-mobile-cards-container">
-        <div className="pr-tabs">
-          <div className="pr-tab-header">
-            <div className="pr-tab-title">Egg Sizes (Active Now)</div>
-            <div className="pr-tab-counts">
-              {viewFilter === 'all' || viewFilter === 'eggs' ? profitData.rows.length : 0} of {profitData.rows.length} shown
-            </div>
-          </div>
-
-          <div className="pr-tab-content">
-            <div className="pr-desktop-wrapper">
-              <table className="pr-table">
-                <thead>
-                  <tr>
-                    <th>Egg Size</th>
-                    <th className="num">Sold</th>
-                    <th className="num">Revenue</th>
-                    <th className="num">Cost/Tray</th>
-                    <th className="num">Cost/Egg</th>
-                    <th className="num">Sell/Tray</th>
-                    <th className="num">Sell/Egg</th>
-                    <th className="num">Profit/Tray</th>
-                    <th className="num">Profit/Egg</th>
-                    <th className="num">Margin</th>
-                    <th className="num">COGS</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(viewFilter === 'all' || viewFilter === 'eggs' ? profitData.rows : []).map(row => (
-                    <tr key={row.name}>
-                      <td className="size-cell">{row.name}</td>
-                      <td className="num">{row.totalEggs.toLocaleString()}</td>
-                      <td className="num" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>{formatPeso(row.revenue)}</td>
-                      <td className="num">{row.costPerTray > 0 ? formatPeso(row.costPerTray) : '—'}</td>
-                      <td className="num">{row.costPerEgg > 0 ? formatPeso(row.costPerEgg) : '—'}</td>
-                      <td className="num">{row.sellPerTray > 0 ? formatPeso(row.sellPerTray) : '—'}</td>
-                      <td className="num">{row.sellPerPiece > 0 ? formatPeso(row.sellPerPiece) : '—'}</td>
-                      <td className="num" style={{ color: row.profitPerTray >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>
-                        {row.sellPerTray > 0 ? formatPeso(row.profitPerTray) : '—'}
-                      </td>
-                      <td className="num" style={{ color: row.profitPerEgg >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>
-                        {row.sellPerPiece > 0 ? formatPeso(row.profitPerEgg) : '—'}
-                      </td>
-                      <td className="num" style={{ color: row.marginPercent >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>
-                        {row.sellPerPiece > 0 ? `${row.marginPercent}%` : '—'}
-                      </td>
-                      <td className="num" style={{ color: 'var(--color-danger)' }}>{row.cogs > 0 ? formatPeso(row.cogs) : '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="total-row">
-                    <td className="size-cell">Subtotal</td>
-                    <td className="num">{(viewFilter === 'all' || viewFilter === 'eggs' ? profitData.rows.reduce((s, r) => s + r.totalEggs, 0) : 0).toLocaleString()}</td>
-                    <td className="num" style={{ color: 'var(--color-primary)', fontWeight: 700 }}>{formatPeso(viewFilter === 'all' || viewFilter === 'eggs' ? profitData.rows.reduce((s, r) => s + r.revenue, 0) + (viewFilter === 'products' ? profitData.productRevenue : 0) : (profitData.rows.reduce((s, r) => s + r.revenue, 0) + profitData.productRevenue))}</td>
-                    <td colSpan={4}></td>
-                    <td colSpan={2} className="num" style={{ fontWeight: 800, color: (viewFilter === 'all' || viewFilter === 'eggs' ? profitData.rows.reduce((s, r) => s + r.revenue, 0) : 0) + (viewFilter === 'products' ? profitData.productRevenue : 0) > 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
-                      {formatPeso(viewFilter === 'all' || viewFilter === 'eggs' ? profitData.rows.reduce((s, r) => s + r.revenue, 0) + (viewFilter === 'products' ? profitData.productRevenue : 0) : 0)}
-                    </td>
-                    <td className="num" style={{ color: 'var(--color-text-muted)' }}>
-                      {profitData.totalRevenue > 0 ? `${Math.round((profitData.totalRevenue > 0 ? profitData.totalRevenue : 0) * 1000) / 10}%` : '—'}
-                    </td>
-                    <td className="num" style={{ color: 'var(--color-danger)' }}>{formatPeso(viewFilter === 'all' || viewFilter === 'eggs' ? profitData.rows.reduce((s, r) => s + r.cogs, 0) + (viewFilter === 'products' ? profitData.productCOGS : 0) : (profitData.rows.reduce((s, r) => s + r.cogs, 0) + profitData.productCOGS))}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-
-            <div className="pr-mobile-tabs-container">
-              <div className="pr-mobile-tab-header">
-                <div className="pr-mobile-tab-title">Egg Sizes</div>
-                <div className="pr-mobile-tab-counts">
-                  {viewFilter === 'all' || viewFilter === 'eggs' ? profitData.rows.length : 0} items
-                </div>
-              </div>
-
-              <div className="pr-mobile-tab-content">
-                {(viewFilter === 'all' || viewFilter === 'eggs' ? profitData.rows : []).map(row => (
-                  <div key={row.name} className="pr-mobile-card">
-                    <div className="pr-mobile-header" onClick={() => setExpandedItem(expandedItem === row.name ? null : row.name)}>
-                      <div className="pr-mobile-left">
-                        <div className="pr-mobile-icon">
-                          <Egg size={16} />
-                        </div>
-                        <div>
-                          <span className="pr-mobile-name">{row.name}</span>
-                          <span className="pr-mobile-eggs">
-                            {row.trays > 0 ? `${row.trays} tray${row.trays > 1 ? 's' : ''}` : ''}
-                            {row.trays > 0 && row.pieces > 0 ? ' + ' : ''}
-                            {row.pieces > 0 ? `${row.pieces} pcs` : ''}
-                            {row.trays === 0 && row.pieces === 0 ? `${row.totalEggs} eggs` : ''}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="pr-mobile-right">
-                        <span className="pr-mobile-revenue">{formatPeso(row.revenue)}</span>
-                        <ChevronDown size={16} className={`pr-mobile-chevron ${expandedItem === row.name ? 'open' : ''}`} />
-                      </div>
-                    </div>
-                    {expandedItem === row.name && (
-                      <div className="pr-mobile-detail">
-                        <div className="pr-mobile-row"><span>Sold</span><span className="num">{row.totalEggs.toLocaleString()} eggs</span></div>
-                        <div className="pr-mobile-row"><span>Revenue</span><span className="num" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>{formatPeso(row.revenue)}</span></div>
-                        <div className="pr-mobile-row"><span>Cost/Tray</span><span className="num">{row.costPerTray > 0 ? formatPeso(row.costPerTray) : '—'}</span></div>
-                        <div className="pr-mobile-row"><span>Cost/Egg</span><span className="num">{row.costPerEgg > 0 ? formatPeso(row.costPerEgg) : '—'}</span></div>
-                        <div className="pr-mobile-row"><span>Sell/Tray</span><span className="num">{row.sellPerTray > 0 ? formatPeso(row.sellPerTray) : '—'}</span></div>
-                        <div className="pr-mobile-row"><span>Sell/Egg</span><span className="num">{row.sellPerPiece > 0 ? formatPeso(row.sellPerPiece) : '—'}</span></div>
-                        <div className="pr-mobile-row"><span>Profit/Tray</span><span className="num" style={{ color: row.profitPerTray >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>{row.sellPerTray > 0 ? formatPeso(row.profitPerTray) : '—'}</span></div>
-                        <div className="pr-mobile-row"><span>Profit/Egg</span><span className="num" style={{ color: row.profitPerEgg >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>{row.sellPerPiece > 0 ? formatPeso(row.profitPerEgg) : '—'}</span></div>
-                        <div className="pr-mobile-row"><span>Margin</span><span className={`pr-margin-badge-sm ${row.marginPercent >= 0 ? 'pos' : 'neg'}`}>{row.sellPerPiece > 0 ? `${row.marginPercent}%` : '—'}</span></div>
-                        <div className="pr-mobile-row"><span>COGS</span><span className="num" style={{ color: '#C62828' }}>{row.cogs > 0 ? formatPeso(row.cogs) : '—'}</span></div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="pr-tabs">
-          <div className="pr-tab-header">
-            <div className="pr-tab-title">Product Sales</div>
-            <div className="pr-tab-counts">
-              {viewFilter === 'all' || viewFilter === 'products' ? productSales.length : 0} of {productSales.length} shown
-            </div>
-          </div>
-
-          <div className="pr-tab-content">
-            <div className="pr-desktop-wrapper">
-              <table className="pr-table">
-                <thead>
-                  <tr>
-                    <th>Product Name</th>
-                    <th className="num">Qty</th>
-                    <th className="num">Unit Price</th>
-                    <th className="num">COGS/Unit</th>
-                    <th className="num">Revenue</th>
-                    <th className="num">Profit</th>
-                    <th className="num">Margin</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(viewFilter === 'all' || viewFilter === 'products' ? productSales : []).map((sale, i) => {
-                    const costPerUnit = costsPerProduct[sale.product_id] || 0;
-                    const revenue = parseFloat(sale.total_amount || 0);
-                    const profit = revenue - (costPerUnit * parseFloat(sale.quantity || 0));
-                    const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
-
-                    return (
-                      <tr key={i}>
-                        <td className="size-cell">{sale.products?.name || `Product ${sale.product_id}`}</td>
-                        <td className="num">{(parseFloat(sale.quantity || 0)).toLocaleString()}</td>
-                        <td className="num">{(parseFloat(sale.total_amount || 0) / parseFloat(sale.quantity || 1)).toLocaleString()} each</td>
-                        <td className="num">{formatPeso(costPerUnit)}</td>
-                        <td className="num" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>{formatPeso(revenue)}</td>
-                        <td className="num" style={{ color: profit >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>{formatPeso(profit)}</td>
-                        <td className="num" style={{ color: margin >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>{margin > 0 ? `${margin.toFixed(1)}%` : '—'}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr className="total-row">
-                    <td className="size-cell">Subtotal</td>
-                    <td className="num">{(viewFilter === 'all' || viewFilter === 'products' ? productSales.reduce((s, ps) => s + parseFloat(ps.quantity || 0), 0) : 0).toLocaleString()}</td>
-                    <td colSpan={2}></td>
-                    <td className="num" style={{ color: 'var(--color-primary)', fontWeight: 700 }}>{formatPeso(viewFilter === 'all' || viewFilter === 'products' ? productSales.reduce((s, ps) => s + parseFloat(ps.total_amount || 0), 0) : (viewFilter === 'eggs' ? 0 : profitData.productRevenue))}</td>
-                    <td className="num" style={{ color: profitData.netProfit >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>{formatPeso(viewFilter === 'all' || viewFilter === 'products' ? productSales.reduce((s, ps) => {
-                      const costPerUnit = costsPerProduct[ps.product_id] || 0;
-                      return s + (costPerUnit * parseFloat(ps.quantity || 0));
-                    }, 0) : (viewFilter === 'eggs' ? 0 : profitData.productCOGS))}</td>
-                    <td className="num" style={{ color: 'var(--color-text-muted)' }}>
-                      {profitData.totalRevenue > 0 ? `${Math.round(((viewFilter === 'all' || viewFilter === 'products' ? productSales.reduce((s, ps) => s + parseFloat(ps.total_amount || 0), 0) : 0) / profitData.totalRevenue) * 1000) / 10}%` : '—'}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-
-            <div className="pr-mobile-tabs-container">
-              <div className="pr-mobile-tab-header">
-                <div className="pr-mobile-tab-title">Product Sales</div>
-                <div className="pr-mobile-tab-counts">
-                  {(viewFilter === 'all' || viewFilter === 'products' ? productSales : []).length} items
-                </div>
-              </div>
-
-              <div className="pr-mobile-tab-content">
-                {(viewFilter === 'all' || viewFilter === 'products' ? productSales : []).map((sale, i) => {
-                  const costPerUnit = costsPerProduct[sale.product_id] || 0;
-                  const revenue = parseFloat(sale.total_amount || 0);
-                  const profit = revenue - (costPerUnit * parseFloat(sale.quantity || 0));
-                  const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
-
-                  return (
-                    <div key={`${sale.product_id || i}-${i}`} className="pr-mobile-card">
-                      <div className="pr-mobile-header" onClick={() => setExpandedItem(expandedItem === `${sale.product_id || i}-${i}` ? null : `${sale.product_id || i}-${i}`)}>
-                        <div className="pr-mobile-left">
-                          <div className="pr-mobile-icon">
-                            <ShoppingCart size={16} />
-                          </div>
-                          <div>
-                            <span className="pr-mobile-name">{sale.products?.name || `Product ${sale.product_id}`}</span>
-                            <span className="pr-mobile-eggs">
-                              {(parseFloat(sale.quantity || 0)).toLocaleString()} units
-                            </span>
-                          </div>
-                        </div>
-                        <div className="pr-mobile-right">
-                          <span className="pr-mobile-revenue">{formatPeso(revenue)}</span>
-                          <ChevronDown size={16} className={`pr-mobile-chevron ${expandedItem === `${sale.product_id || i}-${i}` ? 'open' : ''}`} />
-                        </div>
-                      </div>
-                      {expandedItem === `${sale.product_id || i}-${i}` && (
-                        <div className="pr-mobile-detail">
-                          <div className="pr-mobile-row"><span>Quantity</span><span className="num">{(parseFloat(sale.quantity || 0)).toLocaleString()}</span></div>
-                          <div className="pr-mobile-row"><span>Unit Price</span><span className="num">{(revenue / parseFloat(sale.quantity || 1)).toLocaleString()} each</span></div>
-                          <div className="pr-mobile-row"><span>COGS/Unit</span><span className="num">{formatPeso(costPerUnit)}</span></div>
-                          <div className="pr-mobile-row"><span>Revenue</span><span className="num" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>{formatPeso(revenue)}</span></div>
-                          <div className="pr-mobile-row"><span>Profit</span><span className="num" style={{ color: profit >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>{formatPeso(profit)}</span></div>
-                          <div className="pr-mobile-row"><span>Margin</span><span className={`pr-margin-badge-sm ${margin >= 0 ? 'pos' : 'neg'}`}>{margin > 0 ? `${margin.toFixed(1)}%` : '—'}</span></div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Summary Cards */}
       <div className="profit-summary-grid">
-      <div className="profit-summary-card profit-card-revenue">
-        <div className="profit-card-icon-wrap" style={{ background: '#E3F2FD', color: '#1565C0' }}>
-          <DollarSign size={20} />
+        <div className="profit-summary-card profit-card-revenue">
+          <div className="profit-card-icon-wrap" style={{ background: '#E3F2FD', color: '#1565C0' }}>
+            <DollarSign size={20} />
+          </div>
+          <div className="profit-card-info">
+            <span className="profit-card-label">Adjusted Revenue</span>
+            <span className="profit-card-value">{loading ? '—' : formatPeso(ft.adjustedRevenue)}</span>
+            {ft.revenueCut > 0 && !loading && viewFilter === 'all' && (
+              <span style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)' }}>After 1% cut ({formatPeso(ft.revenueCut)})</span>
+            )}
+          </div>
         </div>
-        <div className="profit-card-info">
-          <span className="profit-card-label">Adjusted Revenue</span>
-          <span className="profit-card-value">{loading ? '—' : formatPeso(profitData.adjustedRevenue)}</span>
-          {profitData.revenueCut > 0 && !loading && (
-            <span style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)' }}>After 1% cut ({formatPeso(Math.round(profitData.revenueCut * 100) / 100)})</span>
-          )}
-        </div>
-      </div>
         <div className="profit-summary-card profit-card-cogs">
           <div className="profit-card-icon-wrap" style={{ background: '#FFF3E0', color: '#E65100' }}>
             <ShoppingCart size={20} />
           </div>
           <div className="profit-card-info">
             <span className="profit-card-label">COGS</span>
-            <span className="profit-card-value">{loading ? '—' : formatPeso(profitData.totalCOGS)}</span>
+            <span className="profit-card-value">{loading ? '—' : formatPeso(ft.totalCOGS)}</span>
           </div>
         </div>
         <div className="profit-summary-card profit-card-expenses">
@@ -510,47 +347,51 @@ export default function Profits() {
           </div>
           <div className="profit-card-info">
             <span className="profit-card-label">Expenses (OpEx)</span>
-            <span className="profit-card-value">{loading ? '—' : formatPeso(profitData.totalExpenses)}</span>
+            <span className="profit-card-value">{loading ? '—' : formatPeso(ft.totalExpenses)}</span>
             {!loading && <span style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)' }}>Paid from operational funds</span>}
           </div>
         </div>
 
         <div className="profit-summary-card profit-card-net">
           <div className="profit-card-icon-wrap" style={{
-            background: profitData.netProfit >= 0 ? '#E8F5E9' : '#FFEBEE',
-            color: profitData.netProfit >= 0 ? '#2E7D32' : '#C62828',
+            background: ft.netProfit >= 0 ? '#E8F5E9' : '#FFEBEE',
+            color: ft.netProfit >= 0 ? '#2E7D32' : '#C62828',
           }}>
-            {profitData.netProfit >= 0 ? <TrendingUp size={22} /> : <TrendingDown size={22} />}
+            {ft.netProfit >= 0 ? <TrendingUp size={22} /> : <TrendingDown size={22} />}
           </div>
           <div className="profit-card-info">
             <span className="profit-card-label" style={{ fontWeight: 700 }}>Net Profit</span>
             <span className="profit-card-value profit-card-net-value" style={{
-              color: profitData.netProfit >= 0 ? 'var(--color-success)' : 'var(--color-danger)',
+              color: ft.netProfit >= 0 ? 'var(--color-success)' : 'var(--color-danger)',
               fontSize: '1.25rem',
             }}>
-              {loading ? '—' : formatPeso(profitData.netProfit)}
+              {loading ? '—' : formatPeso(ft.netProfit)}
             </span>
           </div>
         </div>
-        <div className="profit-summary-card">
-          <div className="profit-card-icon-wrap" style={{ background: '#F3E5F5', color: '#7B1FA2' }}>
-            <DollarSign size={20} />
+        {viewFilter !== 'products' && (
+          <div className="profit-summary-card">
+            <div className="profit-card-icon-wrap" style={{ background: '#F3E5F5', color: '#7B1FA2' }}>
+              <DollarSign size={20} />
+            </div>
+            <div className="profit-card-info">
+              <span className="profit-card-label">Eggs Sold</span>
+              <span className="profit-card-value">{loading ? '—' : ft.totalEggs.toLocaleString()}</span>
+            </div>
           </div>
-          <div className="profit-card-info">
-            <span className="profit-card-label">Eggs Sold</span>
-            <span className="profit-card-value">{loading ? '—' : profitData.totalEggs.toLocaleString()}</span>
+        )}
+        {viewFilter !== 'eggs' && (
+          <div className="profit-summary-card">
+            <div className="profit-card-icon-wrap" style={{ background: '#E0F2F1', color: '#00695C' }}>
+              <DollarSign size={20} />
+            </div>
+            <div className="profit-card-info">
+              <span className="profit-card-label">Product Sales</span>
+              <span className="profit-card-value">{loading ? '—' : formatPeso(ft.productRevenue)}</span>
+              <span style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)' }}>{ft.productCount} product{ft.productCount !== 1 ? 's' : ''}</span>
+            </div>
           </div>
-        </div>
-        <div className="profit-summary-card">
-          <div className="profit-card-icon-wrap" style={{ background: '#E0F2F1', color: '#00695C' }}>
-            <DollarSign size={20} />
-          </div>
-          <div className="profit-card-info">
-            <span className="profit-card-label">Product Sales</span>
-            <span className="profit-card-value">{loading ? '—' : formatPeso(productSales.reduce((s, ps) => s + parseFloat(ps.total_amount || 0), 0))}</span>
-            <span style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)' }}>{productSales.length} sale{productSales.length !== 1 ? 's' : ''}</span>
-          </div>
-        </div>
+        )}
       </div>
 
       {loading ? (
@@ -559,118 +400,234 @@ export default function Profits() {
             <div key={i} className="skeleton" style={{ width: '100%', height: 36, marginBottom: '0.375rem', borderRadius: 'var(--radius-sm)' }}>&nbsp;</div>
           ))}
         </div>
-      ) : profitData.rows.length === 0 ? (
+      ) : (() => {
+        const showEggs = viewFilter !== 'products';
+        const showProducts = viewFilter !== 'eggs';
+        const hasVisibleData = (showEggs && profitData.rows.length > 0) || (showProducts && profitData.productRows.length > 0);
+        return !hasVisibleData;
+      })() ? (
         <div className="card" style={{ padding: '2rem', textAlign: 'center' }}>
           <TrendingUp size={40} style={{ color: 'var(--color-text-muted)', marginBottom: '0.75rem' }} />
-          <p style={{ color: 'var(--color-text-muted)' }}>No sales data for this period.</p>
+          <p style={{ color: 'var(--color-text-muted)' }}>
+            {viewFilter === 'products' ? 'No product sales data for this period.' : 
+             viewFilter === 'eggs' ? 'No egg sales data for this period.' : 
+             'No sales data for this period.'}
+          </p>
         </div>
       ) : (
         <>
-          {/* Desktop Table */}
-          <div className="card profit-desktop-table" style={{ padding: 0, overflow: 'hidden' }}>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="profit-table">
-                <thead>
-                  <tr>
-                    <th>Egg Size</th>
-                    <th className="num">Sold</th>
-                    <th className="num">Revenue</th>
-                    <th className="num">Cost/Tray</th>
-                    <th className="num">Cost/Egg</th>
-                    <th className="num">Sell/Tray</th>
-                    <th className="num">Sell/Egg</th>
-                    <th className="num">Profit/Tray</th>
-                    <th className="num">Profit/Egg</th>
-                    <th className="num">Margin</th>
-                    <th className="num">COGS</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(viewFilter === 'all' ? profitData.rows : 
-                    viewFilter === 'eggs' ? profitData.rows.filter(row => row.eggSizeId !== null) : 
-                    viewFilter === 'products' ? [] : 
-                    profitData.rows).map(row => (
-                    <tr key={row.name}>
-                      <td className="size-cell">{row.name}</td>
-                      <td className="num">{row.totalEggs.toLocaleString()}</td>
-                      <td className="num" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>{formatPeso(row.revenue)}</td>
-                      <td className="num">{row.costPerTray > 0 ? formatPeso(row.costPerTray) : '—'}</td>
-                      <td className="num">{row.costPerEgg > 0 ? formatPeso(row.costPerEgg) : '—'}</td>
-                      <td className="num">{row.sellPerTray > 0 ? formatPeso(row.sellPerTray) : '—'}</td>
-                      <td className="num">{row.sellPerPiece > 0 ? formatPeso(row.sellPerPiece) : '—'}</td>
-                      <td className="num" style={{ color: row.profitPerTray >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>
-                        {row.sellPerTray > 0 ? formatPeso(row.profitPerTray) : '—'}
-                      </td>
-                      <td className="num" style={{ color: row.profitPerEgg >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>
-                        {row.sellPerPiece > 0 ? formatPeso(row.profitPerEgg) : '—'}
-                      </td>
-                      <td className="num" style={{ color: row.marginPercent >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>
-                        {row.sellPerPiece > 0 ? `${row.marginPercent}%` : '—'}
-                      </td>
-                      <td className="num" style={{ color: 'var(--color-danger)' }}>{row.cogs > 0 ? formatPeso(row.cogs) : '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="total-row">
-                    <td className="size-cell">Total</td>
-                    <td className="num">{profitData.totalEggs.toLocaleString()}</td>
-                    <td className="num" style={{ color: 'var(--color-primary)', fontWeight: 700 }}>{formatPeso(profitData.totalRevenue)}</td>
-                    <td colSpan={4}></td>
-                    <td colSpan={2} className="num" style={{ fontWeight: 800, color: profitData.grossProfit >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
-                      {formatPeso(profitData.grossProfit)}
-                    </td>
-                    <td className="num" style={{ color: 'var(--color-text-muted)' }}>
-                      {profitData.totalRevenue > 0 ? `${Math.round((profitData.grossProfit / profitData.totalRevenue) * 1000) / 10}%` : '—'}
-                    </td>
-                    <td className="num" style={{ color: 'var(--color-danger)' }}>{formatPeso(profitData.totalCOGS)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </div>
-
-          {/* Mobile Expandable Cards */}
-          <div className="profit-mobile-cards">
-            {profitData.rows.map(row => (
-              <div key={row.name} className="pr-mobile-card">
-                <div className="pr-mobile-header" onClick={() => setExpandedSize(expandedSize === row.name ? null : row.name)}>
-                  <div className="pr-mobile-left">
-                    <div className="pr-mobile-icon">
-                      <Egg size={16} />
-                    </div>
-                    <div>
-                      <span className="pr-mobile-name">{row.name}</span>
-                      <span className="pr-mobile-eggs">
-                        {row.trays > 0 ? `${row.trays} tray${row.trays > 1 ? 's' : ''}` : ''}
-                        {row.trays > 0 && row.pieces > 0 ? ' + ' : ''}
-                        {row.pieces > 0 ? `${row.pieces} pcs` : ''}
-                        {row.trays === 0 && row.pieces === 0 ? `${row.totalEggs} eggs` : ''}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="pr-mobile-right">
-                    <span className="pr-mobile-revenue">{formatPeso(row.revenue)}</span>
-                    <ChevronDown size={16} className={`pr-mobile-chevron ${expandedSize === row.name ? 'open' : ''}`} />
-                  </div>
-                </div>
-                {expandedSize === row.name && (
-                  <div className="pr-mobile-detail">
-                    <div className="pr-mobile-row"><span>Sold</span><span className="num">{row.totalEggs.toLocaleString()} eggs</span></div>
-                    <div className="pr-mobile-row"><span>Revenue</span><span className="num" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>{formatPeso(row.revenue)}</span></div>
-                    <div className="pr-mobile-row"><span>Cost/Tray</span><span className="num">{row.costPerTray > 0 ? formatPeso(row.costPerTray) : '—'}</span></div>
-                    <div className="pr-mobile-row"><span>Cost/Egg</span><span className="num">{row.costPerEgg > 0 ? formatPeso(row.costPerEgg) : '—'}</span></div>
-                    <div className="pr-mobile-row"><span>Sell/Tray</span><span className="num">{row.sellPerTray > 0 ? formatPeso(row.sellPerTray) : '—'}</span></div>
-                    <div className="pr-mobile-row"><span>Sell/Egg</span><span className="num">{row.sellPerPiece > 0 ? formatPeso(row.sellPerPiece) : '—'}</span></div>
-                    <div className="pr-mobile-row"><span>Profit/Tray</span><span className="num" style={{ color: row.profitPerTray >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>{row.sellPerTray > 0 ? formatPeso(row.profitPerTray) : '—'}</span></div>
-                    <div className="pr-mobile-row"><span>Profit/Egg</span><span className="num" style={{ color: row.profitPerEgg >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>{row.sellPerPiece > 0 ? formatPeso(row.profitPerEgg) : '—'}</span></div>
-                    <div className="pr-mobile-row"><span>Margin</span><span className={`pr-margin-badge-sm ${row.marginPercent >= 0 ? 'pos' : 'neg'}`}>{row.sellPerPiece > 0 ? `${row.marginPercent}%` : '—'}</span></div>
-                    <div className="pr-mobile-row"><span>COGS</span><span className="num" style={{ color: '#C62828' }}>{row.cogs > 0 ? formatPeso(row.cogs) : '—'}</span></div>
-                  </div>
-                )}
+          {/* Egg Desktop Table */}
+          {viewFilter !== 'products' && profitData.rows.length > 0 && (
+            <div className="card profit-desktop-table" style={{ padding: 0, overflow: 'hidden' }}>
+              <div style={{ padding: '0.625rem 1rem 0.25rem', fontWeight: 600, fontSize: '0.8125rem', color: 'var(--color-text)', borderBottom: '1px solid var(--color-border-light)', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                <Egg size={14} /> Egg Sales Breakdown
               </div>
-            ))}
-          </div>
+              <div style={{ overflowX: 'auto' }}>
+                <table className="profit-table">
+                  <thead>
+                    <tr>
+                      <th>Egg Size</th>
+                      <th className="num">Sold</th>
+                      <th className="num">Revenue</th>
+                      <th className="num">Cost/Tray</th>
+                      <th className="num">Cost/Egg</th>
+                      <th className="num">Sell/Tray</th>
+                      <th className="num">Sell/Egg</th>
+                      <th className="num">Profit/Tray</th>
+                      <th className="num">Profit/Egg</th>
+                      <th className="num">Margin</th>
+                      <th className="num">COGS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {profitData.rows.map(row => (
+                      <tr key={row.name}>
+                        <td className="size-cell">{row.name}</td>
+                        <td className="num">{row.totalEggs.toLocaleString()}</td>
+                        <td className="num" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>{formatPeso(row.revenue)}</td>
+                        <td className="num">{row.costPerTray > 0 ? formatPeso(row.costPerTray) : '—'}</td>
+                        <td className="num">{row.costPerEgg > 0 ? formatPeso(row.costPerEgg) : '—'}</td>
+                        <td className="num">{row.sellPerTray > 0 ? formatPeso(row.sellPerTray) : '—'}</td>
+                        <td className="num">{row.sellPerPiece > 0 ? formatPeso(row.sellPerPiece) : '—'}</td>
+                        <td className="num" style={{ color: row.profitPerTray >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>
+                          {row.sellPerTray > 0 ? formatPeso(row.profitPerTray) : '—'}
+                        </td>
+                        <td className="num" style={{ color: row.profitPerEgg >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>
+                          {row.sellPerPiece > 0 ? formatPeso(row.profitPerEgg) : '—'}
+                        </td>
+                        <td className="num" style={{ color: row.marginPercent >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>
+                          {row.sellPerPiece > 0 ? `${row.marginPercent}%` : '—'}
+                        </td>
+                        <td className="num" style={{ color: 'var(--color-danger)' }}>{row.cogs > 0 ? formatPeso(row.cogs) : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="total-row">
+                      <td className="size-cell">Total Eggs</td>
+                      <td className="num">{profitData.totalEggs.toLocaleString()}</td>
+                      <td className="num" style={{ color: 'var(--color-primary)', fontWeight: 700 }}>{formatPeso(profitData.rows.reduce((s, r) => s + r.revenue, 0))}</td>
+                      <td colSpan={4}></td>
+                      <td colSpan={2} className="num" style={{ fontWeight: 800, color: profitData.grossProfit >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                        {formatPeso(profitData.rows.reduce((s, r) => s + r.revenue, 0) - profitData.rows.reduce((s, r) => s + r.cogs, 0))}
+                      </td>
+                      <td className="num" style={{ color: 'var(--color-text-muted)' }}>
+                        {profitData.rows.reduce((s, r) => s + r.revenue, 0) > 0 ? `${Math.round(((profitData.rows.reduce((s, r) => s + r.revenue, 0) - profitData.rows.reduce((s, r) => s + r.cogs, 0)) / profitData.rows.reduce((s, r) => s + r.revenue, 0)) * 1000) / 10}%` : '—'}
+                      </td>
+                      <td className="num" style={{ color: 'var(--color-danger)' }}>{formatPeso(profitData.rows.reduce((s, r) => s + r.cogs, 0))}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Product Desktop Table */}
+          {viewFilter !== 'eggs' && profitData.productRows.length > 0 && (
+            <div className="card profit-desktop-table" style={{ padding: 0, overflow: 'hidden', marginTop: viewFilter === 'all' && profitData.rows.length > 0 ? '0.75rem' : 0 }}>
+              <div style={{ padding: '0.625rem 1rem 0.25rem', fontWeight: 600, fontSize: '0.8125rem', color: 'var(--color-text)', borderBottom: '1px solid var(--color-border-light)', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                <TrendingUp size={14} /> Product Sales Breakdown
+              </div>
+              <div style={{ overflowX: 'auto' }}>
+                <table className="profit-table">
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th className="num">Qty Sold</th>
+                      <th className="num">Revenue</th>
+                      <th className="num">Cost/Unit</th>
+                      <th className="num">Sell Price</th>
+                      <th className="num">Profit/Unit</th>
+                      <th className="num">Margin</th>
+                      <th className="num">COGS</th>
+                      <th className="num">Gross Profit</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {profitData.productRows.map(row => (
+                      <tr key={row.name}>
+                        <td className="size-cell">{row.name}</td>
+                        <td className="num">{row.quantity}</td>
+                        <td className="num" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>{formatPeso(row.revenue)}</td>
+                        <td className="num">{row.costPerUnit > 0 ? formatPeso(row.costPerUnit) : '—'}</td>
+                        <td className="num">{row.sellPrice > 0 ? formatPeso(row.sellPrice) : '—'}</td>
+                        <td className="num" style={{ color: row.profitPerUnit >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>
+                          {row.sellPrice > 0 ? formatPeso(row.profitPerUnit) : '—'}
+                        </td>
+                        <td className="num" style={{ color: row.marginPercent >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>
+                          {row.sellPrice > 0 ? `${row.marginPercent}%` : '—'}
+                        </td>
+                        <td className="num" style={{ color: 'var(--color-danger)' }}>{row.cogs > 0 ? formatPeso(row.cogs) : '—'}</td>
+                        <td className="num" style={{ color: row.profitTotal >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 700 }}>
+                          {formatPeso(row.profitTotal)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="total-row">
+                      <td className="size-cell">Total Products</td>
+                      <td className="num">{profitData.productRows.reduce((s, r) => s + r.quantity, 0).toLocaleString()}</td>
+                      <td className="num" style={{ color: 'var(--color-primary)', fontWeight: 700 }}>{formatPeso(profitData.productRows.reduce((s, r) => s + r.revenue, 0))}</td>
+                      <td colSpan={3}></td>
+                      <td className="num" style={{ color: 'var(--color-text-muted)' }}>
+                        {profitData.productRows.reduce((s, r) => s + r.revenue, 0) > 0 
+                          ? `${Math.round((profitData.productRows.reduce((s, r) => s + r.profitTotal, 0) / profitData.productRows.reduce((s, r) => s + r.revenue, 0)) * 1000) / 10}%` 
+                          : '—'}
+                      </td>
+                      <td className="num" style={{ color: 'var(--color-danger)' }}>{formatPeso(profitData.productRows.reduce((s, r) => s + r.cogs, 0))}</td>
+                      <td className="num" style={{ color: profitData.productRows.reduce((s, r) => s + r.profitTotal, 0) >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 700 }}>
+                        {formatPeso(profitData.productRows.reduce((s, r) => s + r.profitTotal, 0))}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Mobile Expandable Cards — Eggs */}
+          {viewFilter !== 'products' && profitData.rows.length > 0 && (
+            <div className="profit-mobile-cards">
+              {viewFilter === 'all' && <div style={{ padding: '0.5rem 0 0.375rem', fontWeight: 600, fontSize: '0.8125rem', display: 'flex', alignItems: 'center', gap: '0.375rem', color: 'var(--color-text)' }}><Egg size={14} /> Egg Sales</div>}
+              {profitData.rows.map(row => (
+                <div key={row.name} className="pr-mobile-card">
+                  <div className="pr-mobile-header" onClick={() => setExpandedSize(expandedSize === row.name ? null : row.name)}>
+                    <div className="pr-mobile-left">
+                      <div className="pr-mobile-icon">
+                        <Egg size={16} />
+                      </div>
+                      <div>
+                        <span className="pr-mobile-name">{row.name}</span>
+                        <span className="pr-mobile-eggs">
+                          {row.trays > 0 ? `${row.trays} tray${row.trays > 1 ? 's' : ''}` : ''}
+                          {row.trays > 0 && row.pieces > 0 ? ' + ' : ''}
+                          {row.pieces > 0 ? `${row.pieces} pcs` : ''}
+                          {row.trays === 0 && row.pieces === 0 ? `${row.totalEggs} eggs` : ''}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="pr-mobile-right">
+                      <span className="pr-mobile-revenue">{formatPeso(row.revenue)}</span>
+                      <ChevronDown size={16} className={`pr-mobile-chevron ${expandedSize === row.name ? 'open' : ''}`} />
+                    </div>
+                  </div>
+                  {expandedSize === row.name && (
+                    <div className="pr-mobile-detail">
+                      <div className="pr-mobile-row"><span>Sold</span><span className="num">{row.totalEggs.toLocaleString()} eggs</span></div>
+                      <div className="pr-mobile-row"><span>Revenue</span><span className="num" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>{formatPeso(row.revenue)}</span></div>
+                      <div className="pr-mobile-row"><span>Cost/Tray</span><span className="num">{row.costPerTray > 0 ? formatPeso(row.costPerTray) : '—'}</span></div>
+                      <div className="pr-mobile-row"><span>Cost/Egg</span><span className="num">{row.costPerEgg > 0 ? formatPeso(row.costPerEgg) : '—'}</span></div>
+                      <div className="pr-mobile-row"><span>Sell/Tray</span><span className="num">{row.sellPerTray > 0 ? formatPeso(row.sellPerTray) : '—'}</span></div>
+                      <div className="pr-mobile-row"><span>Sell/Egg</span><span className="num">{row.sellPerPiece > 0 ? formatPeso(row.sellPerPiece) : '—'}</span></div>
+                      <div className="pr-mobile-row"><span>Profit/Tray</span><span className="num" style={{ color: row.profitPerTray >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>{row.sellPerTray > 0 ? formatPeso(row.profitPerTray) : '—'}</span></div>
+                      <div className="pr-mobile-row"><span>Profit/Egg</span><span className="num" style={{ color: row.profitPerEgg >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>{row.sellPerPiece > 0 ? formatPeso(row.profitPerEgg) : '—'}</span></div>
+                      <div className="pr-mobile-row"><span>Margin</span><span className={`pr-margin-badge-sm ${row.marginPercent >= 0 ? 'pos' : 'neg'}`}>{row.sellPerPiece > 0 ? `${row.marginPercent}%` : '—'}</span></div>
+                      <div className="pr-mobile-row"><span>COGS</span><span className="num" style={{ color: '#C62828' }}>{row.cogs > 0 ? formatPeso(row.cogs) : '—'}</span></div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Mobile Expandable Cards — Products */}
+          {viewFilter !== 'eggs' && profitData.productRows.length > 0 && (
+            <div className="profit-mobile-cards" style={viewFilter === 'all' && profitData.rows.length > 0 ? { marginTop: '0.5rem' } : {}}>
+              {viewFilter === 'all' && <div style={{ padding: '0.5rem 0 0.375rem', fontWeight: 600, fontSize: '0.8125rem', display: 'flex', alignItems: 'center', gap: '0.375rem', color: 'var(--color-text)' }}><TrendingUp size={14} /> Product Sales</div>}
+              {profitData.productRows.map(row => (
+                <div key={row.name} className="pr-mobile-card">
+                  <div className="pr-mobile-header" onClick={() => setExpandedProduct(expandedProduct === row.name ? null : row.name)}>
+                    <div className="pr-mobile-left">
+                      <div className="pr-mobile-icon" style={{ background: 'var(--color-accent-light)', color: 'var(--color-accent)' }}>
+                        <TrendingUp size={16} />
+                      </div>
+                      <div>
+                        <span className="pr-mobile-name">{row.name}</span>
+                        <span className="pr-mobile-eggs">{row.salesCount} sale{row.salesCount !== 1 ? 's' : ''}</span>
+                      </div>
+                    </div>
+                    <div className="pr-mobile-right">
+                      <span className="pr-mobile-revenue">{formatPeso(row.revenue)}</span>
+                      <ChevronDown size={16} className={`pr-mobile-chevron ${expandedProduct === row.name ? 'open' : ''}`} />
+                    </div>
+                  </div>
+                  {expandedProduct === row.name && (
+                    <div className="pr-mobile-detail">
+                      <div className="pr-mobile-row"><span>Qty Sold</span><span className="num">{row.quantity}</span></div>
+                      <div className="pr-mobile-row"><span>Revenue</span><span className="num" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>{formatPeso(row.revenue)}</span></div>
+                      <div className="pr-mobile-row"><span>Cost/Unit</span><span className="num">{row.costPerUnit > 0 ? formatPeso(row.costPerUnit) : '—'}</span></div>
+                      <div className="pr-mobile-row"><span>Sell Price</span><span className="num">{row.sellPrice > 0 ? formatPeso(row.sellPrice) : '—'}</span></div>
+                      <div className="pr-mobile-row"><span>Profit/Unit</span><span className="num" style={{ color: row.profitPerUnit >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>{row.sellPrice > 0 ? formatPeso(row.profitPerUnit) : '—'}</span></div>
+                      <div className="pr-mobile-row"><span>Margin</span><span className={`pr-margin-badge-sm ${row.marginPercent >= 0 ? 'pos' : 'neg'}`}>{row.sellPrice > 0 ? `${row.marginPercent}%` : '—'}</span></div>
+                      <div className="pr-mobile-row"><span>COGS</span><span className="num" style={{ color: '#C62828' }}>{row.cogs > 0 ? formatPeso(row.cogs) : '—'}</span></div>
+                      <div className="pr-mobile-row"><span>Gross Profit</span><span className="num" style={{ color: row.profitTotal >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 700 }}>{formatPeso(row.profitTotal)}</span></div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Net Profit Summary Strip */}
           <div className="card profit-net-strip-wrap">
@@ -682,27 +639,22 @@ export default function Profits() {
               <div className="profit-net-op"><TrendingDown size={14} /></div>
                 <div className="profit-net-item">
                   <span>1% Cut</span>
-                  <span className="profit-net-amount" style={{ color: '#F57F17' }}>{formatPeso(Math.round(profitData.revenueCut * 100) / 100)}</span>
+                  <span className="profit-net-amount" style={{ color: '#F57F17' }}>{formatPeso(ft.revenueCut)}</span>
                 </div>
               <div className="profit-net-op"><TrendingDown size={14} /></div>
               <div className="profit-net-item">
                 <span>Adjusted Revenue</span>
-                <span className="profit-net-amount" style={{ color: 'var(--color-success)', fontWeight: 700 }}>{formatPeso(profitData.adjustedRevenue)}</span>
-              </div>
-              <div className="profit-net-op"><TrendingDown size={14} /></div>
-              <div className="profit-net-item">
-                <span>Expenses</span>
-                <span className="profit-net-amount" style={{ color: 'var(--color-danger)' }}>{formatPeso(profitData.totalExpenses)}</span>
+                <span className="profit-net-amount" style={{ color: 'var(--color-success)', fontWeight: 700 }}>{formatPeso(ft.adjustedRevenue)}</span>
               </div>
               <div className="profit-net-op"><TrendingDown size={14} /></div>
               <div className="profit-net-item">
                 <span>COGS</span>
-                <span className="profit-net-amount" style={{ color: '#E65100' }}>{formatPeso(profitData.totalCOGS)}</span>
+                <span className="profit-net-amount" style={{ color: '#E65100' }}>{formatPeso(ft.totalCOGS)}</span>
               </div>
               <div className="profit-net-op profit-net-op-eq"><span>=</span></div>
-              <div className={`profit-net-item profit-net-final ${profitData.netProfit >= 0 ? 'profit-positive' : 'profit-negative'}`}>
+              <div className={`profit-net-item profit-net-final ${ft.netProfit >= 0 ? 'profit-positive' : 'profit-negative'}`}>
                 <span style={{ fontWeight: 800 }}>Net Profit</span>
-                <span className="profit-net-amount" style={{ fontWeight: 800, fontSize: '1.125rem' }}>{formatPeso(profitData.netProfit)}</span>
+                <span className="profit-net-amount" style={{ fontWeight: 800, fontSize: '1.125rem' }}>{formatPeso(ft.netProfit)}</span>
               </div>
             </div>
           </div>

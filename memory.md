@@ -1452,3 +1452,17 @@ Achieved **ESLint 0 errors, 0 warnings** and clean build:
 - **Fix:** Added chunked pagination (`.range()` in 1,000-row loops matching the `fetchSalesTrend()` pattern) to all three functions.
 - **Other math verified correct:** Egg count conversion, revenue-at-sale-time, COGS (latest delivery), Dashboard/Profits formulas, product stock.
 - **Files changed:** `src/lib/reports.js` (fetchSalesReport), `src/lib/analytics.js` (fetchSalesBySize, fetchSalesByHour), `memory.md`
+
+### Profits Page Audit & Fixes (July 26, 2026)
+- **Full audit of Profits.jsx** — 6 bugs found and fixed, detailed code review passed.
+- **BUG 1 (Critical):** `fetchSalesReport` passed `startTime: '00:00', endTime: '23:59'` causing string comparison issues — valid sales at `23:59:01`+ were excluded. **Fix:** Removed time params; Profits filters by date only.
+- **BUG 2 (High):** Summary cards always showed combined totals regardless of view filter (Eggs Only / Products Only). **Fix:** Added `ft` (filtered totals) computation that recalculates Revenue, COGS, Net Profit based on active filter. Eggs Sold card hides on Products view; Product Sales card hides on Eggs view.
+- **BUG 3 (Medium):** Net Profit Summary Strip showed "Expenses" as a deduction but it was NOT subtracted from net profit (`netProfit = adjustedRevenue - COGS`). **Fix:** Removed misleading Expenses line from the strip. All values use filter-aware `ft.*`.
+- **BUG 4 (Medium):** Empty state incorrectly triggered for "All" view when only products had data. **Fix:** Smart `hasVisibleData` check accounting for both data sources and active filter.
+- **BUG 5 (Low):** Product mobile cards shared `expandedSize` state with egg cards. **Fix:** Added separate `expandedProduct` state.
+- **BUG 6 (Low):** Redundant `Math.round` on already-rounded `revenueCut`. **Fix:** Removed duplicate rounding.
+- **New Feature:** Product sales breakdown table — grouped by product with per-unit profit, margin, and gross profit columns.
+- **New Feature:** Filter-aware summary cards — Eggs Sold / Product Sales cards hide per active filter.
+- **Cost logic confirmed:** Latest delivery cost is used (not date-filtered) — correct per user's business model of pricing based on latest delivery costs.
+- **Verification:** ESLint 0 errors, production build passes in 3.6s, live browser test with 0 console errors — all 3 filters (All, Eggs Only, Products Only) verified working with correct calculations.
+- **Files changed:** `src/components/Profits.jsx`, `src/lib/analytics.js` (indirect — fetchCostsPerProduct), `memory.md`
