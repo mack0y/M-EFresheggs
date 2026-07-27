@@ -90,9 +90,18 @@ export async function fetchProductSalesBySize(startDate, endDate) {
   if (startDate) query = query.gte('sale_date', startDate);
   if (endDate) query = query.lte('sale_date', endDate);
 
-  const { data, error } = await query.limit(500);
-  if (error) throw error;
-  return data || [];
+  const pageSize = 1000;
+  let allData = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await query.range(from, from + pageSize - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    allData = allData.concat(data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  return allData;
 }
 
 export async function fetchProductSalesByHour(startDate, endDate) {
@@ -104,9 +113,18 @@ export async function fetchProductSalesByHour(startDate, endDate) {
   if (startDate) query = query.gte('sale_date', startDate);
   if (endDate) query = query.lte('sale_date', endDate);
 
-  const { data, error } = await query.limit(500);
-  if (error) throw error;
-  return data || [];
+  const pageSize = 1000;
+  let allData = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await query.range(from, from + pageSize - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    allData = allData.concat(data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  return allData;
 }
 
 export async function fetchProductSalesTrend(days = 30, endDate) {
@@ -255,6 +273,14 @@ export async function fetchProfitMargins() {
 
   if (deliveries.error) throw deliveries.error;
 
+  // Count deliveries per egg size for accurate deliveryCount
+  const deliveryCountPerSize = {};
+  (deliveries.data || []).forEach(d => {
+    const id = d.egg_size_id;
+    if (!deliveryCountPerSize[id]) deliveryCountPerSize[id] = 0;
+    deliveryCountPerSize[id]++;
+  });
+
   const { latestPerSize, totalCountPerSize } = findLatestDeliveryPerSize(deliveries.data);
 
   // Build margins per egg size
@@ -278,7 +304,7 @@ export async function fetchProfitMargins() {
       marginPercent: Math.round(marginPercent * 10) / 10,
       totalDelivered: totalEggs,
       totalDeliveryCost: totalEggs * avgCostPerEgg,
-      deliveryCount: latest ? 1 : 0,
+      deliveryCount: price?.egg_size_id ? (deliveryCountPerSize[price.egg_size_id] || 0) : 0,
     };
   });
 

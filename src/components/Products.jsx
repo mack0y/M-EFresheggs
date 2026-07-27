@@ -590,8 +590,8 @@ export default function Products() {
         .prod-card-actions { display: flex; gap: 0.25rem; }
         .prod-card-name { font-size: 1rem; font-weight: 700; margin-bottom: 0.375rem; }
         .prod-card-pricing { display: flex; gap: 0.75rem; align-items: center; margin-bottom: 0.375rem; }
-        .prod-card-price { font-weight: 700; color: var(--color-primary); font-size: 0.9375rem; }
-        .prod-card-cost { font-size: 0.75rem; color: var(--color-text-muted); }
+        .prod-card-price { font-weight: 700; color: var(--color-primary); font-size: 1.125rem; letter-spacing: 0.01em; }
+        .prod-card-cost { font-size: 0.875rem; color: var(--color-text-secondary); font-weight: 600; }
         .prod-card-margin { display: inline-block; font-size: 0.6875rem; font-weight: 600; color: var(--color-success); background: var(--color-success-bg); padding: 0.1rem 0.4rem; border-radius: var(--radius-full); margin-bottom: 0.375rem; }
         .prod-card-stock { margin-top: 0.375rem; }
         .prod-stock-badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: var(--radius-full); font-size: 0.6875rem; font-weight: 700; }

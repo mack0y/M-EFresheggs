@@ -442,7 +442,7 @@ export default function NewProductSale() {
         .ns-product-row.selected { border-color: var(--color-primary); background: var(--color-primary-50); }
         .ns-product-info { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
         .ns-product-name { font-weight: 600; font-size: 0.9375rem; }
-        .ns-product-meta { font-size: 0.8125rem; color: var(--color-text-muted); white-space: nowrap; }
+        .ns-product-meta { font-size: 0.875rem; color: var(--color-text-secondary); font-weight: 600; white-space: nowrap; }
         .ns-product-action { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
         .ns-qty-label { font-size: 0.8125rem; color: var(--color-text-secondary); font-weight: 500; }
         .ns-qty-controls { display: flex; align-items: center; gap: 0.25rem; }
@@ -482,7 +482,7 @@ export default function NewProductSale() {
         .type-product { background: #EDE7F6; color: #7B1FA2; }
         .ns-cart-item-details { min-width: 0; }
         .ns-cart-item-name { font-size: 0.875rem; font-weight: 600; display: block; }
-        .ns-cart-item-meta { font-size: 0.75rem; color: var(--color-text-muted); }
+        .ns-cart-item-meta { font-size: 0.8125rem; color: var(--color-text-secondary); font-weight: 600; }
         .ns-cart-item-right { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
         .ns-cart-item-total { font-weight: 700; font-size: 0.9375rem; font-variant-numeric: tabular-nums; }
         .ns-cart-remove { background: none; border: none; color: var(--color-text-muted); cursor: pointer; padding: 0.25rem; border-radius: var(--radius-sm); }

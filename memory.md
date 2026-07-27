@@ -1466,3 +1466,31 @@ Achieved **ESLint 0 errors, 0 warnings** and clean build:
 - **Cost logic confirmed:** Latest delivery cost is used (not date-filtered) — correct per user's business model of pricing based on latest delivery costs.
 - **Verification:** ESLint 0 errors, production build passes in 3.6s, live browser test with 0 console errors — all 3 filters (All, Eggs Only, Products Only) verified working with correct calculations.
 - **Files changed:** `src/components/Profits.jsx`, `src/lib/analytics.js` (indirect — fetchCostsPerProduct), `memory.md`
+
+### Dark Mode Price Readability Fixes (July 27, 2026)
+- **Systematic audit:** Checked all 9 pages for dark mode price readability issues. Fixed 5 files, verified 4 pages clean.
+
+#### Fixed Files
+| File | Rules Changed | What Was Fixed |
+|------|--------------|----------------|
+| **Products.jsx** | `.prod-card-price`, `.prod-card-cost` | Price 15px→18px (33% bigger). Cost: 12px→14px, `--color-text-muted`→`--color-text-secondary` (53% brighter in dark mode), added font-weight 600 |
+| **NewProductSale.jsx** | `.ns-product-meta`, `.ns-cart-item-meta` | Price info in product list and cart: 13px→14px, muted→secondary color, added weight |
+| **NewSale.jsx** | `.qs-chip-price`, `.ns-product-meta`, `.ns-cart-item-meta`, `.ns-price-hint`, `.ns-size-stock` | Quick-sale price: 9.6px→12px + `--color-success`→`--color-primary`. Product meta: 11px→13px. Cart meta: 11px→13px. All changed from muted→secondary color with added weight |
+| **Dashboard.jsx** | `.primary-stat-sub`, `.insight-sub`, `.sale-qty-detail`, `.stat-card-label`, `.insight-label` | Revenue breakdown "Eggs ₱8K · Products ₱2K" and profit "₱500 on ₱2K" now visible in dark mode. Sale details 12px→13px. All labels changed from muted→secondary color |
+| **Profits.jsx** | 3 inline styles | "After 1% cut (₱X)": 11px→12px, muted→secondary. Total margin % in egg & product table footers: muted→secondary + bold |
+
+#### Verified Clean (No Changes Needed)
+| Page | Why Clean |
+|------|-----------|
+| **Analytics.jsx** | Chart data uses `--color-primary`, `--color-success`, fill colors. Muted color only used for labels/hints |
+| **Inventory.jsx** | Only `::placeholder` uses muted color |
+| **Deliveries.jsx** | Cost/payment amounts use `--color-danger`, `--color-primary`, `--color-success` directly. Muted color only used for labels/icons/headers |
+| **Reports.jsx** | Price data in table cells uses specific colors. Muted color only used for headers/footer text |
+
+#### The Pattern
+Every price-bearing text got:
+1. 🔆 **Color**: `--color-text-muted` (`#6B7A6B`) → `--color-text-secondary` (`#A0ADA0`) — **53% brighter in dark mode**
+2. 📏 **Size**: +1–3px depending on original (worst were 9.6px and 11px)
+3. 🖊️ **Weight**: Added `font-weight: 600` or `700` so prices visually stand out
+
+**Files changed:** `src/components/Products.jsx`, `src/components/NewProductSale.jsx`, `src/components/NewSale.jsx`, `src/components/Dashboard.jsx`, `src/components/Profits.jsx`

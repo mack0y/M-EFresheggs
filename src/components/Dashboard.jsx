@@ -1123,7 +1123,7 @@ export default function Dashboard() {
         .stat-card-label {
           font-size: 0.6875rem;
           font-weight: var(--font-weight-medium);
-          color: var(--color-text-muted);
+          color: var(--color-text-secondary);
           text-transform: uppercase;
           letter-spacing: 0.04em;
         }
@@ -1232,8 +1232,9 @@ export default function Dashboard() {
         }
 
         .sale-qty-detail {
-          font-size: 0.75rem;
-          color: var(--color-text-muted);
+          font-size: 0.8125rem;
+          color: var(--color-text-secondary);
+          font-weight: 500;
         }
 
         .sale-amount-small {
@@ -1380,7 +1381,8 @@ export default function Dashboard() {
 
         .primary-stat-sub {
           font-size: 0.9375rem;
-          color: var(--color-text-muted);
+          color: var(--color-text-secondary);
+          font-weight: 500;
           margin-top: 0.0625rem;
         }
 
@@ -1439,7 +1441,7 @@ export default function Dashboard() {
         .insight-label {
           font-size: 0.6875rem;
           font-weight: var(--font-weight-medium);
-          color: var(--color-text-muted);
+          color: var(--color-text-secondary);
           text-transform: uppercase;
           letter-spacing: 0.04em;
           display: block;
@@ -1454,8 +1456,9 @@ export default function Dashboard() {
         }
 
         .insight-sub {
-          font-size: 0.75rem;
-          color: var(--color-text-muted);
+          font-size: 0.8125rem;
+          color: var(--color-text-secondary);
+          font-weight: 500;
           display: block;
           margin-top: 0.0625rem;
         }

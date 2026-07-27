@@ -328,7 +328,7 @@ export default function Profits() {
             <span className="profit-card-label">Adjusted Revenue</span>
             <span className="profit-card-value">{loading ? '—' : formatPeso(ft.adjustedRevenue)}</span>
             {ft.revenueCut > 0 && !loading && viewFilter === 'all' && (
-              <span style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)' }}>After 1% cut ({formatPeso(ft.revenueCut)})</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', fontWeight: 500 }}>After 1% cut ({formatPeso(ft.revenueCut)})</span>
             )}
           </div>
         </div>
@@ -471,7 +471,7 @@ export default function Profits() {
                       <td colSpan={2} className="num" style={{ fontWeight: 800, color: profitData.grossProfit >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
                         {formatPeso(profitData.rows.reduce((s, r) => s + r.revenue, 0) - profitData.rows.reduce((s, r) => s + r.cogs, 0))}
                       </td>
-                      <td className="num" style={{ color: 'var(--color-text-muted)' }}>
+                      <td className="num" style={{ color: 'var(--color-text-secondary)', fontWeight: 700 }}>
                         {profitData.rows.reduce((s, r) => s + r.revenue, 0) > 0 ? `${Math.round(((profitData.rows.reduce((s, r) => s + r.revenue, 0) - profitData.rows.reduce((s, r) => s + r.cogs, 0)) / profitData.rows.reduce((s, r) => s + r.revenue, 0)) * 1000) / 10}%` : '—'}
                       </td>
                       <td className="num" style={{ color: 'var(--color-danger)' }}>{formatPeso(profitData.rows.reduce((s, r) => s + r.cogs, 0))}</td>
@@ -530,7 +530,7 @@ export default function Profits() {
                       <td className="num">{profitData.productRows.reduce((s, r) => s + r.quantity, 0).toLocaleString()}</td>
                       <td className="num" style={{ color: 'var(--color-primary)', fontWeight: 700 }}>{formatPeso(profitData.productRows.reduce((s, r) => s + r.revenue, 0))}</td>
                       <td colSpan={3}></td>
-                      <td className="num" style={{ color: 'var(--color-text-muted)' }}>
+                      <td className="num" style={{ color: 'var(--color-text-secondary)', fontWeight: 700 }}>
                         {profitData.productRows.reduce((s, r) => s + r.revenue, 0) > 0 
                           ? `${Math.round((profitData.productRows.reduce((s, r) => s + r.profitTotal, 0) / profitData.productRows.reduce((s, r) => s + r.revenue, 0)) * 1000) / 10}%` 
                           : '—'}

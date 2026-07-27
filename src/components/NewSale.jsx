@@ -813,9 +813,9 @@ export default function NewSale() {
           line-height: 1;
         }
         .qs-chip-price {
-          font-size: 0.6rem;
-          font-weight: 700;
-          color: var(--color-success);
+          font-size: 0.75rem;
+          font-weight: 800;
+          color: var(--color-primary);
           line-height: 1;
         }
 
@@ -931,7 +931,7 @@ export default function NewSale() {
         .ns-size-card:disabled { opacity: 0.45; cursor: not-allowed; }
         .ns-size-check { position: absolute; top: 4px; right: 4px; color: var(--color-primary); }
         .ns-size-name { font-weight: 700; font-size: 0.875rem; text-align: center; }
-        .ns-size-stock { font-size: 0.75rem; color: var(--color-text-muted); }
+        .ns-size-stock { font-size: 0.8125rem; color: var(--color-text-secondary); font-weight: 600; }
         .ns-size-badge {
           font-size: 0.625rem;
           font-weight: 700;
@@ -941,7 +941,7 @@ export default function NewSale() {
         .ns-stock-ok { background: #E8F5E9; color: #2E7D32; }
         .ns-stock-low { background: #FFF3E0; color: #E65100; }
         .ns-stock-out { background: #FFEBEE; color: #C62828; }
-        .ns-price-hint { font-size: 0.8125rem; color: var(--color-text-muted); }
+        .ns-price-hint { font-size: 0.875rem; color: var(--color-text-secondary); font-weight: 600; }
 
         .ns-unit-tabs { display: flex; gap: 0.25rem; }
         .ns-unit-tab {
@@ -1039,7 +1039,7 @@ export default function NewSale() {
         .ns-radio { width: 16px; height: 16px; cursor: pointer; accent-color: var(--color-primary); flex-shrink: 0; }
         .ns-product-info { display: flex; flex-direction: column; gap: 0.125rem; min-width: 0; flex: 1; }
         .ns-product-name { font-weight: 600; font-size: 0.8125rem; }
-        .ns-product-meta { font-size: 0.6875rem; color: var(--color-text-muted); }
+        .ns-product-meta { font-size: 0.8125rem; color: var(--color-text-secondary); font-weight: 600; }
 
         .ns-qty-row { display: flex; align-items: center; gap: 0.75rem; }
         .ns-max-label { font-size: 0.75rem; color: var(--color-text-muted); white-space: nowrap; }
@@ -1109,7 +1109,7 @@ export default function NewSale() {
 
         .ns-cart-item-details { display: flex; flex-direction: column; min-width: 0; }
         .ns-cart-item-name { font-weight: 600; font-size: 0.875rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .ns-cart-item-meta { font-size: 0.6875rem; color: var(--color-text-muted); }
+        .ns-cart-item-meta { font-size: 0.8125rem; color: var(--color-text-secondary); font-weight: 600; }
 
         .ns-cart-item-right { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
         .ns-cart-item-total { font-weight: 700; font-size: 0.875rem; color: var(--color-success); font-variant-numeric: tabular-nums; }

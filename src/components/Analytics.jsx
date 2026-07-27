@@ -97,10 +97,10 @@ export default function Analytics() {
       const [sizeData, hourData, trendData, prodSizeData, prodHourData, prodTrendData] = await Promise.all([
         fetchSalesBySize(startDateStr, endDate),
         fetchSalesByHour(startDateStr, endDate),
-        fetchSalesTrend(days),
+        fetchSalesTrend(days, endDate),
         fetchProductSalesBySize(startDateStr, endDate),
         fetchProductSalesByHour(startDateStr, endDate),
-        fetchProductSalesTrend(days),
+        fetchProductSalesTrend(days, endDate),
       ]);
 
       // Process sales by size
@@ -268,6 +268,20 @@ export default function Analytics() {
     null
   );
   const bestProduct = prodBySize.length > 0 ? prodBySize[0] : null;
+
+  // Merged trend data: combine egg + product sales by date, preserving all dates
+  const mergedTrend = (() => {
+    const dateMap = {};
+    trend.forEach(t => { dateMap[t.date] = { ...t, products: 0 }; });
+    prodTrend.forEach(p => {
+      if (dateMap[p.date]) {
+        dateMap[p.date].products = p.eggs;
+      } else {
+        dateMap[p.date] = { date: p.date, eggs: 0, revenue: 0, products: p.eggs };
+      }
+    });
+    return Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date));
+  })();
 
   return (
     <div className="fade-in">
@@ -526,9 +540,9 @@ export default function Analytics() {
               {category === 'products' && <h3 style={{ marginBottom: '1rem' }}>Product Sales Trend (Last {days} Days)</h3>}
               {category === 'both' && <h3 style={{ marginBottom: '1rem' }}>Combined Sales Trend (Last {days} Days)</h3>}
               {category === 'both' ? (
-                (trend.length > 0 || prodTrend.length > 0) ? (
+                mergedTrend.length > 0 ? (
                   <ResponsiveContainer width="100%" height={350}>
-                    <LineChart data={trend.length > 0 ? trend.map(t => ({ ...t, eggs: t.eggs || 0, revenue: t.revenue || 0, products: prodTrend.find(p => p.date === t.date)?.eggs || 0 })) : prodTrend.map(p => ({ ...p, eggs: 0, products: p.eggs || 0 }))} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                    <LineChart data={mergedTrend} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#E8DDD0" />
                       <XAxis dataKey="date" tick={{ fontSize: 11 }} />
                       <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
