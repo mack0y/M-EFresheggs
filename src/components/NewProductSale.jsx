@@ -48,11 +48,8 @@ export default function NewProductSale() {
   }, [loadData]);
 
   const filteredProducts = useMemo(() => {
-    let result = products.filter(p => parseFloat(p.quantity_on_hand || 0) > 0);
-    if (productSearch) {
-      result = result.filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase()));
-    }
-    return result;
+    if (!productSearch) return products;
+    return products.filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase()));
   }, [products, productSearch]);
 
   // Global keyboard shortcuts
@@ -214,7 +211,7 @@ export default function NewProductSale() {
               onChange={e => setProductSearch(e.target.value)}
               onKeyDown={e => {
                 if (e.key === 'Enter' && filteredProducts.length > 0) {
-                  const first = filteredProducts[0];
+                  const first = filteredProducts.find(p => parseFloat(p.quantity_on_hand || 0) > 0) || filteredProducts[0];
                   setProductId(first.id);
                 }
               }}
@@ -230,7 +227,7 @@ export default function NewProductSale() {
           ) : (
             <div className="ns-products-list">
               {filteredProducts.length === 0 ? (
-                <div className="ns-empty-products">No products with stock found</div>
+                <div className="ns-empty-products">No products found</div>
               ) : (
                 filteredProducts.map(p => {
                   const unit = p.unit || 'units';
@@ -242,13 +239,16 @@ export default function NewProductSale() {
                   return (
                     <div
                       key={p.id}
-                      className={`ns-product-row ${isSelected ? 'selected' : ''}`}
-                      onClick={() => setProductId(p.id)}
+                      className={`ns-product-row ${isSelected ? 'selected' : ''} ${stock === 0 ? 'out-of-stock' : ''}`}
+                      onClick={() => { if (stock > 0) setProductId(p.id); }}
                     >
                       <div className="ns-product-info">
                         <span className="ns-product-name">{p.name}</span>
                         <span className="ns-product-meta">
-                          {stock} {unit} · {formatPeso(price)}/{unit}
+                          {stock > 0
+                            ? `${stock} ${unit} · ${formatPeso(price)}/${unit}`
+                            : <span className="ns-out-of-stock-label">Out of Stock</span>
+                          }
                         </span>
                       </div>
                       {isSelected && (
@@ -258,7 +258,7 @@ export default function NewProductSale() {
                             <button
                               className="ns-qty-btn"
                               onClick={e => { e.stopPropagation(); setProductQty(p.id, Math.max(0, (parseFloat(qty) || 0) - 1)); }}
-                              disabled={!qty || parseFloat(qty) <= 0}
+                              disabled={!qty || parseFloat(qty) <= 0 || stock === 0}
                               aria-label="Decrease quantity"
                             >
                               <Minus size={14} />
@@ -289,7 +289,7 @@ export default function NewProductSale() {
                           </div>
                           <button
                             className="btn btn-primary btn-sm ns-add-cart-btn"
-                            disabled={!qty || parseFloat(qty) <= 0}
+                            disabled={!qty || parseFloat(qty) <= 0 || stock === 0}
                             onClick={e => {
                               e.stopPropagation();
                               setProductId(p.id);
@@ -461,6 +461,21 @@ export default function NewProductSale() {
           font-size: 0.875rem; font-weight: 600;
         }
         .ns-add-cart-btn { white-space: nowrap; }
+        .ns-product-row.out-of-stock {
+          opacity: 0.45;
+          cursor: not-allowed;
+        }
+        .ns-product-row.out-of-stock:hover {
+          border-color: var(--color-border-light);
+          background: transparent;
+        }
+        .ns-out-of-stock-label {
+          color: var(--color-danger);
+          font-weight: 700;
+          font-size: 0.75rem;
+          text-transform: uppercase;
+          letter-spacing: 0.03em;
+        }
         .ns-empty-products {
           text-align: center; padding: 2rem 1rem;
           color: var(--color-text-muted); font-size: 0.875rem;

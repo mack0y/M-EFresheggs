@@ -201,9 +201,14 @@ export default function NewSale() {
   }
 
   const filteredProducts = useMemo(() => products
-    .filter(p => parseFloat(p.quantity_on_hand || 0) > 0)
     .filter(p => !productSearch || p.name.toLowerCase().includes(productSearch.toLowerCase())),
     [products, productSearch]
+  );
+
+  /** Products that actually have stock — used for quick-sale grid */
+  const inStockProducts = useMemo(() =>
+    products.filter(p => parseFloat(p.quantity_on_hand || 0) > 0),
+    [products]
   );
 
   const sortedInventory = useMemo(() =>
@@ -357,7 +362,7 @@ export default function NewSale() {
               {activeTab === 'products' && (
                 <>
                   {/* Product quick-sale cards: each product shows 1, 2, 5 unit options */}
-                  {products.filter(p => parseFloat(p.quantity_on_hand || 0) > 0).slice(0, 6).map(p => {
+                  {inStockProducts.slice(0, 6).map(p => {
                     const prodPrice = parseFloat(p.price || 0);
                     const stock = parseFloat(p.quantity_on_hand || 0);
                     const unit = p.unit || 'units';
@@ -397,7 +402,7 @@ export default function NewSale() {
                       </div>
                     );
                   })}
-                  {products.filter(p => parseFloat(p.quantity_on_hand || 0) > 0).length === 0 && (
+                  {inStockProducts.length === 0 && (
                     <div className="qs-empty">No products with stock for quick sale</div>
                   )}
                 </>
@@ -534,7 +539,7 @@ export default function NewSale() {
                     onChange={e => setProductSearch(e.target.value)}
                     onKeyDown={e => {
                       if (e.key === 'Enter' && filteredProducts.length > 0) {
-                        const first = filteredProducts[0];
+                        const first = filteredProducts.find(p => parseFloat(p.quantity_on_hand || 0) > 0) || filteredProducts[0];
                         setProductId(String(first.id));
                         setProductQtys({ ...productQtys, [first.id]: '1' });
                       }
@@ -543,7 +548,7 @@ export default function NewSale() {
                 </div>
                 <div className="ns-product-list">
                   {filteredProducts.length === 0 ? (
-                    <div className="ns-empty-products">No products with stock found</div>
+                    <div className="ns-empty-products">No products found</div>
                   ) : (
                     filteredProducts.map(p => {
                       const unit = p.unit || 'units';
@@ -554,23 +559,27 @@ export default function NewSale() {
                       return (
                         <div
                           key={p.id}
-                          className={`ns-product-row ${isSelected ? 'selected' : ''}`}
+                          className={`ns-product-row ${isSelected ? 'selected' : ''} ${stock === 0 ? 'out-of-stock' : ''}`}
                         >
                           <div
                             className="ns-product-row-top"
-                            onClick={() => setProductId(isSelected ? '' : String(p.id))}
+                            onClick={() => { if (stock > 0) setProductId(isSelected ? '' : String(p.id)); }}
                           >
                             <input
                               type="radio"
                               name="product"
                               checked={isSelected}
-                              onChange={() => setProductId(isSelected ? '' : String(p.id))}
+                              onChange={() => { if (stock > 0) setProductId(isSelected ? '' : String(p.id)); }}
                               className="ns-radio"
+                              disabled={stock === 0}
                             />
                             <div className="ns-product-info">
                               <span className="ns-product-name">{p.name}</span>
                               <span className="ns-product-meta">
-                                {stock.toLocaleString()} {unit} in stock · {price > 0 ? formatPeso(price) + '/' + unit : 'No price'}
+                                {stock > 0
+                                  ? `${stock.toLocaleString()} ${unit} in stock · ${price > 0 ? formatPeso(price) + '/' + unit : 'No price'}`
+                                  : <span className="ns-out-of-stock-label">Out of Stock</span>
+                                }
                               </span>
                             </div>
                           </div>
@@ -1006,6 +1015,21 @@ export default function NewSale() {
           display: flex; flex-direction: column;
         }
         .ns-empty-products { padding: 1.5rem; text-align: center; color: var(--color-text-muted); font-size: 0.875rem; }
+
+        .ns-product-row.out-of-stock {
+          opacity: 0.45;
+          cursor: not-allowed;
+        }
+        .ns-product-row.out-of-stock .ns-product-row-top:hover {
+          background: transparent;
+        }
+        .ns-out-of-stock-label {
+          color: var(--color-danger);
+          font-weight: 700;
+          font-size: 0.75rem;
+          text-transform: uppercase;
+          letter-spacing: 0.03em;
+        }
 
         .ns-product-row {
           border-bottom: 1px solid var(--color-border-light);

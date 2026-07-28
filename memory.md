@@ -1494,3 +1494,13 @@ Every price-bearing text got:
 3. 🖊️ **Weight**: Added `font-weight: 600` or `700` so prices visually stand out
 
 **Files changed:** `src/components/Products.jsx`, `src/components/NewProductSale.jsx`, `src/components/NewSale.jsx`, `src/components/Dashboard.jsx`, `src/components/Profits.jsx`
+
+### Show All Products Including 0-Stock in Sale Pages (July 29, 2026)
+- **NewSale.jsx / NewProductSale.jsx** — Removed the `quantity_on_hand > 0` filter so the full product catalog is visible, including out-of-stock items
+- **Out-of-stock visual styling:** Added `.out-of-stock` class with `opacity: 0.45`, `cursor: not-allowed`, hover override, and a red uppercase **"OUT OF STOCK"** badge replacing the stock count
+- **Interaction guards:** Radio inputs disabled, click handlers blocked, Add button disabled — prevents accidental selection of 0-stock items
+- **Enter-key fix:** Both search fields now skip to first in-stock product instead of potentially selecting 0-stock on Enter
+- **Refactored** `inStockProducts` memo in NewSale.jsx to keep quick-sale grid filtering only in-stock items
+- **Empty state:** Changed from "No products with stock found" to "No products found"
+
+**Files changed:** `src/components/NewSale.jsx`, `src/components/NewProductSale.jsx`
