@@ -1504,3 +1504,19 @@ Every price-bearing text got:
 - **Empty state:** Changed from "No products with stock found" to "No products found"
 
 **Files changed:** `src/components/NewSale.jsx`, `src/components/NewProductSale.jsx`
+
+### Product Deliveries — Show All + Today/All/Custom Date Filter (August 3, 2026)
+- **Bug:** `ProductDeliveries.jsx` loaded deliveries with a hardcoded `fetchProductDeliveries({ startDate: today, endDate: today })` — the page only ever showed **today's** deliveries. The DB had 20 product deliveries (Jul 19 → Aug 1) but the page showed "No product deliveries yet" on any day without a new delivery.
+- **Fix:** Removed the today-only filter — the page now loads **all** deliveries (50/page) with a **Load More** button, matching the egg Deliveries page pattern (`PAGE_SIZE`/`page`/`hasMore` state + `loadMore()`).
+- **Bonus fix:** The Qty column rendered `d.products?.purchase_unit` but the join only selected `products(name)` — the unit was always blank (e.g., "3 " instead of "3 pack"). Fixed by joining `products(name, unit, purchase_unit)` in `fetchProductDeliveries()` (and `recordProductDelivery()` for consistency).
+- **New feature: Today / All / Custom date filter**
+  - Filter tabs: **All** (default) / **Today** / **Custom** (reveals start/end date pickers + **Go** button)
+  - Date range passed server-side via `fetchProductDeliveries({ startDate, endDate })` (`.gte`/`.lte` on `delivery_date`)
+  - **`filterRef` (useRef) pattern:** `loadData()` is a `useCallback` with `[]` deps that reads `filterRef.current` — so pagination (`loadMore`), undo, delete, and payment updates all re-apply the active date range without stale closures
+  - `changeFilter('today' | 'all')` updates the ref + reloads; `'custom'` only reveals the pickers (range applies on **Go** via `applyCustom()`)
+  - `customApplied` state prevents the stat card from showing the custom range label before Go is pressed
+  - Switching filters clears the search query and closes the payment dropdown
+  - 5th stat card shows the applied range (e.g., "Jul 19 → Jul 27") with its count, otherwise stays "today · ₱X"
+  - Empty state now distinguishes "No deliveries in this date range" / "No deliveries match your search" / "No product deliveries yet"
+- **Verification:** ESLint 0 errors, production build passes, live API verified (All=20, Today=0, Custom Jul 19–27=19), code review passed
+- **Files changed:** `src/components/ProductDeliveries.jsx`, `src/lib/productDeliveries.js`, `memory.md`

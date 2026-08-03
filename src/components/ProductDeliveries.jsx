@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Truck,
@@ -14,6 +14,7 @@ import {
   Search,
 } from 'lucide-react';
 import { fetchProductDeliveries, recordProductDelivery, updateProductDeliveryPayment, deleteProductDelivery, fetchProducts, fetchSuppliers, formatPeso, PAYMENT_STATUSES, getLocalDate } from '../lib/api';
+import { formatDate } from '../lib/formatters';
 import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
@@ -37,7 +38,15 @@ export default function ProductDeliveries() {
   const [paymentStatusInput, setPaymentStatusInput] = useState('unpaid');
   const [partialAmountInput, setPartialAmountInput] = useState("0");
   const [searchQuery, setSearchQuery] = useState('');
+  const PAGE_SIZE = 50;
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const today = getLocalDate();
+  const [filter, setFilter] = useState('all'); // 'all' | 'today' | 'custom'
+  const [customStart, setCustomStart] = useState(today);
+  const [customEnd, setCustomEnd] = useState(today);
+  const [customApplied, setCustomApplied] = useState(false);
+  const filterRef = useRef({ startDate: undefined, endDate: undefined });
 
   const [form, setForm] = useState({
     supplierId: '',
@@ -52,11 +61,13 @@ export default function ProductDeliveries() {
       setLoading(true);
       setError(null);
       const [delData, prodData, suppData] = await Promise.all([
-        fetchProductDeliveries({ limit: 500, offset: 0, startDate: today, endDate: today }),
+        fetchProductDeliveries({ limit: PAGE_SIZE, offset: 0, startDate: filterRef.current.startDate, endDate: filterRef.current.endDate }),
         fetchProducts(),
         fetchSuppliers(),
       ]);
       setDeliveries(delData || []);
+      setPage(0);
+      setHasMore(delData && delData.length === PAGE_SIZE);
       setSuppliers(suppData || []);
 
       // Initialize form items when products load
@@ -84,6 +95,52 @@ export default function ProductDeliveries() {
     const id = setTimeout(() => loadData(), 0);
     return () => clearTimeout(id);
   }, [loadData]);
+
+  async function loadMore() {
+    try {
+      const nextPage = page + 1;
+      const data = await fetchProductDeliveries({ limit: PAGE_SIZE, offset: nextPage * PAGE_SIZE, startDate: filterRef.current.startDate, endDate: filterRef.current.endDate });
+      if (data && data.length > 0) {
+        setDeliveries(prev => [...prev, ...data]);
+        setPage(nextPage);
+        setHasMore(data.length === PAGE_SIZE);
+      } else {
+        setHasMore(false);
+      }
+    } catch (err) {
+      console.error('Load more error:', err);
+      toast('Failed to load more deliveries', 'error');
+    }
+  }
+
+  function changeFilter(key) {
+    setFilter(key);
+    setSearchQuery('');
+    setEditingPayment(null);
+    if (key === 'today') {
+      setCustomApplied(false);
+      filterRef.current = { startDate: today, endDate: today };
+      loadData();
+    } else if (key === 'all') {
+      setCustomApplied(false);
+      filterRef.current = { startDate: undefined, endDate: undefined };
+      loadData();
+    }
+    // 'custom' just reveals the date pickers; the range is applied on Go
+  }
+
+  function applyCustom() {
+    if (!customStart || !customEnd) {
+      toast('Select both start and end dates', 'error');
+      return;
+    }
+    setFilter('custom');
+    setSearchQuery('');
+    setEditingPayment(null);
+    setCustomApplied(true);
+    filterRef.current = { startDate: customStart, endDate: customEnd };
+    loadData();
+  }
 
   function updateItem(index, field, value) {
     setForm(prev => {
@@ -267,8 +324,10 @@ export default function ProductDeliveries() {
         <div className="delivery-stat-card">
           <Calendar size={18} />
           <div>
-            <span className="delivery-stat-value">{todayDeliveries.length}</span>
-            <span className="delivery-stat-label">today · {formatPeso(todayCost)}</span>
+            <span className="delivery-stat-value">{filter === 'custom' && customApplied ? deliveries.length : todayDeliveries.length}</span>
+            <span className="delivery-stat-label">
+              {filter === 'custom' && customApplied ? `${formatDate(customStart)} → ${formatDate(customEnd)}` : `today · ${formatPeso(todayCost)}`}
+            </span>
           </div>
         </div>
       </div>
@@ -402,6 +461,25 @@ export default function ProductDeliveries() {
         </div>
       )}
 
+      {/* Date filter */}
+      <div className="pdel-filter-bar">
+        <div className="pdel-filter-tabs">
+          {[{ key: 'all', label: 'All' }, { key: 'today', label: 'Today' }, { key: 'custom', label: 'Custom' }].map(p => (
+            <button key={p.key} className={`pdel-filter-tab ${filter === p.key ? 'active' : ''}`} onClick={() => changeFilter(p.key)}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+        {filter === 'custom' && (
+          <div className="pdel-custom-dates">
+            <input type="date" className="pdel-date-input" value={customStart} onChange={e => setCustomStart(e.target.value)} aria-label="Start date" />
+            <span className="pdel-date-sep">→</span>
+            <input type="date" className="pdel-date-input" value={customEnd} onChange={e => setCustomEnd(e.target.value)} aria-label="End date" />
+            <button className="btn btn-primary btn-sm" onClick={applyCustom}>Go</button>
+          </div>
+        )}
+      </div>
+
       <div className="delivery-controls">
         <div className="search-input-wrapper">
           <Search size={16} className="search-icon" />
@@ -430,8 +508,8 @@ export default function ProductDeliveries() {
         ) : filtered.length === 0 ? (
           <div className="empty-state">
             <Truck size={36} />
-            <p>No product deliveries yet</p>
-            <p style={{ fontSize: '0.8125rem', marginTop: '-0.25rem' }}>Click "Record Delivery" to get started</p>
+            <p>{searchQuery ? 'No deliveries match your search' : filter !== 'all' ? 'No deliveries in this date range' : 'No product deliveries yet'}</p>
+            <p style={{ fontSize: '0.8125rem', marginTop: '-0.25rem' }}>{searchQuery ? 'Try a different supplier or product name' : 'Try a wider date range or "All"'}</p>
           </div>
         ) : (
           filtered.map((d, i) => {
@@ -442,7 +520,7 @@ export default function ProductDeliveries() {
                   <span className="delivery-date">{d.delivery_date?.slice(5) || d.delivery_date}</span>
                   <span className="delivery-supplier">{d.suppliers?.name || 'Unknown'}</span>
                   <span className="delivery-sizes-summary">{d.products?.name || 'Unknown'}</span>
-                  <span className="delivery-qty">{parseFloat(d.purchase_quantity || 0).toLocaleString()} {d.products?.purchase_unit || ''}</span>
+                  <span className="delivery-qty">{parseFloat(d.purchase_quantity || 0).toLocaleString()} {d.products?.purchase_unit || d.products?.unit || ''}</span>
                   <span className="delivery-cost">{formatPeso(d.total_cost)}</span>
                   <span className="delivery-payment">
                     <span className="delivery-payment-badge" style={{ background: bpStyle.bg, color: bpStyle.color }}>
@@ -499,6 +577,14 @@ export default function ProductDeliveries() {
           })
         )}
       </div>
+
+      {hasMore && !searchQuery && (
+        <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+          <button className="btn btn-secondary" onClick={loadMore}>
+            Load More
+          </button>
+        </div>
+      )}
 
       <ConfirmDialog
         open={!!deleteTarget}
@@ -558,6 +644,17 @@ export default function ProductDeliveries() {
         .delivery-amount-input input { width: 120px; padding: 0.375rem 0.5rem; border: 1.5px solid var(--color-border); border-radius: var(--radius-sm); font-size: 0.875rem; font-variant-numeric: tabular-nums; }
         .delivery-amount-input input:focus { border-color: var(--color-primary); outline: none; }
 
+        /* Date filter */
+        .pdel-filter-bar { margin-bottom: 0.75rem; }
+        .pdel-filter-tabs { display: flex; gap: 0.25rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+        .pdel-filter-tab { min-height: 40px; padding: 0.4rem 1rem; border: 1.5px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-card); color: var(--color-text-secondary); font-size: 0.8125rem; font-weight: 500; cursor: pointer; transition: all var(--transition-fast); }
+        .pdel-filter-tab:hover { border-color: var(--color-primary); color: var(--color-primary); }
+        .pdel-filter-tab.active { background: var(--color-primary); border-color: var(--color-primary); color: white; }
+        .pdel-custom-dates { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+        .pdel-date-input { flex: 1; min-width: 130px; max-width: 180px; padding: 0.4rem 0.625rem; border: 1.5px solid var(--color-border); border-radius: var(--radius-sm); font-size: 0.8125rem; color: var(--color-text); background: var(--color-card); outline: none; }
+        .pdel-date-input:focus { border-color: var(--color-primary); }
+        .pdel-date-sep { color: var(--color-text-muted); }
+
         @media (max-width: 640px) {
           .delivery-table-header { display: none; }
           .delivery-row { grid-template-columns: 1fr auto !important; gap: 0.1rem 0.5rem; padding: 0.625rem 0.75rem; }
@@ -569,6 +666,8 @@ export default function ProductDeliveries() {
           .delivery-payment { grid-column: 2; grid-row: 3; text-align: right; }
           .delivery-row .num { grid-column: 1 / -1; grid-row: 4; text-align: right; }
           .delivery-stats { grid-template-columns: 1fr; }
+          .pdel-custom-dates { flex-wrap: wrap; }
+          .pdel-date-input { max-width: none; flex: 1; min-width: 110px; }
         }
         @media (min-width: 640px) { .delivery-stats { grid-template-columns: 1fr 1fr; } }
         @media (min-width: 900px) { .delivery-stats { grid-template-columns: 1fr 1fr 1fr 1fr; } }

@@ -6,7 +6,7 @@ import { getLocalDate } from './utils';
 export async function fetchProductDeliveries({ limit = 50, offset = 0, startDate, endDate } = {}) {
   let query = supabase
     .from('product_deliveries')
-    .select('*, suppliers(name), products(name)')
+    .select('*, suppliers(name), products(name, unit, purchase_unit)')
     .order('delivery_date', { ascending: false });
 
   if (startDate) query = query.gte('delivery_date', startDate);
@@ -35,7 +35,7 @@ export async function recordProductDelivery({ supplierId, productId, purchaseQua
       delivery_date: deliveryDate || today,
       notes,
     })
-    .select('*, suppliers(name), products(name)')
+    .select('*, suppliers(name), products(name, unit, purchase_unit)')
     .single();
 
   if (error) throw error;
