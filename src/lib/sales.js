@@ -1,7 +1,35 @@
 import { supabase } from './supabaseClient';
-import { getLocalDate, TRAY_SIZE } from './utils';
+import { getLocalDate } from './utils';
 
 // ===== Sales =====
+
+/**
+ * Re-insert a deleted sale EXACTLY as it was recorded (undo path).
+ * Preserves original total_amount, sale_date, sale_time, and transaction_id
+ * so undoing a sale never re-prices it at current prices or drifts dates.
+ * The inventory trigger (after_sale_insert) deducts stock on insert, matching
+ * the restore-from-delete semantics.
+ */
+export async function restoreSale(sale) {
+  if (!sale) throw new Error('Sale not found');
+  const { data, error } = await supabase
+    .from('sales')
+    .insert({
+      egg_size_id: sale.egg_size_id,
+      quantity: sale.quantity,
+      unit: sale.unit,
+      tray_size: sale.tray_size ?? null,
+      total_amount: sale.total_amount ?? 0,
+      sale_date: sale.sale_date,
+      sale_time: sale.sale_time,
+      transaction_id: sale.transaction_id ?? null,
+    })
+    .select('*, egg_sizes(name)')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 export async function recordSale({ eggSizeId, quantity, unit, traySize }) {
   const today = new Date();
   const dateStr = getLocalDate(today);
@@ -56,132 +84,44 @@ export async function fetchSales({ limit = 50, offset = 0, startDate, endDate } 
 
 export async function fetchTodaySales() {
   const today = getLocalDate();
-  const { data, error } = await supabase
-    .from('sales')
-    .select('*, egg_sizes(name)')
-    .eq('sale_date', today)
-    .order('sale_time', { ascending: false });
-  if (error) throw error;
-  return data;
+  const pageSize = 1000;
+  let allData = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from('sales')
+      .select('*, egg_sizes(name)')
+      .eq('sale_date', today)
+      .order('sale_time', { ascending: false })
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    allData = allData.concat(data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  return allData;
 }
 
 export async function deleteSale(id) {
-  // Fetch the sale first so we can restore inventory
-  const { data: sale, error: fetchErr } = await supabase
-    .from('sales')
-    .select('*')
-    .eq('id', id)
-    .single();
-  if (fetchErr) throw fetchErr;
-  if (!sale) throw new Error('Sale not found');
-
-  // Delete the sale record first (safe — no trigger on DELETE)
-  const { error: delErr } = await supabase
-    .from('sales')
-    .delete()
-    .eq('id', id);
-  if (delErr) throw delErr;
-
-  // Calculate egg count to restore
-  const eggCount = sale.unit === 'tray'
-    ? sale.quantity * (sale.tray_size || TRAY_SIZE)
-    : sale.quantity;
-
-  // Fetch current inventory quantity
-  const { data: invItem, error: invFetchErr } = await supabase
-    .from('inventory')
-    .select('quantity_on_hand')
-    .eq('egg_size_id', sale.egg_size_id)
-    .single();
-  if (invFetchErr) throw invFetchErr;
-
-  // Restore inventory by adding back the egg count
-  const newQty = (invItem?.quantity_on_hand || 0) + eggCount;
-  const { error: updateErr } = await supabase
-    .from('inventory')
-    .update({ quantity_on_hand: newQty, updated_at: new Date().toISOString() })
-    .eq('egg_size_id', sale.egg_size_id);
-
-  // If inventory restore fails, re-insert the sale to keep data consistent
-  if (updateErr) {
-    await supabase.from('sales').insert({
-      egg_size_id: sale.egg_size_id,
-      quantity: sale.quantity,
-      unit: sale.unit,
-      tray_size: sale.tray_size,
-      total_amount: sale.total_amount,
-      sale_date: sale.sale_date,
-      sale_time: sale.sale_time,
-    });
-    throw updateErr;
-  }
-
-  return sale;
+  // Use the atomic undo_sale RPC: delete + inventory restore happen in a
+  // single DB transaction, so a failure rolls back both. Returns the deleted
+  // sale record (SETOF sales wraps a single row in an array).
+  const { data, error } = await supabase.rpc('undo_sale', { p_sale_id: id });
+  if (error) throw error;
+  if (!data || data.length === 0) throw new Error('Sale not found');
+  return data[0];
 }
 
 /**
- * Delete multiple sales records at once for better performance.
+ * Delete multiple sales records at once.
+ * Uses the atomic undo_sales RPC — deletes + inventory restore happen in a
+ * single DB transaction per sale. Returns the deleted sale records.
  */
 export async function deleteSales(ids) {
   if (!ids || ids.length === 0) return [];
 
-  // Fetch all sales to restore inventory later
-  const { data: sales, error: fetchErr } = await supabase
-    .from('sales')
-    .select('*')
-    .in('id', ids);
-  if (fetchErr) throw fetchErr;
-
-  // Delete the records
-  const { error: delErr } = await supabase
-    .from('sales')
-    .delete()
-    .in('id', ids);
-  if (delErr) throw delErr;
-
-  // Restore inventory for each deleted sale
-  const restoreMap = {};
-  (sales || []).forEach(sale => {
-    const eggCount = sale.unit === 'tray'
-      ? sale.quantity * (sale.tray_size || TRAY_SIZE)
-      : sale.quantity;
-    if (!restoreMap[sale.egg_size_id]) restoreMap[sale.egg_size_id] = 0;
-    restoreMap[sale.egg_size_id] += eggCount;
-  });
-
-  for (const [eggSizeId, eggCount] of Object.entries(restoreMap)) {
-    const { data: invItem, error: invFetchErr } = await supabase
-      .from('inventory')
-      .select('quantity_on_hand')
-      .eq('egg_size_id', eggSizeId)
-      .single();
-    if (invFetchErr) throw invFetchErr;
-
-    const newQty = (invItem?.quantity_on_hand || 0) + eggCount;
-    const { error: updateErr } = await supabase
-      .from('inventory')
-      .update({ quantity_on_hand: newQty, updated_at: new Date().toISOString() })
-      .eq('egg_size_id', eggSizeId);
-
-    // If inventory restore fails, re-insert the affected sales to keep data consistent
-    if (updateErr) {
-      const toRestore = sales.filter(s => s.egg_size_id === parseInt(eggSizeId));
-      if (toRestore.length > 0) {
-        await supabase.from('sales').insert(
-          toRestore.map(s => ({
-            egg_size_id: s.egg_size_id,
-            quantity: s.quantity,
-            unit: s.unit,
-            tray_size: s.tray_size,
-            total_amount: s.total_amount,
-            sale_date: s.sale_date,
-            sale_time: s.sale_time,
-          }))
-        );
-      }
-      throw updateErr;
-    }
-  }
-
-  return sales;
+  const { data, error } = await supabase.rpc('undo_sales', { p_sale_ids: ids });
+  if (error) throw error;
+  return data || [];
 }

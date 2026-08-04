@@ -7,8 +7,7 @@ import {
   TrendingUp,
   Trash2,
 } from 'lucide-react';
-import { fetchSales, fetchInventory, recordSale, deleteSale, deleteSales, getEggCount, formatPeso, formatInventory, getLocalDate, TRAY_SIZE } from '../lib/api';
-
+import { fetchSales, fetchInventory, recordSale, restoreSale, deleteSale, deleteSales, getEggCount, formatPeso, formatInventory, getLocalDate, TRAY_SIZE } from '../lib/api';
 import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
@@ -183,6 +182,25 @@ export default function SalesLog() {
     }
   }
 
+  async function handleRecordSale() {
+    const d = confirmSale;
+    setConfirmSale(null);
+    if (!d) return;
+    try {
+      const sale = await recordSale({
+        eggSizeId: d.eggSizeId,
+        quantity: d.quantity,
+        unit: d.unit,
+        traySize: d.traySize || TRAY_SIZE,
+      });
+      toast(`Sale recorded — ${sale.egg_sizes?.name || 'Unknown'} ${sale.quantity} ${sale.unit}`);
+      loadData();
+    } catch (err) {
+      console.error('Record sale error:', err);
+      toast(getUserFriendlyError(err), 'error');
+    }
+  }
+
   async function handleDeleteSale(id) {
     try {
       const deletedSale = await deleteSale(id);
@@ -190,12 +208,7 @@ export default function SalesLog() {
         label: 'Undo',
         onClick: async () => {
           try {
-            await recordSale({
-              eggSizeId: deletedSale.egg_size_id,
-              quantity: deletedSale.quantity,
-              unit: deletedSale.unit,
-              traySize: deletedSale.tray_size || TRAY_SIZE,
-            });
+            await restoreSale(deletedSale);
             toast('Sale restored');
             loadData();
           } catch (err) {
@@ -225,12 +238,7 @@ export default function SalesLog() {
           try {
             if (!salesToDelete || salesToDelete.length === 0) return;
             for (const sale of salesToDelete) {
-              await recordSale({
-                eggSizeId: sale.egg_size_id,
-                quantity: sale.quantity,
-                unit: sale.unit,
-                traySize: sale.tray_size || TRAY_SIZE,
-              });
+              await restoreSale(sale);
             }
             toast('Sales restored');
             loadData();
@@ -472,7 +480,7 @@ export default function SalesLog() {
         confirmLabel="Record Sale"
         variant="primary"
         icon={ClipboardCheck}
-        onConfirm={() => { const d = confirmSale; setConfirmSale(null); recordSale(d); }}
+        onConfirm={handleRecordSale}
         onCancel={() => setConfirmSale(null)}
       />
 

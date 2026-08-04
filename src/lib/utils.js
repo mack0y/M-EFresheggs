@@ -43,4 +43,40 @@ export function formatPeso(amount) {
   return `₱${parseFloat(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+// ===== Period Ranges =====
+
+/** Period presets shared by Profits and Dashboard views */
+export const PERIODS = [
+  { key: 'today', label: 'Today' },
+  { key: 'week', label: 'This Week' },
+  { key: 'month', label: 'This Month' },
+  { key: 'custom', label: 'Custom' },
+];
+
+/** Compute { startDate, endDate } (YYYY-MM-DD, Asia/Manila) for a period key.
+ *  Also returns prevEndDate/prevDateCount for period-over-period baselines. */
+export function getPeriodRange(period) {
+  const now = new Date();
+  const end = getLocalDate(now);
+
+  if (period === 'today') {
+    return { startDate: end, endDate: end };
+  }
+
+  if (period === 'week') {
+    const d = new Date(now);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday
+    d.setDate(diff);
+    return { startDate: getLocalDate(d), endDate: end };
+  }
+
+  if (period === 'month') {
+    const d = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { startDate: getLocalDate(d), endDate: end };
+  }
+
+  return { startDate: end, endDate: end };
+}
+
 

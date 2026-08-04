@@ -3,12 +3,22 @@ import { supabase } from './supabaseClient';
 // ===== Customers =====
 
 export async function fetchCustomers() {
-  const { data, error } = await supabase
-    .from('customers')
-    .select('*')
-    .order('name', { ascending: true });
-  if (error) throw error;
-  return data;
+  const pageSize = 1000;
+  let allData = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from('customers')
+      .select('*')
+      .order('name', { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    allData = allData.concat(data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  return allData;
 }
 
 export async function addCustomer({ name, phone, notes }) {

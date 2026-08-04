@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Truck,
@@ -296,42 +296,69 @@ export default function Deliveries() {
     }
   }
 
-  // Group deliveries by batch_id
-  const batches = {};
-  deliveries.forEach(d => {
-    const bid = d.batch_id || `single_${d.id}`;
-    if (!batches[bid]) {
-      batches[bid] = { batchId: bid, items: [], isSingle: !d.batch_id };
-    }
-    batches[bid].items.push(d);
-  });
-  const batchList = Object.values(batches).sort((a, b) => {
-    const dateA = a.items[0]?.delivery_date || '';
-    const dateB = b.items[0]?.delivery_date || '';
-    if (dateA !== dateB) return dateB.localeCompare(dateA);
-    return (b.items[0]?.id || 0) - (a.items[0]?.id || 0);
-  });
+  // Group deliveries by batch_id (batches, filteredBatchList, totals, and
+  // paymentBreakdown only depend on [deliveries, searchQuery, today], so
+  // memoize to avoid re-grouping/re-reducing on every unrelated render).
+  const batches = useMemo(() => {
+    const out = {};
+    deliveries.forEach(d => {
+      const bid = d.batch_id || `single_${d.id}`;
+      if (!out[bid]) {
+        out[bid] = { batchId: bid, items: [], isSingle: !d.batch_id };
+      }
+      out[bid].items.push(d);
+    });
+    return out;
+  }, [deliveries]);
 
-  const filteredBatchList = batchList.filter(batch => {
-    if (!searchQuery) return true;
-    const name = (batch.items[0]?.suppliers?.name || '').toLowerCase();
-    return name.includes(searchQuery.toLowerCase());
-  });
+  const batchList = useMemo(() => {
+    return Object.values(batches).sort((a, b) => {
+      const dateA = a.items[0]?.delivery_date || '';
+      const dateB = b.items[0]?.delivery_date || '';
+      if (dateA !== dateB) return dateB.localeCompare(dateA);
+      return (b.items[0]?.id || 0) - (a.items[0]?.id || 0);
+    });
+  }, [batches]);
 
-  const totalCostAll = deliveries.reduce((sum, d) => sum + parseFloat(d.total_cost || 0), 0);
-  const amountPaidTotal = deliveries.reduce((sum, d) => sum + parseFloat(d.amount_paid || 0), 0);
-  const totalUnpaid = totalCostAll - amountPaidTotal;
-  const todayDeliveries = deliveries.filter(d => d.delivery_date === today);
-  const todayCost = todayDeliveries.reduce((sum, d) => sum + parseFloat(d.total_cost || 0), 0);
+  const filteredBatchList = useMemo(() => {
+    if (!searchQuery) return batchList;
+    const q = searchQuery.trim().toLowerCase();
+    return batchList.filter(batch => {
+      const first = batch.items[0];
+      const supplier = (first?.suppliers?.name || '').toLowerCase();
+      const date = (first?.delivery_date || '');
+      const eggNames = batch.items
+        .map(d => (d.egg_sizes?.name || '').toLowerCase())
+        .join(' ');
+      const costs = batch.items
+        .map(d => parseFloat(d.total_cost || 0).toFixed(2))
+        .join(' ');
+      return supplier.includes(q) || date.includes(q) || eggNames.includes(q) || costs.includes(q);
+    });
+  }, [batchList, searchQuery]);
 
-  const paymentBreakdown = {};
-  PAYMENT_STATUSES.forEach(status => {
-    paymentBreakdown[status] = {
-      count: deliveries.filter(d => d.payment_status === status).length,
-      total: deliveries.filter(d => d.payment_status === status).reduce((sum, d) => sum + parseFloat(d.total_cost || 0), 0),
-      paid: deliveries.filter(d => d.payment_status === status).reduce((sum, d) => sum + parseFloat(d.amount_paid || 0), 0),
-    };
-  });
+  const totals = useMemo(() => {
+    const totalCostAll = deliveries.reduce((sum, d) => sum + parseFloat(d.total_cost || 0), 0);
+    const amountPaidTotal = deliveries.reduce((sum, d) => sum + parseFloat(d.amount_paid || 0), 0);
+    const todayDeliveries = deliveries.filter(d => d.delivery_date === today);
+    const todayCost = todayDeliveries.reduce((sum, d) => sum + parseFloat(d.total_cost || 0), 0);
+    return { totalCostAll, amountPaidTotal, totalUnpaid: totalCostAll - amountPaidTotal, todayCount: todayDeliveries.length, todayCost };
+  }, [deliveries, today]);
+
+  const { totalCostAll, amountPaidTotal, totalUnpaid, todayCount, todayCost } = totals;
+
+  const paymentBreakdown = useMemo(() => {
+    const out = {};
+    PAYMENT_STATUSES.forEach(status => {
+      const subset = deliveries.filter(d => d.payment_status === status);
+      out[status] = {
+        count: subset.length,
+        total: subset.reduce((sum, d) => sum + parseFloat(d.total_cost || 0), 0),
+        paid: subset.reduce((sum, d) => sum + parseFloat(d.amount_paid || 0), 0),
+      };
+    });
+    return out;
+  }, [deliveries]);
 
 
   function batchTotalQty(items) {
@@ -432,7 +459,7 @@ export default function Deliveries() {
         <div className="delivery-stat-card">
           <Calendar size={18} />
           <div>
-            <span className="delivery-stat-value">{todayDeliveries.length}</span>
+            <span className="delivery-stat-value">{todayCount}</span>
             <span className="delivery-stat-label">today · {formatPeso(todayCost)}</span>
           </div>
         </div>
@@ -737,7 +764,7 @@ export default function Deliveries() {
                           setPaymentStatusInput(bStatus);
                           setPartialAmountInput(
                             bStatus === 'paid'
-                              ? batchTotalCost(batch.items).toFixed(2)
+                              ? Number(batchTotalCost(batch.items)).toFixed(2)
                               : batchAmountPaid(batch.items).toString()
                           );
                           setEditingPayment(editingPayment === batch.batchId ? null : batch.batchId);
@@ -795,7 +822,7 @@ export default function Deliveries() {
                           setPaymentStatusInput(status);
                           
                           if (status === 'paid') {
-                            setPartialAmountInput(batchTotalCost(batch.items).toFixed(2));
+                            setPartialAmountInput(Number(batchTotalCost(batch.items)).toFixed(2));
                           } else if (status === 'partial') {
                             if (parseFloat(partialAmountInput) === 0) setPartialAmountInput("0");
                           } else {

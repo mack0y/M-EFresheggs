@@ -152,6 +152,10 @@ export default function NewSale() {
     const pricePerUnit = eggForm.unit === 'tray'
       ? parseFloat(price?.price_per_tray || 0)
       : parseFloat(price?.price_per_piece || 0);
+    if (pricePerUnit <= 0) {
+      toast(`Cannot add ${name} — no price is set for it yet`, 'error');
+      return;
+    }
     const total = qty * pricePerUnit;
 
     addItem({
@@ -183,6 +187,7 @@ export default function NewSale() {
     const stock = parseFloat(p.quantity_on_hand || 0);
     if (qty > stock) { toast(`Not enough ${p.name} stock — only ${stock} available`, 'error'); return; }
     const price = parseFloat(p.price || 0);
+    if (price <= 0) { toast(`Cannot add ${p.name} — no price is set for it yet`, 'error'); return; }
     addItem({
       type: 'product',
       id: p.id,
@@ -331,6 +336,10 @@ export default function NewSale() {
                               key={qty}
                               className="qs-chip"
                               onClick={() => {
+                                if (trayPrice <= 0) {
+                                  toast(`Cannot add ${item.egg_sizes?.name} — no price is set for it yet`, 'error');
+                                  return;
+                                }
                                 addItem({
                                   type: 'egg',
                                   id: item.egg_size_id,
@@ -379,6 +388,10 @@ export default function NewSale() {
                               key={qty}
                               className="qs-chip"
                               onClick={() => {
+                                if (prodPrice <= 0) {
+                                  toast(`Cannot add ${p.name} — no price is set for it yet`, 'error');
+                                  return;
+                                }
                                 addItem({
                                   type: 'product',
                                   id: p.id,

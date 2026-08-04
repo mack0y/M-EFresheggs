@@ -8,11 +8,11 @@ CREATE TABLE IF NOT EXISTS products (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   name TEXT UNIQUE,
   category TEXT DEFAULT 'Others',
-  unit_of_sale TEXT DEFAULT 'pcs', -- pcs/kg/box/tray/can/etc.
+  unit TEXT DEFAULT 'pcs', -- pcs/kg/box/tray/can/etc.
   purchase_unit TEXT DEFAULT 'pcs', -- what supplier ships in
   purchase_qty_per_unit NUMERIC(10,4) DEFAULT 1, -- conversion: how many sell-units = 1 purchase-unit
-  cost_price NUMERIC(10,2) DEFAULT 0,
-  selling_price NUMERIC(10,2) DEFAULT 0,
+  cost NUMERIC(10,2) DEFAULT 0,
+  price NUMERIC(10,2) DEFAULT 0,
   markup_percentage NUMERIC(5,2), -- stored as hint; computed client-side
   quantity_on_hand NUMERIC(10,4) DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -22,11 +22,11 @@ CREATE TABLE IF NOT EXISTS products (
 -- If table exists but is missing constraints/defaults, run these safe alterations:
 ALTER TABLE products ADD COLUMN IF NOT EXISTS name TEXT UNIQUE;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'Others';
-ALTER TABLE products ADD COLUMN IF NOT EXISTS unit_of_sale TEXT DEFAULT 'pcs';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS unit TEXT DEFAULT 'pcs';
 ALTER TABLE products ADD COLUMN IF NOT EXISTS purchase_unit TEXT DEFAULT 'pcs';
 ALTER TABLE products ADD COLUMN IF NOT EXISTS purchase_qty_per_unit NUMERIC(10,4) DEFAULT 1;
-ALTER TABLE products ADD COLUMN IF NOT EXISTS cost_price NUMERIC(10,2) DEFAULT 0;
-ALTER TABLE products ADD COLUMN IF NOT EXISTS selling_price NUMERIC(10,2) DEFAULT 0;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS cost NUMERIC(10,2) DEFAULT 0;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS price NUMERIC(10,2) DEFAULT 0;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS markup_percentage NUMERIC(5,2);
 ALTER TABLE products ADD COLUMN IF NOT EXISTS quantity_on_hand NUMERIC(10,4) DEFAULT 0;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
@@ -105,8 +105,8 @@ CREATE TRIGGER after_product_sale_insert
 CREATE OR REPLACE FUNCTION calculate_markup_on_save()
 RETURNS TRIGGER AS $$
 BEGIN
-  IF NEW.cost_price > 0 AND NEW.selling_price > 0 THEN
-    NEW.markup_percentage := ROUND(((NEW.selling_price - NEW.cost_price) / NEW.cost_price) * 100, 2);
+  IF NEW.cost > 0 AND NEW.price > 0 THEN
+    NEW.markup_percentage := ROUND(((NEW.price - NEW.cost) / NEW.cost) * 100, 2);
   ELSE
     NEW.markup_percentage := NULL;
   END IF;

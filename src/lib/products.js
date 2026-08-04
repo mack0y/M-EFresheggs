@@ -30,14 +30,23 @@ export function autoFillPricing(cost, sellingPrice, markupPercent) {
 // ===== Products CRUD =====
 
 export async function fetchProducts() {
-  const { data, error } = await supabase
-    .from('products')
-    .select('*')
-    .order('category', { ascending: true })
-    .order('name', { ascending: true });
-  
-  if (error) throw error;
-  return data || [];
+  const pageSize = 1000;
+  let allData = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .order('category', { ascending: true })
+      .order('name', { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    allData = allData.concat(data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  return allData;
 }
 
 export async function addProduct({ name, category, unitOfSale, purchaseUnit, qtyPerPurchase, costPrice, sellingPrice }) {

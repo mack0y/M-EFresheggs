@@ -48,25 +48,38 @@ const DAILY_CUT_PERCENT = 0.01; // 1%
 export async function getDailyRevenueCutPreview() {
   const today = getLocalDate();
 
-  // Fetch today's total revenue
-  const { data: salesData, error: salesErr } = await supabase
-    .from('sales')
-    .select('total_amount')
-    .eq('sale_date', today);
-  if (salesErr) throw salesErr;
+  // Fetch today's total revenue (chunked to avoid the 1,000-row cap
+  // silently understating the cut when a day has many sales)
+  async function fetchDayTotal(table) {
+    const pageSize = 1000;
+    let allData = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await supabase
+        .from(table)
+        .select('total_amount')
+        .eq('sale_date', today)
+        .range(from, from + pageSize - 1);
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+      allData = allData.concat(data);
+      if (data.length < pageSize) break;
+      from += pageSize;
+    }
+    return allData;
+  }
 
-  const { data: productSalesData, error: psErr } = await supabase
-    .from('product_sales')
-    .select('total_amount')
-    .eq('sale_date', today);
-  if (psErr) throw psErr;
+  const [salesData, productSalesData] = await Promise.all([
+    fetchDayTotal('sales'),
+    fetchDayTotal('product_sales'),
+  ]);
 
   const revenue = (salesData || []).reduce(
     (sum, s) => sum + parseFloat(s.total_amount || 0), 0
   ) + (productSalesData || []).reduce(
     (sum, s) => sum + parseFloat(s.total_amount || 0), 0
   );
-  const cutAmount = Math.round(revenue * 0.01 * 100) / 100;
+  const cutAmount = Math.round(revenue * DAILY_CUT_PERCENT * 100) / 100;
 
   // Check if already recorded today
   const { data: existingFund, error: fundErr } = await supabase

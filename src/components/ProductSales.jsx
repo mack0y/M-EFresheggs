@@ -7,7 +7,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { deleteProductSale, deleteProductSales, recordProductSale, fetchProductSales, formatPeso, getLocalDate } from '../lib/api';
+import { deleteProductSale, deleteProductSales, restoreProductSale, fetchProductSales, formatPeso, getLocalDate } from '../lib/api';
 import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
@@ -127,7 +127,7 @@ export default function ProductSales() {
         label: 'Undo',
         onClick: async () => {
           try {
-            await recordProductSale({ productId: deletedSale.product_id, quantity: deletedSale.quantity, saleDate: deletedSale.sale_date });
+            await restoreProductSale(deletedSale);
             toast('Sale restored');
             loadData();
           } catch (err) {
@@ -154,7 +154,7 @@ export default function ProductSales() {
           try {
             if (!salesToDelete || salesToDelete.length === 0) return;
             for (const sale of salesToDelete) {
-              await recordProductSale({ productId: sale.product_id, quantity: sale.quantity, saleDate: sale.sale_date });
+              await restoreProductSale(sale);
             }
             toast('Sales restored');
             loadData();

@@ -41,18 +41,28 @@ export async function recordTransaction({ eggItems = [], productItems = [], cust
     if (error) throw error;
   }
 
-  if (eggItems.length > 0) {
-    let atomicWorked = true;
+  // Try the atomic RPC path once for all items. If the RPC is unavailable
+  // (function not deployed) or fails for ANY item, fall back to the
+  // non-atomic read-then-check for every item.
+  async function tryAtomicReserveAll() {
     for (const item of eggItems) {
-      try {
-        await tryAtomicallyReserveEgg(item);
-      } catch (rpcErr) {
-        atomicWorked = false;
-        logger.warn('Atomic egg reserve failed, falling back to read-then-check:', rpcErr.message);
-        break;
-      }
+      await tryAtomicallyReserveEgg(item);
     }
-    if (!atomicWorked) {
+    for (const item of productItems) {
+      await tryAtomicallyReserveProduct(item);
+    }
+  }
+
+  let atomicWorked = true;
+  try {
+    await tryAtomicReserveAll();
+  } catch (rpcErr) {
+    atomicWorked = false;
+    logger.warn('Atomic stock reserve failed, falling back to read-then-check:', rpcErr.message);
+  }
+
+  if (!atomicWorked) {
+    if (eggItems.length > 0) {
       // Fallback: read-then-check (non-atomic but still catches most cases)
       const { data: inventory, error: invErr } = await supabase
         .from('inventory')
@@ -72,20 +82,8 @@ export async function recordTransaction({ eggItems = [], productItems = [], cust
         }
       }
     }
-  }
 
-  if (productItems.length > 0) {
-    let atomicWorked = true;
-    for (const item of productItems) {
-      try {
-        await tryAtomicallyReserveProduct(item);
-      } catch (rpcErr) {
-        atomicWorked = false;
-        logger.warn('Atomic product reserve failed, falling back to read-then-check:', rpcErr.message);
-        break;
-      }
-    }
-    if (!atomicWorked) {
+    if (productItems.length > 0) {
       const { data: products, error: prodErr } = await supabase
         .from('products')
         .select('id, quantity_on_hand');
@@ -109,6 +107,8 @@ export async function recordTransaction({ eggItems = [], productItems = [], cust
   // exist on Supabase), fallback is the non-atomic read-then-check approach.
 
   // === Step 2: Fetch prices for egg items (server-side price calculation) ===
+  // Any item whose price is not set (0 or missing) is rejected — a sale with
+  // total_amount 0 would give stock away for free and pollute revenue reports.
   const eggInserts = [];
   for (const item of eggItems) {
     const { data: priceData } = await supabase
@@ -122,6 +122,10 @@ export async function recordTransaction({ eggItems = [], productItems = [], cust
       totalAmount = item.unit === 'tray'
         ? item.quantity * parseFloat(priceData.price_per_tray || 0)
         : item.quantity * parseFloat(priceData.price_per_piece || 0);
+    }
+
+    if (totalAmount <= 0) {
+      throw new Error(`Cannot record sale of ${item.name} — no price is set for it. Set a price first.`);
     }
 
     eggInserts.push({
@@ -149,6 +153,10 @@ export async function recordTransaction({ eggItems = [], productItems = [], cust
       totalAmount = item.quantity * parseFloat(productData.price);
     }
 
+    if (totalAmount <= 0) {
+      throw new Error(`Cannot record sale of ${item.name} — no price is set for it. Set a price first.`);
+    }
+
     productInserts.push({
       product_id: item.id,
       quantity: item.quantity,
@@ -173,35 +181,42 @@ export async function recordTransaction({ eggItems = [], productItems = [], cust
 
   const txId = transaction.id;
 
-  // === Step 4: Insert egg sales with transaction_id ===
-  const eggResults = [];
-  if (eggInserts.length > 0) {
-    const withTxId = eggInserts.map(s => ({ ...s, transaction_id: txId }));
-    const { data, error } = await supabase
-      .from('sales')
-      .insert(withTxId)
-      .select('*, egg_sizes(name)');
-    if (error) throw error;
-    eggResults.push(...(data || []));
-  }
+  try {
+    // === Step 4: Insert egg sales with transaction_id ===
+    const eggResults = [];
+    if (eggInserts.length > 0) {
+      const withTxId = eggInserts.map(s => ({ ...s, transaction_id: txId }));
+      const { data, error } = await supabase
+        .from('sales')
+        .insert(withTxId)
+        .select('*, egg_sizes(name)');
+      if (error) throw error;
+      eggResults.push(...(data || []));
+    }
 
-  // === Step 5: Insert product sales with transaction_id ===
-  const productResults = [];
-  if (productInserts.length > 0) {
-    const withTxId = productInserts.map(s => ({ ...s, transaction_id: txId }));
-    const { data, error } = await supabase
-      .from('product_sales')
-      .insert(withTxId)
-      .select('*, products(name)');
-    if (error) throw error;
-    productResults.push(...(data || []));
-  }
+    // === Step 5: Insert product sales with transaction_id ===
+    const productResults = [];
+    if (productInserts.length > 0) {
+      const withTxId = productInserts.map(s => ({ ...s, transaction_id: txId }));
+      const { data, error } = await supabase
+        .from('product_sales')
+        .insert(withTxId)
+        .select('*, products(name)');
+      if (error) throw error;
+      productResults.push(...(data || []));
+    }
 
-  return {
-    transaction,
-    eggSales: eggResults,
-    productSales: productResults,
-  };
+    return {
+      transaction,
+      eggSales: eggResults,
+      productSales: productResults,
+    };
+  } catch (insertErr) {
+    // Roll back the transaction record so a partial insert never leaves an
+    // orphan transaction row with zero linked sales.
+    await supabase.from('transactions').delete().eq('id', txId);
+    throw insertErr;
+  }
 }
 
 /**

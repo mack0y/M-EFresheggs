@@ -1,7 +1,7 @@
 -- Seed data: Frozen Goods only
 -- Run this in Supabase SQL Editor
 
-INSERT INTO products (name, category, unit_of_sale, purchase_unit, purchase_qty_per_unit, cost_price, selling_price, quantity_on_hand) VALUES
+INSERT INTO products (name, category, unit, purchase_unit, purchase_qty_per_unit, cost, price, quantity_on_hand) VALUES
   ('Chicken Nugget (500g)', 'Frozen', 'pack', 'box', 12, 180.00, 250.00, 48),
   ('Chicken Nugget (1kg)', 'Frozen', 'pack', 'box', 6, 320.00, 450.00, 24),
   ('Chicken Breast Fillet (500g)', 'Frozen', 'pack', 'box', 10, 200.00, 280.00, 36),

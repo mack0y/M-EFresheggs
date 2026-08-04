@@ -23,8 +23,8 @@ CREATE TRIGGER after_product_sale_insert
 CREATE OR REPLACE FUNCTION calculate_markup_on_save()
 RETURNS TRIGGER AS $$
 BEGIN
-  IF NEW.cost_price > 0 AND NEW.selling_price > 0 THEN
-    NEW.markup_percentage := ROUND(((NEW.selling_price - NEW.cost_price) / NEW.cost_price) * 100, 2);
+  IF NEW.cost > 0 AND NEW.price > 0 THEN
+    NEW.markup_percentage := ROUND(((NEW.price - NEW.cost) / NEW.cost) * 100, 2);
   ELSE
     NEW.markup_percentage := NULL;
   END IF;

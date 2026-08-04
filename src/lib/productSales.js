@@ -3,6 +3,29 @@ import { getLocalDate } from './utils';
 
 // ===== Product Sales CRUD =====
 
+/**
+ * Re-insert a deleted product sale EXACTLY as it was recorded (undo path).
+ * Preserves original total_amount, sale_date, sale_time, and transaction_id
+ * so undoing never re-prices at current prices or drifts dates.
+ */
+export async function restoreProductSale(sale) {
+  if (!sale) throw new Error('Product sale not found');
+  const { data, error } = await supabase
+    .from('product_sales')
+    .insert({
+      product_id: sale.product_id,
+      quantity: sale.quantity,
+      total_amount: sale.total_amount ?? 0,
+      sale_date: sale.sale_date,
+      sale_time: sale.sale_time,
+      transaction_id: sale.transaction_id ?? null,
+    })
+    .select('*, products(name, unit)')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 export async function recordProductSale({ productId, quantity, saleDate }) {
   const today = getLocalDate();
   
@@ -52,14 +75,23 @@ export async function fetchProductSales({ limit = 50, offset = 0, startDate, end
 
 export async function fetchTodayProductSales() {
   const today = getLocalDate();
-  const { data, error } = await supabase
-    .from('product_sales')
-    .select('*, products(name, unit)')
-    .eq('sale_date', today)
-    .order('sale_time', { ascending: false });
-  
-  if (error) throw error;
-  return data || [];
+  const pageSize = 1000;
+  let allData = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from('product_sales')
+      .select('*, products(name, unit)')
+      .eq('sale_date', today)
+      .order('sale_time', { ascending: false })
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    allData = allData.concat(data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  return allData || [];
 }
 
 export async function deleteProductSale(id) {
@@ -69,7 +101,7 @@ export async function deleteProductSale(id) {
     .select('*')
     .eq('id', id)
     .single();
-  
+
   if (fetchErr) throw fetchErr;
   if (!sale) throw new Error('Product sale not found');
 
@@ -78,7 +110,7 @@ export async function deleteProductSale(id) {
     .from('product_sales')
     .delete()
     .eq('id', id);
-  
+
   if (delErr) throw delErr;
 
   // Restore inventory by adding back the quantity
@@ -91,21 +123,15 @@ export async function deleteProductSale(id) {
   if (invFetchErr) throw invFetchErr;
 
   const newQty = parseFloat(invItem?.quantity_on_hand || 0) + parseFloat(sale.quantity);
-  
+
   const { error: updateErr } = await supabase
     .from('products')
     .update({ quantity_on_hand: newQty, updated_at: new Date().toISOString() })
     .eq('id', sale.product_id);
-  
+
   // If inventory restore fails, re-insert the sale to keep data consistent
   if (updateErr) {
-    await supabase.from('product_sales').insert({
-      product_id: sale.product_id,
-      quantity: sale.quantity,
-      total_amount: sale.total_amount,
-      sale_date: sale.sale_date,
-      sale_time: sale.sale_time,
-    });
+    await restoreProductSale(sale).catch(() => {});
     throw updateErr;
   }
 
@@ -114,6 +140,8 @@ export async function deleteProductSale(id) {
 
 /**
  * Fetch product sales within a date range for reports.
+ * Uses chunked pagination (1,000 rows per page) so large ranges are not
+ * silently truncated by Supabase's 1,000-row response cap.
  */
 export async function fetchProductSalesReport({ startDate, endDate } = {}) {
   let query = supabase
@@ -124,9 +152,18 @@ export async function fetchProductSalesReport({ startDate, endDate } = {}) {
   if (startDate) query = query.gte('sale_date', startDate);
   if (endDate) query = query.lte('sale_date', endDate);
 
-  const { data, error } = await query.limit(500);
-  if (error) throw error;
-  return data || [];
+  const pageSize = 1000;
+  let allData = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await query.range(from, from + pageSize - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    allData = allData.concat(data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  return allData;
 }
 
 export async function deleteProductSales(ids) {
@@ -181,6 +218,7 @@ export async function deleteProductSales(ids) {
             total_amount: s.total_amount,
             sale_date: s.sale_date,
             sale_time: s.sale_time,
+            transaction_id: s.transaction_id ?? null,
           }))
         );
       }

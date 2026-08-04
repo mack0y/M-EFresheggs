@@ -15,7 +15,7 @@ export { fetchInventory, updateInventory, incrementInventory } from './inventory
 export { fetchPriceSettings, updatePriceSetting } from './pricing';
 
 // Sales
-export { recordSale, fetchSales, fetchTodaySales, deleteSale, deleteSales } from './sales';
+export { recordSale, restoreSale, fetchSales, fetchTodaySales, deleteSale, deleteSales } from './sales';
 
 // Reports
 export { fetchSalesReport } from './reports';
@@ -54,7 +54,7 @@ export { fetchProducts, addProduct, updateProduct, deleteProduct, updateProductS
 export { fetchProductDeliveries, recordProductDelivery, updateProductDeliveryPayment, deleteProductDelivery } from './productDeliveries';
 
 // ===== Product Sales =====
-export { recordProductSale, fetchProductSales, fetchTodayProductSales, deleteProductSale, deleteProductSales, fetchProductSalesReport } from './productSales';
+export { recordProductSale, restoreProductSale, fetchProductSales, fetchTodayProductSales, deleteProductSale, deleteProductSales, fetchProductSalesReport } from './productSales';
 
 // ===== Unified Transactions =====
 export { recordTransaction } from './transactions';

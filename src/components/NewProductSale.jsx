@@ -94,6 +94,10 @@ export default function NewProductSale() {
     }
 
     const price = parseFloat(product.price || 0);
+    if (price <= 0) {
+      toast(`Cannot add ${product.name} — no price is set for it yet`, 'error');
+      return;
+    }
     const total = qty * price;
 
     addItem({

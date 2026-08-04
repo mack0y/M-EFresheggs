@@ -15,8 +15,12 @@ import {
   Award,
   BarChart3,
   Plus,
+  Egg,
+  Calendar,
 } from 'lucide-react';
-import { fetchInventory, fetchTodaySales, fetchTodayExpenses, fetchExpenses, fetchOperationalFunds, fetchDeliveries, fetchCostsPerEgg, fetchCostsPerProduct, getOperationalBalance, fetchSales, fetchSalesTrend, incrementInventory, getEggCount, formatInventory, formatPeso, getLocalDate, TRAY_SIZE, fetchProducts, fetchTodayProductSales, fetchProductSales, fetchPriceSettings } from '../lib/api';
+import { fetchInventory, fetchTodayExpenses, fetchExpenses, fetchOperationalFunds, fetchDeliveries, fetchCostsPerEgg, fetchCostsPerProduct, getOperationalBalance, fetchSales, fetchSalesTrend, incrementInventory, getEggCount, formatInventory, formatPeso, getLocalDate, TRAY_SIZE, fetchProducts, fetchProductSales, fetchPriceSettings } from '../lib/api';
+import { fetchProductSalesBySize } from '../lib/analytics';
+import { PERIODS, getPeriodRange } from '../lib/utils';
 import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 
@@ -59,18 +63,38 @@ export default function Dashboard() {
   const [todayProductSales, setTodayProductSales] = useState([]);
   const [costsPerProduct, setCostsPerProduct] = useState({});
   const [yesterdayProductSales, setYesterdayProductSales] = useState([]);
+  const [productTrendData, setProductTrendData] = useState([]);
+  const [prevBaselineEggRevenue, setPrevBaselineEggRevenue] = useState(0);
+  const [prevBaselineProductRevenue, setPrevBaselineProductRevenue] = useState(0);
+  const [viewFilter, setViewFilter] = useState('all'); // 'all' | 'eggs' | 'products'
+  const [period, setPeriod] = useState('today');
+  const [startDate, setStartDate] = useState(getPeriodRange('today').startDate);
+  const [endDate, setEndDate] = useState(getPeriodRange('today').endDate);
+  const [customStart, setCustomStart] = useState(getPeriodRange('today').startDate);
+  const [customEnd, setCustomEnd] = useState(getPeriodRange('today').endDate);
 
-  async function loadData() {
+  const loadData = useCallback(async (start, end) => {
     try {
       setLoading(true);
       setError(null);
+      const s = start || startDate;
+      const e = end || endDate;
       const today = getLocalDate();
+      const trendStart = new Date();
+      trendStart.setDate(trendStart.getDate() - 7);
+      const trendStartStr = getLocalDate(trendStart);
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
       const yesterdayStr = getLocalDate(yesterday);
-      const [inv, sales, expenses, prices, deliveries, costs, opex, ySales, trend, prods, todayProdSales, costsProd, yProdSales] = await Promise.all([
+      // Prior same-length window for period-over-period comparison.
+      const cmpStart = new Date(s + 'T00:00:00');
+      const cmpEnd = new Date(e + 'T00:00:00');
+      const span = Math.max(cmpEnd - cmpStart, 0);
+      const prevStart = getLocalDate(new Date(cmpStart.getTime() - span - 86400000));
+      const prevEnd = getLocalDate(new Date(cmpStart.getTime() - 86400000));
+      const [inv, sales, expenses, prices, deliveries, costs, opex, ySales, trend, prods, prodSales, costsProd, yProdSales, prodTrend, prevEgg, prevProd] = await Promise.all([
         fetchInventory(),
-        fetchTodaySales(),
+        fetchSales({ startDate: s, endDate: e }),
         fetchTodayExpenses(),
         fetchPriceSettings(),
         fetchDeliveries({ startDate: today, endDate: today }),
@@ -79,9 +103,12 @@ export default function Dashboard() {
         fetchSales({ startDate: yesterdayStr, endDate: yesterdayStr, limit: 500 }),
         fetchSalesTrend(7),
         fetchProducts(),
-        fetchTodayProductSales(),
+        fetchProductSales({ startDate: s, endDate: e }),
         fetchCostsPerProduct(),
         fetchProductSales({ startDate: yesterdayStr, endDate: yesterdayStr }),
+        fetchProductSalesBySize(trendStartStr, e),
+        period === 'today' ? Promise.resolve([]) : fetchSales({ startDate: prevStart, endDate: prevEnd }),
+        period === 'today' ? Promise.resolve([]) : fetchProductSales({ startDate: prevStart, endDate: prevEnd }),
       ]);
       setInventory(inv || []);
       setTodaySales(sales || []);
@@ -92,9 +119,12 @@ export default function Dashboard() {
       setOpexBalance(opex || { totalFunds: 0, totalExpenses: 0, balance: 0 });
       setYesterdaySales(ySales || []);
       setTrendData(trend || []);
+      setProductTrendData(prodTrend || []);
+      setPrevBaselineEggRevenue((prevEgg || []).reduce((sum, s) => sum + parseFloat(s.total_amount || 0), 0));
+      setPrevBaselineProductRevenue((prevProd || []).reduce((sum, s) => sum + parseFloat(s.total_amount || 0), 0));
       setProductCount((prods || []).length);
       setProducts(prods || []);
-      setTodayProductSales(todayProdSales || []);
+      setTodayProductSales(prodSales || []);
       setCostsPerProduct(costsProd || {});
       setYesterdayProductSales(yProdSales || []);
     } catch (err) {
@@ -103,6 +133,27 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
+  }, [startDate, endDate, period]);
+
+  function changePeriod(key) {
+    setPeriod(key);
+    if (key !== 'custom') {
+      const range = getPeriodRange(key);
+      setStartDate(range.startDate);
+      setEndDate(range.endDate);
+      loadData(range.startDate, range.endDate);
+    } else {
+      setStartDate(customStart);
+      setEndDate(customEnd);
+      loadData(customStart, customEnd);
+    }
+  }
+
+  function applyCustom() {
+    setStartDate(customStart);
+    setEndDate(customEnd);
+    setPeriod('custom');
+    loadData(customStart, customEnd);
   }
 
   // Visibility-aware auto-refresh: poll only when tab is visible
@@ -133,7 +184,7 @@ export default function Dashboard() {
       clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, []);
+  }, [loadData]);
 
   // Restore scroll position after data refreshes
   useEffect(() => {
@@ -161,6 +212,13 @@ export default function Dashboard() {
 
   const combinedRevenue = todayRevenue + todayProductRevenue;
 
+  // View-aware revenue: which total does the selected view report?
+  const viewRevenue = viewFilter === 'eggs'
+    ? todayRevenue
+    : viewFilter === 'products'
+      ? todayProductRevenue
+      : combinedRevenue;
+
   const todayExpenseTotal = useMemo(() =>
     todayExpenses.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0),
     [todayExpenses]
@@ -183,9 +241,15 @@ export default function Dashboard() {
     [todayProductSales, costsPerProduct]
   );
 
-  const dailyRevenueCut = Math.round(combinedRevenue * 0.01 * 100) / 100;
-  const adjustedRevenue = combinedRevenue - dailyRevenueCut;
-  const netProfit = adjustedRevenue - todayCOGS - todayProductCOGS;
+  const viewCOGS = viewFilter === 'eggs'
+    ? todayCOGS
+    : viewFilter === 'products'
+      ? todayProductCOGS
+      : todayCOGS + todayProductCOGS;
+
+  const dailyRevenueCut = Math.round(viewRevenue * 0.01 * 100) / 100;
+  const adjustedRevenue = viewRevenue - dailyRevenueCut;
+  const netProfit = adjustedRevenue - viewCOGS;
 
   const totalStock = useMemo(() =>
     inventory.reduce((sum, item) => sum + (item.quantity_on_hand || 0), 0),
@@ -220,9 +284,16 @@ export default function Dashboard() {
     return yRev + yProdRev;
   }, [yesterdaySales, yesterdayProductSales]);
 
-  const revenueChange = yesterdayCombinedRevenue > 0
-    ? Math.round(((combinedRevenue - yesterdayCombinedRevenue) / yesterdayCombinedRevenue) * 100)
-    : combinedRevenue > 0 ? 100 : 0;
+  // Revenue change vs the immediately preceding period: yesterday's full
+  // revenue for the 'today' view, or the prior same-length window otherwise
+  // (fetched alongside in loadData as prevBaseline*).
+  const comparisonRevenue = period === 'today'
+    ? yesterdayCombinedRevenue
+    : prevBaselineEggRevenue + prevBaselineProductRevenue;
+
+  const revenueChange = comparisonRevenue > 0
+    ? Math.round(((viewRevenue - comparisonRevenue) / comparisonRevenue) * 100)
+    : viewRevenue > 0 ? 100 : 0;
 
   // Best-selling size today
   const { bestSeller, bestSellerPercent } = useMemo(() => {
@@ -256,22 +327,60 @@ export default function Dashboard() {
     return { topProduct: top, topProductPercent: pct };
   }, [todayProductSales]);
 
-  // Profit margin
+  // Profit margin (view-aware via adjustedRevenue/netProfit)
   const marginPercent = adjustedRevenue > 0
     ? Math.round((netProfit / adjustedRevenue) * 100)
     : 0;
 
-  // 7-day sparkline data
+  // Unified chronological sales feed: egg + product sales tagged by kind,
+  // filtered by viewFilter, sorted by time (newest first).
+  const feedItems = useMemo(() => {
+    const eggs = viewFilter === 'products' ? [] : todaySales.map(s => ({
+      kind: 'egg',
+      id: `egg-${s.id}`,
+      name: s.egg_sizes?.name || 'Unknown',
+      detail: s.quantity + ' ' + (s.unit === 'tray'
+        ? `tray${s.quantity > 1 ? 's' : ''}`
+        : `egg${s.quantity > 1 ? 's' : ''}`),
+      amount: s.total_amount,
+      time: s.sale_time?.slice(0, 5),
+    }));
+    const prods = viewFilter === 'eggs' ? [] : todayProductSales.map(s => ({
+      kind: 'product',
+      id: `prod-${s.id}`,
+      name: s.products?.name || 'Unknown',
+      detail: `${s.quantity} ${s.products?.unit || 'units'}`,
+      amount: s.total_amount,
+      time: s.sale_time?.slice(0, 5),
+    }));
+    return [...eggs, ...prods]
+      .sort((a, b) => (b.time || '').localeCompare(a.time || ''))
+      .slice(0, 10);
+  }, [todaySales, todayProductSales, viewFilter]);
+
+  
+  // 7-day sparkline data — egg (egg count) and product (revenue) series,
+  // selected by viewFilter so the trend always matches the chosen stream.
   const { sparklineValues, maxSpark } = useMemo(() => {
-    const dailyMap = {};
+    const eggDaily = {};
     trendData.forEach(s => {
-      dailyMap[s.sale_date] = (dailyMap[s.sale_date] || 0) + getEggCount(s);
+      eggDaily[s.sale_date] = (eggDaily[s.sale_date] || 0) + getEggCount(s);
     });
-    const values = Object.entries(dailyMap)
+    const eggValues = Object.entries(eggDaily)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([, eggs]) => eggs);
+
+    const prodDaily = {};
+    productTrendData.forEach(s => {
+      prodDaily[s.sale_date] = (prodDaily[s.sale_date] || 0) + parseFloat(s.total_amount || 0);
+    });
+    const prodValues = Object.entries(prodDaily)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, rev]) => rev);
+
+    const values = viewFilter === 'products' ? prodValues : eggValues;
     return { sparklineValues: values, maxSpark: Math.max(...values, 1) };
-  }, [trendData]);
+  }, [trendData, productTrendData, viewFilter]);
 
   // Multi-tray quick-add to inventory
   const handleQuickAdd = useCallback(async (item, trays) => {
@@ -288,7 +397,7 @@ export default function Dashboard() {
     } finally {
       setQuickAdding(null);
     }
-  }, []);
+  }, [loadData]);
 
   const handleCustomTrayAdd = useCallback(async (item) => {
     const val = parseInt(customTrayInput[item.egg_size_id], 10);
@@ -383,6 +492,42 @@ export default function Dashboard() {
         </button>
       </div>
 
+      {/* Period Selector + View Filter — controls the sales section below */}
+      <div className="dash-filter-bar">
+        <div className="dash-period-btns">
+          {PERIODS.map(p => (
+            <button
+              key={p.key}
+              className={`dash-period-btn ${period === p.key ? 'active' : ''}`}
+              onClick={() => changePeriod(p.key)}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        {period === 'custom' && (
+          <div className="dash-custom-inputs">
+            <input type="date" className="dash-date-input" value={customStart} onChange={e => setCustomStart(e.target.value)} />
+            <span className="dash-date-sep">—</span>
+            <input type="date" className="dash-date-input" value={customEnd} onChange={e => setCustomEnd(e.target.value)} />
+            <button className="btn btn-primary btn-sm" onClick={applyCustom}>Go</button>
+          </div>
+        )}
+        <div className="dash-period-range">
+          <Calendar size={12} /> {startDate} — {endDate}
+        </div>
+      </div>
+
+      <div className="dash-view-filter">
+        {[
+          { key: 'all', label: 'All' },
+          { key: 'eggs', label: 'Eggs Only' },
+          { key: 'products', label: 'Products Only' },
+        ].map(v => (
+          <button key={v.key} className={`dash-view-btn ${viewFilter === v.key ? 'active' : ''}`} onClick={() => setViewFilter(v.key)}>{v.label}</button>
+        ))}
+      </div>
+
       {/* Primary Stats */}
       <div className="primary-stats">
         <div className="primary-stat primary-stat-revenue">
@@ -390,10 +535,16 @@ export default function Dashboard() {
             <DollarSign size={20} />
           </div>
           <div className="primary-stat-info">
-            <span className="primary-stat-label">Today's Revenue</span>
-            <span className="primary-stat-value stat-value-anim" data-animated="true">{loading ? <span className="skeleton" style={{ display: 'inline-block', width: 80, height: 28 }}>&nbsp;</span> : formatPeso(combinedRevenue)}</span>
-            {!loading && (
+            <span className="primary-stat-label">Revenue</span>
+            <span className="primary-stat-value stat-value-anim" data-animated="true">{loading ? <span className="skeleton" style={{ display: 'inline-block', width: 80, height: 28 }}>&nbsp;</span> : formatPeso(viewRevenue)}</span>
+            {!loading && viewFilter === 'all' && (
               <span className="primary-stat-sub">Eggs {formatPeso(todayRevenue)} · Products {formatPeso(todayProductRevenue)}</span>
+            )}
+            {!loading && viewFilter === 'eggs' && (
+              <span className="primary-stat-sub">Eggs only — Products {formatPeso(todayProductRevenue)} in this period</span>
+            )}
+            {!loading && viewFilter === 'products' && (
+              <span className="primary-stat-sub">Products only — Eggs {formatPeso(todayRevenue)} in this period</span>
             )}
             {!loading && (
               <span className="primary-stat-sub">After 1% cut: {formatPeso(dailyRevenueCut)} (remaining: {formatPeso(adjustedRevenue)})</span>
@@ -401,7 +552,7 @@ export default function Dashboard() {
             {!loading && (
               <span className={`primary-stat-change ${revenueChange >= 0 ? 'change-up' : 'change-down'}`}>
                 {revenueChange >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                {Math.abs(revenueChange)}% vs yesterday
+                {Math.abs(revenueChange)}% {period === 'today' ? 'vs yesterday' : 'vs prev. period'}
               </span>
             )}
           </div>
@@ -461,9 +612,9 @@ export default function Dashboard() {
           </div>
           <div className="stat-card-content">
             <span className="stat-card-value">
-              {loading ? '—' : formatPeso(combinedRevenue)}
+              {loading ? '—' : formatPeso(viewRevenue)}
             </span>
-            <span className="stat-card-label">Total Sales Today</span>
+            <span className="stat-card-label">Total Sales {viewFilter === 'all' ? '' : `(${viewFilter === 'eggs' ? 'Eggs' : 'Products'})`}</span>
           </div>
         </div>
 
@@ -589,7 +740,8 @@ export default function Dashboard() {
 
       {/* Insight Cards Row */}
       <div className="insight-row">
-        {/* Top Egg Size */}
+        {/* Top Egg Size (hidden on Products view) */}
+        {viewFilter !== 'products' && (
         <div className="insight-card">
           <div className="insight-icon-box" style={{ background: '#E8F5E9', color: '#2E7D32' }}>
             <Award size={18} />
@@ -608,8 +760,10 @@ export default function Dashboard() {
             )}
           </div>
         </div>
+        )}
 
-        {/* Top Product */}
+        {/* Top Product (hidden on Eggs view) */}
+        {viewFilter !== 'eggs' && (
         <div className="insight-card">
           <div className="insight-icon-box" style={{ background: '#F3E5F5', color: '#7B1FA2' }}>
             <Package size={18} />
@@ -628,6 +782,7 @@ export default function Dashboard() {
             )}
           </div>
         </div>
+        )}
 
         {/* Profit Margin */}
         <div className="insight-card">
@@ -655,7 +810,7 @@ export default function Dashboard() {
             <TrendingUp size={18} />
           </div>
           <div className="insight-content">
-            <span className="insight-label">7-Day Sales Trend</span>
+            <span className="insight-label">7-Day {viewFilter === 'products' ? 'Product' : viewFilter === 'eggs' ? 'Egg' : 'Sales'} Trend</span>
             {loading ? (
               <span className="skeleton" style={{ display: 'inline-block', width: '100%', height: 32 }}>&nbsp;</span>
             ) : sparklineValues.length > 1 ? (
@@ -795,11 +950,14 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Today's Sales */}
+        {/* Sales Feed */}
         <div className="card">
           <div className="card-header">
-            <h2>Today's Sales</h2>
-            <div style={{ display: 'flex', gap: '0.375rem' }}>
+            <h2>Sales <span className="sale-period-label">{PERIODS.find(p => p.key === period)?.label || startDate}</span></h2>
+            <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'center' }}>
+              <span className="sale-count-note">
+                {todaySales.length + todayProductSales.length} in this period
+              </span>
               <button className="btn btn-secondary btn-sm" onClick={() => navigate('/sales')}>
                 Eggs <ArrowRight size={14} />
               </button>
@@ -817,65 +975,47 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
-          ) : todaySales.length === 0 && todayProductSales.length === 0 ? (
+          ) : feedItems.length === 0 ? (
             <div className="empty-state">
               <ShoppingCart size={32} />
-              <p>No sales recorded today</p>
-              <button className="btn btn-primary btn-sm" onClick={() => navigate('/sales/new')}>
-                Record a Sale
-              </button>
+              <p>
+                {viewFilter === 'eggs' ? 'No egg sales' : viewFilter === 'products' ? 'No product sales' : 'No sales'}{' '}
+                {period === 'today' ? 'today' : `in this period`}
+              </p>
+              {viewFilter !== 'products' && (
+                <button className="btn btn-primary btn-sm" onClick={() => navigate('/sales/new')}>
+                  Record a Sale
+                </button>
+              )}
             </div>
           ) : (
             <div className="stock-list">
-              {todaySales.slice(0, 6).map((sale, i) => (
+              {feedItems.map((item, i) => (
                 <div
-                  key={sale.id}
+                  key={item.id}
                   className="stock-item"
                   style={{ animationDelay: `${i * 0.03}s` }}
                 >
                   <div className="sale-info">
-                    <span className="stock-name">
-                      {sale.egg_sizes?.name || 'Unknown'}
-                    </span>
+                    <div className="sale-name-row">
+                      <span className={`sale-kind-badge ${item.kind === 'egg' ? 'sale-kind-egg' : 'sale-kind-product'}`}>
+                        {item.kind === 'egg' ? <Egg size={11} /> : <Package size={11} />}
+                      </span>
+                      <span className="stock-name">
+                        {item.name}
+                      </span>
+                    </div>
                     <span className="sale-qty-detail">
-                      {sale.quantity}{' '}
-                      {sale.unit === 'tray'
-                        ? `tray${sale.quantity > 1 ? 's' : ''}`
-                        : `egg${sale.quantity > 1 ? 's' : ''}`}
+                      {item.detail}
                     </span>
                   </div>
                   <div className="stock-right">
                     <span className="sale-amount-small">
-                      {formatPeso(sale.total_amount)}
+                      {formatPeso(item.amount)}
                     </span>
                     <span className="sale-time">
                       <Clock size={11} />
-                      {sale.sale_time?.slice(0, 5)}
-                    </span>
-                  </div>
-                </div>
-              ))}
-              {todayProductSales.slice(0, 4).map((sale, i) => (
-                <div
-                  key={`prod-${sale.id}`}
-                  className="stock-item"
-                  style={{ animationDelay: `${(todaySales.length + i) * 0.03}s` }}
-                >
-                  <div className="sale-info">
-                    <span className="stock-name">
-                      {sale.products?.name || 'Unknown'}
-                    </span>
-                    <span className="sale-qty-detail">
-                      {sale.quantity} {sale.products?.unit || 'units'}
-                    </span>
-                  </div>
-                  <div className="stock-right">
-                    <span className="sale-amount-small">
-                      {formatPeso(sale.total_amount)}
-                    </span>
-                    <span className="sale-time">
-                      <Clock size={11} />
-                      {sale.sale_time?.slice(0, 5)}
+                      {item.time}
                     </span>
                   </div>
                 </div>
@@ -1682,6 +1822,76 @@ export default function Dashboard() {
           border-radius: 50%;
           animation: spin 0.6s linear infinite;
         }
+
+        /* Period selector + view filter (sales section controls) */
+        .dash-filter-bar {
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+          padding: 0.875rem 1rem;
+          background: var(--color-card);
+          border: 1px solid var(--color-border-light);
+          border-radius: var(--radius-md);
+          margin-bottom: 0.625rem;
+          box-shadow: var(--shadow-xs);
+        }
+        .dash-period-btns { display: flex; gap: 0.25rem; flex-wrap: wrap; }
+        .dash-period-btn {
+          min-height: 40px;
+          padding: 0.4rem 1rem;
+          border: 1.5px solid var(--color-border);
+          border-radius: var(--radius-sm);
+          background: var(--color-card);
+          color: var(--color-text-secondary);
+          font-size: 0.8125rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all var(--transition-fast);
+        }
+        .dash-period-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
+        .dash-period-btn.active { background: var(--color-primary); border-color: var(--color-primary); color: white; }
+        .dash-custom-inputs { display: flex; align-items: center; gap: 0.375rem; flex-wrap: wrap; }
+        .dash-date-input {
+          padding: 0.375rem 0.5rem;
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-sm);
+          background: var(--color-input-bg, var(--color-card));
+          color: var(--color-text);
+          font-size: 0.8125rem;
+        }
+        .dash-date-sep { color: var(--color-text-muted); }
+        .dash-period-range { font-size: 0.75rem; color: var(--color-text-muted); display: flex; align-items: center; gap: 0.25rem; }
+
+        .dash-view-filter { display: flex; gap: 0.25rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+        .dash-view-btn {
+          min-height: 36px;
+          padding: 0.375rem 1rem;
+          border: 1.5px solid var(--color-border);
+          border-radius: var(--radius-sm);
+          background: var(--color-card);
+          color: var(--color-text-secondary);
+          font-size: 0.8125rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all var(--transition-fast);
+        }
+        .dash-view-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
+        .dash-view-btn.active { background: var(--color-primary); border-color: var(--color-primary); color: white; }
+
+        .sale-kind-badge {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 22px;
+          height: 22px;
+          border-radius: var(--radius-sm);
+          flex-shrink: 0;
+        }
+        .sale-kind-egg { background: #E8F5E9; color: #2E7D32; }
+        .sale-kind-product { background: #E3F2FD; color: #1565C0; }
+        .sale-count-note { font-size: 0.75rem; color: var(--color-text-muted); white-space: nowrap; }
+        .sale-name-row { display: flex; align-items: center; gap: 0.375rem; }
+        .sale-period-label { font-size: 0.75rem; font-weight: 500; color: var(--color-text-muted); }
 
         @keyframes spin {
           to { transform: rotate(360deg); }

@@ -1520,3 +1520,34 @@ Every price-bearing text got:
   - Empty state now distinguishes "No deliveries in this date range" / "No deliveries match your search" / "No product deliveries yet"
 - **Verification:** ESLint 0 errors, production build passes, live API verified (All=20, Today=0, Custom Jul 19–27=19), code review passed
 - **Files changed:** `src/components/ProductDeliveries.jsx`, `src/lib/productDeliveries.js`, `memory.md`
+
+### High-Severity Audit Fixes — Queries, Free Stock, Overnight Reports (August 4, 2026)
+- **H1 — Silent 1,000-row truncation:** `fetchSales`, `fetchProductSales`, `fetchProducts`, `fetchSuppliers`, `fetchCustomers` (and the daily-cut reads in `funds.js`) now use chunked `.range()` loops (1,000/page). No more silent caps on dashboard feeds, catalogs, and directories.
+- **H4 — Daily-cut sum truncation:** `getDailyRevenueCutPreview` reads both `sales` and `product_sales` with the same chunked loop, so the 1% cut can't be understated on a >1,000-sale day.
+- **H5 — ₱0 sales / free stock guard:** `recordTransaction` throws if any line's computed total ≤ 0 (no price set). All 4 UI add paths (egg/product form + quick-chips) block unpriced items with a "Cannot add X — no price is set" toast.
+- **H6 — Overnight-shift report date math:** `reports.js` overnight shifts (startTime > endTime) now split per-day — days 1..N-1 get only the ≤ endTime early-morning window; the last day gets the full ≥ startTime OR ≤ endTime window. Previously an 08-02..08-03 overnight report wrongly included 08-02 19:00+ sales.
+- **Lint:** wired the unused `DAILY_CUT_PERCENT` constant into `getDailyRevenueCutPreview` (1% now defined once).
+- **Note (kept as-is):** `getOperationalBalance` retains its original scoping — funds unfiltered, expenses from `EXPENSE_TRACKING_START` (2026-06-19). A proposed balance-scoping change was reverted after confirmation that the hardcoded date is intentional (the 1% daily cut ledger starts then).
+- **Files:** `src/lib/sales.js, products.js, productSales.js, suppliers.js, customers.js, funds.js, reports.js, transactions.js`, `src/components/NewSale.jsx, NewProductSale.jsx, SalesLog.jsx, ProductSales.jsx, Profits.jsx`
+
+### Product Columns — Live Schema vs Stale Migrations Aligned (August 4, 2026)
+- Verified against live Supabase `information_schema`: the `products` table columns are **`unit` / `cost` / `price`** (not `unit_of_sale` / `cost_price` / `selling_price`), and `deliveries` **does** have `amount_paid`.
+- `addProduct()` and `Products.jsx` were already correct; the **migration/seed files were stale**. Aligned them so a fresh deploy reproduces the live schema:
+  - `migration_products.sql`, `migration_products_only_triggers.sql` (markup trigger), `seed_products.sql` → `cost`/`price`/`unit`
+  - `migration_consolidate_schema_notes.sql` product_sales comment updated
+- No running-DB changes (these are create-from-scratch only).
+
+### Dashboard Deliveries & SalesLog Cleanup (August 4, 2026)
+- **Deliveries.jsx** — memoized `batches`, `batchList`, `filteredBatchList`, `totals`, `paymentBreakdown` (were recomputed every render). Search (L4) now matches date, cost, and egg-size names, not just supplier. Guarded two `.toFixed(2)` calls with `Number(...)` (M3).
+- **SalesLog.jsx** — verified audit findings H3/M1/M4/L1 already fixed (undo uses `restoreSale` → `undo_sale` RPC preserving original price/date; no duplicate sort; refs scoped correctly).
+
+### Dashboard Sales Section UX Redesign (August 5, 2026)
+- **Period selector** (Today / This Week / This Month / Custom date inputs) above the stats — reuses shared `PERIODS` + `getPeriodRange` (extracted to `src/lib/utils.js`, Profits updated to import).
+- **All / Eggs / Products view filter** — drives the revenue stat, profit/margin, COGS, the sales feed, and insight cards (Top Egg Size hidden on Products view; Top Product hidden on Eggs). Buttons always agree with what's shown.
+- **Unified chronological sales feed** — egg + product sales combined into one list sorted by `sale_time` desc (was eggs-then-products) with a type badge (egg icon / package icon).
+- **Period-aware revenue comparison** — "X% vs yesterday" for Today; "vs prev. period" for week/month (fetches a prior same-length-window baseline in `loadData`).
+- **View-aware 7-day sparkline** — egg-count series by default; product-revenue series (via `fetchProductSalesBySize`) on the Products view.
+- **Better empty states** — message + CTA match the selected view/period.
+- `loadData(start, end)` now fetches ranged egg/product sales; deliveries, expenses, opex, stock stay today-scoped. 30s visibility-aware auto-refresh preserved.
+- **Verification:** ESLint 0 errors, production build clean, headless Chrome confirmed the dashboard mounts and all new controls render.
+- **Files:** `src/components/Dashboard.jsx`, `src/lib/utils.js`, `src/components/Profits.jsx`

@@ -21,7 +21,7 @@ COMMENT ON TABLE customers IS 'Customer contact directory.';
 COMMENT ON TABLE suppliers IS 'Supplier contact directory.';
 COMMENT ON TABLE deliveries IS 'Egg supplier deliveries. Supports batched multi-size records via shared batch_id (UUID). cost_per_egg actually stores cost PER TRAY (30 eggs) — not per egg.';
 COMMENT ON TABLE products IS 'Non-egg product catalog. quantity_on_hand tracked here directly (no separate inventory table).';
-COMMENT ON TABLE product_sales IS 'Sales of non-egg products. quantity is in unit_of_sale units.';
+COMMENT ON TABLE product_sales IS 'Sales of non-egg products. quantity is in the product''s sell unit (products.unit).';
 COMMENT ON TABLE product_deliveries IS 'Supplier deliveries for non-egg products.';
 COMMENT ON TABLE operational_funds IS 'Capital injections and 1% daily revenue cut. balance is computed client-side from funds minus expenses — NOT stored per row.';
 

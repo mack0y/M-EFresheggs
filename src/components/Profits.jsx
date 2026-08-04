@@ -10,39 +10,9 @@ import {
   Egg,
   ChevronDown,
 } from 'lucide-react';
-import { fetchCostsPerEgg, fetchCostsPerProduct, fetchPriceSettings, fetchSalesReport, fetchExpenses, formatPeso, EGG_SIZES, TRAY_SIZE, getLocalDate, fetchProductSales } from '../lib/api';
+import { fetchCostsPerEgg, fetchCostsPerProduct, fetchPriceSettings, fetchSalesReport, fetchExpenses, formatPeso, EGG_SIZES, TRAY_SIZE, fetchProductSales } from '../lib/api';
 import { getUserFriendlyError } from '../lib/errors';
-
-const PERIODS = [
-  { key: 'today', label: 'Today' },
-  { key: 'week', label: 'This Week' },
-  { key: 'month', label: 'This Month' },
-  { key: 'custom', label: 'Custom' },
-];
-
-function getPeriodRange(period) {
-  const now = new Date();
-  const end = getLocalDate(now);
-
-  if (period === 'today') {
-    return { startDate: end, endDate: end };
-  }
-
-  if (period === 'week') {
-    const d = new Date(now);
-    const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday
-    d.setDate(diff);
-    return { startDate: getLocalDate(d), endDate: end };
-  }
-
-  if (period === 'month') {
-    const d = new Date(now.getFullYear(), now.getMonth(), 1);
-    return { startDate: getLocalDate(d), endDate: end };
-  }
-
-  return { startDate: end, endDate: end };
-}
+import { PERIODS, getPeriodRange } from '../lib/utils';
 
 export default function Profits() {
   const [period, setPeriod] = useState('today');
@@ -220,7 +190,7 @@ export default function Profits() {
     const totalCOGS = rows.reduce((s, r) => s + r.cogs, 0) + productCOGS;
     const totalExpensesAmount = expenses.reduce((s, e) => s + parseFloat(e.amount || 0), 0);
     const grossProfit = Math.round((totalRevenue - totalCOGS) * 100) / 100;
-    const revenueCut = Math.round(totalRevenue * 0.01 * 100) / 100;
+    const revenueCut = Math.round(totalRevenue * 0.01 * 100) / 100; // 1% daily revenue cut (business rule)
     const adjustedRevenue = Math.round((totalRevenue - revenueCut) * 100) / 100;
     // Net profit = adjusted revenue minus COGS
     // (expenses are paid from operational funds, funded by the 1% cut)
