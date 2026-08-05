@@ -34,3 +34,6 @@ supabase.txt
 *.sln
 *.sw?
 .hermes
+
+# Session transcript dumps (not project content)
+*-read-the-memorymd-and-the-whole-codebase-the-get.txt
