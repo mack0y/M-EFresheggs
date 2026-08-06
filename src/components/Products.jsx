@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Package,
   Plus,
@@ -12,7 +12,7 @@ import {
   Tag,
   Search,
 } from 'lucide-react';
-import { fetchProducts, addProduct, updateProduct, deleteProduct, updateProductStock, fetchProductDeliveries, addProductLoss, calculateSellingPrice, autoFillPricing, formatPeso, getLocalDate, PRODUCT_LOSS_REASONS } from '../lib/api';
+import { fetchProducts, addProduct, updateProduct, deleteProduct, updateProductStock, fetchProductDeliveries, addProductLoss, fetchProductLosses, deleteProductLoss, calculateSellingPrice, autoFillPricing, formatPeso, getLocalDate, PRODUCT_LOSS_REASONS } from '../lib/api';
 import { formatDate } from '../lib/formatters';
 import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
@@ -58,7 +58,19 @@ export default function Products() {
   const [lossTarget, setLossTarget] = useState(null);
   const [lossForm, setLossForm] = useState({ quantity: '1', reason: 'expired', date: getLocalDate(), notes: '' });
   const [savingLoss, setSavingLoss] = useState(false);
+  const [lossHistory, setLossHistory] = useState([]);
+  const [showLossHistory, setShowLossHistory] = useState(false);
+  const [deletingLossId, setDeletingLossId] = useState(null);
   const today = getLocalDate();
+
+  const loadLossHistory = useCallback(async () => {
+    try {
+      const data = await fetchProductLosses();
+      setLossHistory(data || []);
+    } catch (err) {
+      console.error('Loss history load error:', err);
+    }
+  }, []);
 
   const loadData = useCallback(async () => {
     try {
@@ -66,7 +78,20 @@ export default function Products() {
       setError(null);
       const [prodData, delData] = await Promise.all([
         fetchProducts(),
-        fetchProductDeliveries({ limit: 500 }),
+        // Page through all deliveries — oldest batches are the ones most likely to expire
+        (async () => {
+          const pageSize = 1000;
+          let all = [];
+          let from = 0;
+          while (true) {
+            const page = await fetchProductDeliveries({ limit: pageSize, offset: from });
+            if (!page || page.length === 0) break;
+            all = all.concat(page);
+            if (page.length < pageSize) break;
+            from += pageSize;
+          }
+          return all;
+        })(),
       ]);
       setProducts(prodData || []);
       setDeliveries(delData || []);
@@ -268,13 +293,16 @@ export default function Products() {
     }
   }
 
-  // Latest delivery per product with a known expiry
-  const latestExpiryByProduct = {};
-  deliveries.forEach(d => {
-    if (!d.expiry_date) return;
-    const prev = latestExpiryByProduct[d.product_id];
-    if (!prev || d.delivery_date > prev.delivery_date) latestExpiryByProduct[d.product_id] = d;
-  });
+  // Earliest-expiry delivery per product with a known expiry (batch at real risk)
+  const latestExpiryByProduct = useMemo(() => {
+    const map = {};
+    deliveries.forEach(d => {
+      if (!d.expiry_date) return;
+      const prev = map[d.product_id];
+      if (!prev || d.expiry_date < prev.expiry_date) map[d.product_id] = d;
+    });
+    return map;
+  }, [deliveries]);
 
   const expired = [];
   const expiringSoon = [];
@@ -301,10 +329,11 @@ export default function Products() {
     e.preventDefault();
     const qty = parseFloat(lossForm.quantity);
     if (isNaN(qty) || qty <= 0) { toast('Enter a valid quantity', 'error'); return; }
+    const currentQty = parseFloat(lossTarget.quantity_on_hand || 0);
+    if (qty > currentQty) { toast(`Cannot record loss of ${qty} — only ${currentQty} on hand`, 'error'); return; }
     setSavingLoss(true);
     try {
       await addProductLoss({ productId: lossTarget.id, quantity: qty, reason: lossForm.reason, lossDate: lossForm.date, notes: lossForm.notes.trim() });
-      const currentQty = parseFloat(lossTarget.quantity_on_hand || 0);
       await updateProductStock(lossTarget.id, Math.max(0, currentQty - qty));
       toast(`Loss recorded: ${qty} ${lossTarget.unit || 'unit(s)'} of ${lossTarget.name}`);
       setLossTarget(null);
@@ -360,6 +389,9 @@ export default function Products() {
           <h1>Products</h1>
           <p className="page-subtitle">Manage product catalog</p>
         </div>
+        <button className="btn btn-secondary" onClick={() => { setShowLossHistory(true); loadLossHistory(); }}>
+          <PackageMinus size={18} /> Loss History
+        </button>
         <button className="btn btn-primary" onClick={() => showForm ? setShowForm(false) : openAdd()}>
           <Plus size={18} />
           {showForm ? 'Cancel' : 'Add Product'}
@@ -684,6 +716,58 @@ export default function Products() {
         </div>
       )}
 
+      {showLossHistory && (
+        <div className="pl-modal-overlay" onClick={() => setShowLossHistory(false)}>
+          <div className="pl-modal" onClick={e => e.stopPropagation()}>
+            <div className="pl-modal-header">
+              <h3><PackageMinus size={18} style={{ verticalAlign: 'middle', marginRight: '0.5rem' }} />Loss History</h3>
+              <button className="btn-icon" onClick={() => setShowLossHistory(false)} aria-label="Close">&times;</button>
+            </div>
+            <div style={{ padding: '1.25rem' }}>
+              {lossHistory.length === 0 ? (
+                <p className="empty-state" style={{ padding: '1.5rem 0' }}>No losses recorded</p>
+              ) : (
+                <div className="pl-loss-list">
+                  {lossHistory.map(l => (
+                    <div key={l.id} className="pl-loss-item">
+                      <div className="pl-loss-main">
+                        <strong>{l.products?.name || 'Unknown product'}</strong>
+                        <span className="pl-loss-qty">{l.quantity}</span>
+                      </div>
+                      <div className="pl-loss-meta">
+                        {l.reason && <span className="pl-loss-reason">{l.reason}</span>}
+                        <span>{formatDate(l.loss_date)}</span>
+                        {l.notes && <span className="pl-loss-notes">{l.notes}</span>}
+                      </div>
+                      <button
+                        className="btn-icon btn-icon-danger"
+                        title="Delete"
+                        disabled={deletingLossId === l.id}
+                        onClick={async () => {
+                          setDeletingLossId(l.id);
+                          try {
+                            await deleteProductLoss(l.id);
+                            setLossHistory(prev => prev.filter(x => x.id !== l.id));
+                            toast('Loss entry deleted');
+                          } catch (err) {
+                            console.error('Delete loss error:', err);
+                            toast(getUserFriendlyError(err), 'error');
+                          } finally {
+                            setDeletingLossId(null);
+                          }
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         .prod-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1.25rem; }
         .prod-stat-card { display: flex; align-items: center; gap: 0.75rem; padding: 0.875rem 1rem; background: var(--color-card); border: 1px solid var(--color-border); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); }
@@ -752,6 +836,15 @@ export default function Products() {
         .pl-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 1.25rem 1.25rem 0; }
         .pl-modal-header h3 { font-size: 1.0625rem; }
         .pl-modal form { padding: 1.25rem; }
+
+        .pl-loss-list { display: flex; flex-direction: column; gap: 0.5rem; max-height: 55vh; overflow-y: auto; }
+        .pl-loss-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.625rem 0.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-bg); }
+        .pl-loss-main { display: flex; align-items: center; gap: 0.5rem; flex: 1; min-width: 0; }
+        .pl-loss-main strong { font-size: 0.875rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .pl-loss-qty { flex-shrink: 0; font-size: 0.6875rem; font-weight: 700; color: var(--color-warning); background: var(--color-warning-bg); padding: 0.1rem 0.4rem; border-radius: var(--radius-full); }
+        .pl-loss-meta { display: flex; flex-wrap: wrap; gap: 0.375rem; align-items: center; font-size: 0.75rem; color: var(--color-text-muted); }
+        .pl-loss-reason { font-size: 0.6875rem; font-weight: 600; text-transform: capitalize; color: var(--color-text-secondary); background: var(--color-card); border: 1px solid var(--color-border); padding: 0.1rem 0.4rem; border-radius: var(--radius-full); }
+        .pl-loss-notes { max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         .prod-card-expiry { display: block; font-size: 0.6875rem; font-weight: 600; color: var(--color-text-muted); margin-bottom: 0.375rem; }
         .prod-card-expiry.expired { color: var(--color-danger); }

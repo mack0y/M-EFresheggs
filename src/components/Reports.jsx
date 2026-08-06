@@ -244,7 +244,9 @@ export default function Reports() {
     }
 
     const csvEscape = (val) => {
-      const str = String(val ?? '');
+      let str = String(val ?? '');
+      // OWASP CSV-injection mitigation: neutralize formula triggers with a leading quote
+      if (/^[=+\-@\t\r]/.test(str)) str = `'${str}`;
       if (str.includes(',') || str.includes('"') || str.includes('\n')) {
         return `"${str.replace(/"/g, '""')}"`;
       }

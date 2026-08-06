@@ -4,7 +4,7 @@ import { supabase } from './supabaseClient';
 
 export const PRODUCT_LOSS_REASONS = ['expired', 'damaged', 'other'];
 
-export async function fetchProductLosses({ startDate, endDate, limit = 100, offset = 0 } = {}) {
+export async function fetchProductLosses({ startDate, endDate, limit, offset = 0 } = {}) {
   let query = supabase
     .from('product_losses')
     .select('*, products(name)')
@@ -14,9 +14,26 @@ export async function fetchProductLosses({ startDate, endDate, limit = 100, offs
   if (startDate) query = query.gte('loss_date', startDate);
   if (endDate) query = query.lte('loss_date', endDate);
 
-  const { data, error } = await query.range(offset, offset + limit - 1);
-  if (error) throw error;
-  return data;
+  // Explicit limit (e.g. paginated UI): single range query.
+  if (limit !== undefined) {
+    const { data, error } = await query.range(offset, offset + limit - 1);
+    if (error) throw error;
+    return data;
+  }
+
+  // No limit: page through ALL matching rows (same pattern as fetchSales).
+  const pageSize = 1000;
+  let allData = [];
+  let from = offset;
+  while (true) {
+    const { data, error } = await query.range(from, from + pageSize - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    allData = allData.concat(data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  return allData;
 }
 
 export async function addProductLoss({ productId, quantity, reason = 'expired', lossDate, notes }) {
