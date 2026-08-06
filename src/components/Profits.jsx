@@ -190,10 +190,10 @@ export default function Profits() {
     const totalCOGS = rows.reduce((s, r) => s + r.cogs, 0) + productCOGS;
     const totalExpensesAmount = expenses.reduce((s, e) => s + parseFloat(e.amount || 0), 0);
     const grossProfit = Math.round((totalRevenue - totalCOGS) * 100) / 100;
-    const revenueCut = Math.round(totalRevenue * 0.03 * 100) / 100; // 3% daily revenue cut (business rule)
+    const revenueCut = Math.round(totalRevenue * 0.01 * 100) / 100; // 1% daily revenue cut (business rule)
     const adjustedRevenue = Math.round((totalRevenue - revenueCut) * 100) / 100;
     // Net profit = adjusted revenue minus COGS
-    // (expenses are paid from operational funds, funded by the 3% cut)
+    // (expenses are paid from operational funds, funded by the 1% cut)
     const netProfit = Math.round((adjustedRevenue - totalCOGS) * 100) / 100;
     const totalEggs = rows.reduce((s, r) => s + r.totalEggs, 0);
 
@@ -212,7 +212,7 @@ export default function Profits() {
 
     const totalRev = eggRev + prodRev;
     const totalCogs = eggCogs + prodCogs;
-    const cut = Math.round(totalRev * 0.03 * 100) / 100;
+    const cut = Math.round(totalRev * 0.01 * 100) / 100;
     const adjRev = Math.round((totalRev - cut) * 100) / 100;
 
     return {
@@ -298,7 +298,7 @@ export default function Profits() {
             <span className="profit-card-label">Adjusted Revenue</span>
             <span className="profit-card-value">{loading ? '—' : formatPeso(ft.adjustedRevenue)}</span>
             {ft.revenueCut > 0 && !loading && viewFilter === 'all' && (
-              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', fontWeight: 500 }}>After 3% cut ({formatPeso(ft.revenueCut)})</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', fontWeight: 500 }}>After 1% cut ({formatPeso(ft.revenueCut)})</span>
             )}
           </div>
         </div>
@@ -608,7 +608,7 @@ export default function Profits() {
               </div>
               <div className="profit-net-op"><TrendingDown size={14} /></div>
                 <div className="profit-net-item">
-                  <span>3% Cut</span>
+                  <span>1% Cut</span>
                   <span className="profit-net-amount" style={{ color: '#F57F17' }}>{formatPeso(ft.revenueCut)}</span>
                 </div>
               <div className="profit-net-op"><TrendingDown size={14} /></div>

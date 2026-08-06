@@ -37,12 +37,12 @@ export async function deleteOperationalFund(id) {
   if (error) throw error;
 }
 
-// ===== 3% Daily Revenue Cut =====
+// ===== 1% Daily Revenue Cut =====
 
-const DAILY_CUT_PERCENT = 0.03; // 3%
+const DAILY_CUT_PERCENT = 0.01; // 1%
 
 /**
- * Calculate 3% of today's total sales revenue.
+ * Calculate 1% of today's total sales revenue.
  * Returns { revenue, cutAmount, alreadyRecorded, fundId }.
  */
 export async function getDailyRevenueCutPreview() {
@@ -86,7 +86,7 @@ export async function getDailyRevenueCutPreview() {
     .from('operational_funds')
     .select('id')
     .eq('fund_date', today)
-    .eq('description', '3% Daily Revenue Cut')
+    .eq('description', '1% Daily Revenue Cut')
     .maybeSingle();
   if (fundErr) throw fundErr;
 
@@ -99,7 +99,7 @@ export async function getDailyRevenueCutPreview() {
 }
 
 /**
- * Record today's 3% revenue cut as an operational fund entry.
+ * Record today's 1% revenue cut as an operational fund entry.
  */
 export async function recordDailyRevenueCut() {
   const today = getLocalDate();
@@ -116,7 +116,7 @@ export async function recordDailyRevenueCut() {
     .from('operational_funds')
     .insert({
       amount: preview.cutAmount,
-      description: '3% Daily Revenue Cut',
+      description: '1% Daily Revenue Cut',
       fund_date: today,
     })
     .select()
@@ -134,7 +134,7 @@ export async function deleteDailyRevenueCut(date) {
     .from('operational_funds')
     .delete()
     .eq('fund_date', date)
-    .eq('description', '3% Daily Revenue Cut')
+    .eq('description', '1% Daily Revenue Cut')
     .select()
     .single();
   if (error) throw error;
