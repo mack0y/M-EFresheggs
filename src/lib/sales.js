@@ -68,7 +68,7 @@ export async function recordSale({ eggSizeId, quantity, unit, traySize }) {
   return data;
 }
 
-export async function fetchSales({ limit = 50, offset = 0, startDate, endDate } = {}) {
+export async function fetchSales({ limit, offset = 0, startDate, endDate } = {}) {
   let query = supabase
     .from('sales')
     .select('*, egg_sizes(name)')
@@ -77,9 +77,28 @@ export async function fetchSales({ limit = 50, offset = 0, startDate, endDate } 
   if (startDate) query = query.gte('sale_date', startDate);
   if (endDate) query = query.lte('sale_date', endDate);
 
-  const { data, error } = await query.range(offset, offset + limit - 1);
-  if (error) throw error;
-  return data;
+  // Explicit limit (e.g. SalesLog pagination, yesterday comparison): single
+  // range query, never page past it.
+  if (limit !== undefined) {
+    const { data, error } = await query.range(offset, offset + limit - 1);
+    if (error) throw error;
+    return data;
+  }
+
+  // No limit: page through ALL matching rows so aggregate views (dashboard
+  // revenue) never silently drop the oldest sales (same pattern as fetchTodaySales).
+  const pageSize = 1000;
+  let allData = [];
+  let from = offset;
+  while (true) {
+    const { data, error } = await query.range(from, from + pageSize - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    allData = allData.concat(data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  return allData;
 }
 
 export async function fetchTodaySales() {
