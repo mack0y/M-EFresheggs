@@ -1,20 +1,29 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Minus, AlertTriangle, RefreshCw, Trash2, PackagePlus } from 'lucide-react';
-import { fetchInventory, updateInventory, formatInventory, EGG_SIZES, TRAY_SIZE } from '../lib/api';
+import { Plus, Minus, AlertTriangle, RefreshCw, Trash2, PackagePlus, Package, Egg, Coins, Search } from 'lucide-react';
+import { fetchInventory, updateInventory, formatInventory, formatPeso, EGG_SIZES, TRAY_SIZE } from '../lib/api';
+import { fetchPriceSettings } from '../lib/pricing';
 import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
 
+const FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: 'in', label: 'In Stock' },
+  { key: 'low', label: 'Low' },
+  { key: 'out', label: 'Out of Stock' },
+];
+
 export default function Inventory() {
   const [inventory, setInventory] = useState([]);
+  const [prices, setPrices] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [adjusting, setAdjusting] = useState(null);
-  const [addInputs, setAddInputs] = useState({});
-  const [removeInputs, setRemoveInputs] = useState({});
-  const [trayAddInputs, setTrayAddInputs] = useState({});
-  const [trayRemoveInputs, setTrayRemoveInputs] = useState({});
+  const [adjustInputs, setAdjustInputs] = useState({});
+  const [unitInputs, setUnitInputs] = useState({});
   const [confirmItem, setConfirmItem] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filter, setFilter] = useState('all');
 
   function requestConfirm(item, delta, unit) {
     const qty = Math.abs(delta);
@@ -41,7 +50,22 @@ export default function Inventory() {
   }, []);
 
   useEffect(() => {
-    const id = setTimeout(() => loadInventory(), 0);
+    const id = setTimeout(async () => {
+      loadInventory();
+      try {
+        const settings = await fetchPriceSettings();
+        const map = {};
+        (settings || []).forEach(s => {
+          map[s.egg_size_id] = {
+            price_per_piece: parseFloat(s.price_per_piece) || 0,
+            price_per_tray: parseFloat(s.price_per_tray) || 0,
+          };
+        });
+        setPrices(map);
+      } catch (err) {
+        console.error('Price settings load error:', err);
+      }
+    }, 0);
     return () => clearTimeout(id);
   }, [loadInventory]);
 
@@ -81,45 +105,51 @@ export default function Inventory() {
     }
   }
 
-  async function handleTrayAdd(item) {
-    const val = parseInt(trayAddInputs[item.egg_size_id], 10);
-    if (isNaN(val) || val <= 0) {
-      toast('Enter a valid number of trays', 'error');
-      return;
-    }
-    requestConfirm(item, val * TRAY_SIZE, 'trays');
+  function getUnit(item) {
+    return unitInputs[item.egg_size_id] || 'pcs';
   }
 
-  async function handleTrayRemove(item) {
-    const val = parseInt(trayRemoveInputs[item.egg_size_id], 10);
+  function handleAdd(item) {
+    const val = parseInt(adjustInputs[item.egg_size_id], 10);
     if (isNaN(val) || val <= 0) {
-      toast('Enter a valid number of trays', 'error');
+      toast('Enter a valid quantity to add', 'error');
       return;
     }
-    requestConfirm(item, -(val * TRAY_SIZE), 'trays');
+    const unit = getUnit(item);
+    requestConfirm(item, unit === 'trays' ? val * TRAY_SIZE : val, unit);
   }
 
-  async function handleCustomAdd(item) {
-    const val = parseInt(addInputs[item.egg_size_id], 10);
+  function handleRemove(item) {
+    const val = parseInt(adjustInputs[item.egg_size_id], 10);
     if (isNaN(val) || val <= 0) {
-      toast('Enter a valid number', 'error');
+      toast('Enter a valid quantity to remove', 'error');
       return;
     }
-    requestConfirm(item, val, 'pieces');
-  }
-
-  async function handleCustomRemove(item) {
-    const val = parseInt(removeInputs[item.egg_size_id], 10);
-    if (isNaN(val) || val <= 0) {
-      toast('Enter a valid number', 'error');
-      return;
-    }
-    requestConfirm(item, -val, 'pieces');
+    const unit = getUnit(item);
+    requestConfirm(item, -(unit === 'trays' ? val * TRAY_SIZE : val), unit);
   }
 
   const sortedInventory = [...inventory].sort(
     (a, b) => (a.egg_sizes?.sort_order || 0) - (b.egg_sizes?.sort_order || 0)
   );
+
+  const filtered = sortedInventory.filter(item => {
+    const qty = item.quantity_on_hand || 0;
+    const threshold = item.reorder_level ?? 30;
+    if (filter === 'in') return qty > 0 && qty > threshold;
+    if (filter === 'low') return qty > 0 && qty <= threshold;
+    if (filter === 'out') return qty === 0;
+    return true;
+  }).filter(item => {
+    if (!searchQuery) return true;
+    return (item.egg_sizes?.name || '').toLowerCase().includes(searchQuery.toLowerCase());
+  });
+
+  const totalQty = sortedInventory.reduce((sum, i) => sum + (i.quantity_on_hand || 0), 0);
+  const totalValue = sortedInventory.reduce((sum, i) => {
+    const pp = prices[i.egg_size_id]?.price_per_piece || 0;
+    return sum + (i.quantity_on_hand || 0) * pp;
+  }, 0);
 
   return (
     <div className="fade-in">
@@ -135,7 +165,7 @@ export default function Inventory() {
       </div>
 
       {error && !loading && (
-        <div className="error-banner">
+        <div className="error-banner" style={{ marginBottom: '1rem' }}>
           <AlertTriangle size={20} />
           <div className="error-banner-content">
             <strong>Failed to load inventory</strong>
@@ -149,39 +179,98 @@ export default function Inventory() {
       )}
 
       {!error && (
-      <div className="inv-list">
-        {loading
-          ? Array.from({ length: 7 }).map((_, i) => (
-              <div key={i} className="inv-card">
-                <div className="skeleton" style={{ width: '40%', height: 18 }}>&nbsp;</div>
-                <div className="skeleton" style={{ width: '30%', height: 28, marginTop: 8 }}>&nbsp;</div>
+        <>
+          {/* Stats */}
+          <div className="inv-stats">
+            <div className="inv-stat-card">
+              <Package size={18} />
+              <div>
+                <span className="inv-stat-value">{sortedInventory.length}</span>
+                <span className="inv-stat-label">sizes</span>
               </div>
-            ))
-          : sortedInventory.map((item, i) => {
-              const qty = item.quantity_on_hand || 0;
-              const isAdjusting = adjusting === item.egg_size_id;
+            </div>
+            <div className="inv-stat-card">
+              <Egg size={18} />
+              <div>
+                <span className="inv-stat-value">{totalQty.toLocaleString()}</span>
+                <span className="inv-stat-label">eggs in stock</span>
+              </div>
+            </div>
+            <div className="inv-stat-card">
+              <Coins size={18} />
+              <div>
+                <span className="inv-stat-value">{formatPeso(totalValue)}</span>
+                <span className="inv-stat-label">egg stock value</span>
+              </div>
+            </div>
+          </div>
 
-              let statusClass = 'badge-success';
-              let statusText = 'In Stock';
-              if (qty === 0) {
-                statusClass = 'badge-danger';
-                statusText = 'Out of Stock';
-              } else if (qty <= (item.reorder_level ?? 30)) {
-                statusClass = 'badge-warning';
-                statusText = 'Low Stock';
-              }
+          {/* Search + Filter */}
+          <div className="inv-controls">
+            <div className="search-input-wrapper">
+              <Search size={16} className="search-icon" />
+              <input type="text" className="input" placeholder="Search sizes..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+            </div>
+            <div className="inv-filter-tabs">
+              {FILTERS.map(f => (
+                <button key={f.key} className={`inv-filter-tab ${filter === f.key ? 'active' : ''}`} onClick={() => setFilter(f.key)}>{f.label}</button>
+              ))}
+            </div>
+            <span className="inv-count">Showing {filtered.length}</span>
+          </div>
 
-              return (
-                <div
-                  key={item.id || i}
-                  className="inv-card"
-                  style={{ animationDelay: `${i * 0.05}s` }}
-                >
-                  {/* Top row: name + stock */}
-                  <div className="inv-card-top">
-                    <span className="inv-name">
+          {/* Inventory Grid */}
+          {loading ? (
+            <div className="inv-grid">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="skeleton inv-card-skeleton">&nbsp;</div>
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="empty-state">
+              <Package size={36} />
+              <p>{sortedInventory.length === 0 ? 'No egg sizes yet' : 'No sizes match your search'}</p>
+            </div>
+          ) : (
+            <div className="inv-grid">
+              {filtered.map((item, i) => {
+                const qty = item.quantity_on_hand || 0;
+                const threshold = item.reorder_level ?? 30;
+                const isAdjusting = adjusting === item.egg_size_id;
+                const unit = getUnit(item);
+                const p = prices[item.egg_size_id] || {};
+
+                let statusClass = 'badge-success';
+                let statusText = 'In Stock';
+                if (qty === 0) {
+                  statusClass = 'badge-danger';
+                  statusText = 'Out of Stock';
+                } else if (qty <= threshold) {
+                  statusClass = 'badge-warning';
+                  statusText = 'Low Stock';
+                }
+
+                const priceParts = [];
+                if (p.price_per_piece > 0) priceParts.push(`${formatPeso(p.price_per_piece)}/pc`);
+                if (p.price_per_tray > 0) priceParts.push(`${formatPeso(p.price_per_tray)}/tray`);
+                const priceLine = priceParts.length ? priceParts.join(' · ') : null;
+
+                return (
+                  <div
+                    key={item.id || i}
+                    className="inv-card"
+                    style={{ animationDelay: `${i * 0.05}s` }}
+                  >
+                    <h3 className="inv-card-name">
                       {item.egg_sizes?.name || EGG_SIZES[i] || `Size ${i + 1}`}
-                    </span>
+                    </h3>
+
+                    {priceLine && (
+                      <div className="inv-card-pricing">
+                        <span className="inv-card-price">{priceLine}</span>
+                      </div>
+                    )}
+
                     <div className="inv-card-stock">
                       <span className="inv-qty">{qty.toLocaleString()}</span>
                       <span className={`badge ${statusClass}`}>
@@ -189,169 +278,73 @@ export default function Inventory() {
                         {statusText}
                       </span>
                     </div>
-                  </div>
 
-                  {/* Breakdown: trays + pieces */}
-                  {qty > 0 && (
-                    <div className="inv-breakdown">
-                      <span className="inv-breakdown-text">{formatInventory(qty)}</span>
-                    </div>
-                  )}
-
-                  {/* Actions: grouped by Add / Remove */}
-                  <div className="inv-actions">
-                    {/* Add row */}
-                    <div className="inv-action-row inv-action-add-row">
-                      <span className="inv-action-label">
-                        <Plus size={13} />
-                        Add
-                      </span>
-                      <div className="inv-action-controls">
-                        {/* Add trays */}
-                        <div className="inv-num-input">
-                          <input
-                            id={`inv-tray-add-${item.egg_size_id}`}
-                            name={`trayAdd_${item.egg_size_id}`}
-                            type="number"
-                            min="1"
-                            step="1"
-                            className="inv-num-field"
-                            placeholder="Trays"
-                            value={trayAddInputs[item.egg_size_id] || ''}
-                            onChange={e =>
-                              setTrayAddInputs(prev => ({
-                                ...prev,
-                                [item.egg_size_id]: e.target.value,
-                              }))
-                            }
-                            onKeyDown={e => {
-                              if (e.key === 'Enter') handleTrayAdd(item);
-                            }}
-                            disabled={isAdjusting}
-                          />
-                          <button
-                            type="button"
-                            className="btn-icon inv-num-btn"
-                            onClick={() => handleTrayAdd(item)}
-                            disabled={isAdjusting}
-                            title="Add trays"
-                          >
-                            <Plus size={15} />
-                          </button>
-                        </div>
-                        {/* Add pieces */}
-                        <div className="inv-num-input">
-                          <input
-                            id={`inv-piece-add-${item.egg_size_id}`}
-                            name={`pieceAdd_${item.egg_size_id}`}
-                            type="number"
-                            min="1"
-                            step="1"
-                            className="inv-num-field"
-                            placeholder="Pcs"
-                            value={addInputs[item.egg_size_id] || ''}
-                            onChange={e =>
-                              setAddInputs(prev => ({
-                                ...prev,
-                                [item.egg_size_id]: e.target.value,
-                              }))
-                            }
-                            onKeyDown={e => {
-                              if (e.key === 'Enter') handleCustomAdd(item);
-                            }}
-                            disabled={isAdjusting}
-                          />
-                          <button
-                            type="button"
-                            className="btn-icon inv-num-btn"
-                            onClick={() => handleCustomAdd(item)}
-                            disabled={isAdjusting}
-                            title="Add pieces"
-                          >
-                            <Plus size={15} />
-                          </button>
-                        </div>
+                    {qty > 0 && (
+                      <div className="inv-breakdown">
+                        <span className="inv-breakdown-text">{formatInventory(qty)}</span>
                       </div>
-                    </div>
+                    )}
 
-                    {/* Remove row */}
-                    <div className="inv-action-row inv-action-remove-row">
-                      <span className="inv-action-label">
-                        <Minus size={13} />
-                        Remove
-                      </span>
-                      <div className="inv-action-controls">
-                        {/* Remove trays */}
-                        <div className="inv-num-input">
+                    {/* Stock Adjust Controls */}
+                    <div className="inv-adjust-row">
+                      <div className="inv-unit-toggle">
+                        {['pcs', 'trays'].map(u => (
                           <button
+                            key={u}
                             type="button"
-                            className="btn-icon btn-icon-danger inv-num-btn"
-                            onClick={() => handleTrayRemove(item)}
-                            disabled={isAdjusting || qty < TRAY_SIZE || !trayRemoveInputs[item.egg_size_id]}
-                            title="Remove trays"
+                            className={`inv-unit-btn ${unit === u ? 'active' : ''}`}
+                            onClick={() => setUnitInputs(prev => ({ ...prev, [item.egg_size_id]: u }))}
                           >
-                            <Minus size={15} />
+                            {u}
                           </button>
-                          <input
-                            id={`inv-tray-remove-${item.egg_size_id}`}
-                            name={`trayRemove_${item.egg_size_id}`}
-                            type="number"
-                            min="1"
-                            step="1"
-                            className="inv-num-field"
-                            placeholder="Trays"
-                            value={trayRemoveInputs[item.egg_size_id] || ''}
-                            onChange={e =>
-                              setTrayRemoveInputs(prev => ({
-                                ...prev,
-                                [item.egg_size_id]: e.target.value,
-                              }))
-                            }
-                            onKeyDown={e => {
-                              if (e.key === 'Enter') handleTrayRemove(item);
-                            }}
-                            disabled={isAdjusting}
-                          />
-                        </div>
-                        {/* Remove pieces */}
-                        <div className="inv-num-input">
-                          <button
-                            type="button"
-                            className="btn-icon btn-icon-danger inv-num-btn"
-                            onClick={() => handleCustomRemove(item)}
-                            disabled={isAdjusting || qty === 0 || !removeInputs[item.egg_size_id]}
-                            title="Remove pieces"
-                          >
-                            <Minus size={15} />
-                          </button>
-                          <input
-                            id={`inv-piece-remove-${item.egg_size_id}`}
-                            name={`pieceRemove_${item.egg_size_id}`}
-                            type="number"
-                            min="1"
-                            step="1"
-                            className="inv-num-field"
-                            placeholder="Pcs"
-                            value={removeInputs[item.egg_size_id] || ''}
-                            onChange={e =>
-                              setRemoveInputs(prev => ({
-                                ...prev,
-                                [item.egg_size_id]: e.target.value,
-                              }))
-                            }
-                            onKeyDown={e => {
-                              if (e.key === 'Enter') handleCustomRemove(item);
-                            }}
-                            disabled={isAdjusting}
-                          />
-                        </div>
+                        ))}
+                      </div>
+                      <div className="inv-adjust-input-group">
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          className="inv-adjust-input"
+                          placeholder="Qty"
+                          value={adjustInputs[item.egg_size_id] || ''}
+                          onChange={e =>
+                            setAdjustInputs(prev => ({ ...prev, [item.egg_size_id]: e.target.value }))
+                          }
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && adjustInputs[item.egg_size_id]) handleAdd(item);
+                          }}
+                          disabled={isAdjusting}
+                        />
+                        <button
+                          type="button"
+                          className="btn-icon inv-adjust-btn inv-adjust-add"
+                          onClick={() => handleAdd(item)}
+                          disabled={isAdjusting || !adjustInputs[item.egg_size_id]}
+                          title="Add stock"
+                        >
+                          <Plus size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-icon btn-icon-danger inv-adjust-btn inv-adjust-remove"
+                          onClick={() => handleRemove(item)}
+                          disabled={
+                            isAdjusting ||
+                            (unit === 'trays' ? qty < TRAY_SIZE : qty === 0) ||
+                            !adjustInputs[item.egg_size_id]
+                          }
+                          title="Remove stock"
+                        >
+                          <Minus size={14} />
+                        </button>
                       </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-      </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
 
       <ConfirmDialog
@@ -365,225 +358,61 @@ export default function Inventory() {
         confirmLabel={confirmItem?.isRemove ? 'Remove' : 'Add'}
         icon={confirmItem?.isRemove ? Trash2 : PackagePlus}
         onConfirm={() => {
-          const { item, delta, isRemove } = confirmItem;
+          const { item } = confirmItem;
           setConfirmItem(null);
-          executeAdjust(item, delta);
-          if (isRemove) {
-            setRemoveInputs(prev => ({ ...prev, [item.egg_size_id]: '' }));
-            setTrayRemoveInputs(prev => ({ ...prev, [item.egg_size_id]: '' }));
-          } else {
-            setAddInputs(prev => ({ ...prev, [item.egg_size_id]: '' }));
-            setTrayAddInputs(prev => ({ ...prev, [item.egg_size_id]: '' }));
-          }
+          executeAdjust(item, confirmItem.delta);
+          setAdjustInputs(prev => ({ ...prev, [item.egg_size_id]: '' }));
         }}
         onCancel={() => setConfirmItem(null)}
       />
 
-      <style>{`        .inv-list {
-          display: flex;
-          flex-direction: column;
-          gap: 0.75rem;
-        }
+      <style>{`        .inv-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1.25rem; }
+        .inv-stat-card { display: flex; align-items: center; gap: 0.75rem; padding: 0.875rem 1rem; background: var(--color-card); border: 1px solid var(--color-border); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); }
+        .inv-stat-card svg { color: var(--color-primary); flex-shrink: 0; }
+        .inv-stat-value { display: block; font-weight: 700; font-size: 1.0625rem; }
+        .inv-stat-label { display: block; font-size: 0.75rem; color: var(--color-text-muted); }
 
-        .inv-card {
-          background: var(--color-card);
-          border: 1px solid var(--color-border);
-          border-radius: var(--radius-md);
-          padding: 1.25rem 1.25rem;
-          box-shadow: var(--shadow-sm);
-          animation: fadeIn 0.3s ease-out forwards;
-          opacity: 0;
-        }
+        .inv-controls { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
+        .inv-controls .search-input-wrapper { flex: 1; min-width: 200px; max-width: 320px; }
+        .inv-controls .search-input-wrapper .input { padding-left: 2rem; height: 2.25rem; font-size: 0.875rem; }
+        .inv-filter-tabs { display: flex; gap: 0.25rem; }
+        .inv-filter-tab { min-height: 32px; padding: 0.25rem 0.75rem; border: 1.5px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-card); color: var(--color-text-secondary); font-size: 0.75rem; font-weight: 500; cursor: pointer; transition: all var(--transition-fast); }
+        .inv-filter-tab:hover { border-color: var(--color-primary); color: var(--color-primary); }
+        .inv-filter-tab.active { background: var(--color-primary); border-color: var(--color-primary); color: white; }
+        .inv-count { font-size: 0.8125rem; color: var(--color-text-muted); white-space: nowrap; }
 
-        .inv-card-top {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 0.75rem;
-        }
+        .inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0.75rem; }
+        .inv-card { padding: 1rem; background: var(--color-card); border: 1px solid var(--color-border); border-radius: var(--radius-md); box-shadow: var(--shadow-xs); animation: fadeIn 0.3s ease-out forwards; opacity: 0; transition: all var(--transition-fast); }
+        .inv-card:hover { box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+        .inv-card-skeleton { height: 160px; border-radius: var(--radius-md); }
+        .inv-card-name { font-size: 1rem; font-weight: 700; margin-bottom: 0.375rem; }
+        .inv-card-pricing { display: flex; gap: 0.75rem; align-items: center; margin-bottom: 0.375rem; }
+        .inv-card-price { font-weight: 700; color: var(--color-primary); font-size: 1.125rem; letter-spacing: 0.01em; }
+        .inv-card-stock { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.375rem; }
+        .inv-qty { font-weight: 800; font-size: 1.375rem; font-variant-numeric: tabular-nums; }
+        .inv-breakdown { margin-top: 0.375rem; }
+        .inv-breakdown-text { font-size: 0.8125rem; color: var(--color-text-secondary); background: var(--color-bg); padding: 0.2rem 0.55rem; border-radius: var(--radius-sm); font-weight: 600; }
 
-        .inv-name {
-          font-weight: 700;
-          font-size: 1.25rem;
-        }
-
-        .inv-card-stock {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-        }
-
-        .inv-qty {
-          font-weight: 800;
-          font-size: 1.5rem;
-          font-variant-numeric: tabular-nums;
-        }
-
-        .inv-breakdown {
-          margin-bottom: 0.875rem;
-        }
-
-        .inv-breakdown-text {
-          font-size: 1rem;
-          color: var(--color-text-secondary);
-          background: var(--color-bg);
-          padding: 0.3rem 0.7rem;
-          border-radius: var(--radius-sm);
-          font-weight: 600;
-        }
-
-        .inv-actions {
-          display: flex;
-          flex-direction: column;
-          gap: 0.5rem;
-        }
-
-        .inv-action-row {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-        }
-
-        .inv-action-label {
-          display: flex;
-          align-items: center;
-          gap: 0.25rem;
-          font-weight: 700;
-          font-size: 0.75rem;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          min-width: 60px;
-          flex-shrink: 0;
-        }
-
-        .inv-action-add-row .inv-action-label {
-          color: var(--color-primary);
-        }
-
-        .inv-action-remove-row .inv-action-label {
-          color: var(--color-danger);
-        }
-
-        .inv-action-controls {
-          display: flex;
-          align-items: center;
-          gap: 0.375rem;
-          flex-wrap: wrap;
-        }
-
-        .inv-num-input {
-          display: flex;
-          align-items: center;
-          gap: 0;
-          border: 1px solid var(--color-border);
-          border-radius: var(--radius-sm);
-          overflow: hidden;
-          flex: 0 1 100px;
-          min-width: 70px;
-        }
-
-        .inv-num-field {
-          width: 0;
-          flex: 1;
-          min-width: 40px;
-          padding: 0.5rem 0.25rem;
-          border: none;
-          outline: none;
-          font-size: 0.9375rem;
-          text-align: center;
-          background: var(--color-card);
-          color: var(--color-text);
-        }
-
-        .inv-num-field:focus {
-          background: var(--color-primary-light);
-        }
-
-        .inv-num-field::placeholder {
-          color: var(--color-text-muted);
-          font-size: 0.7rem;
-        }
-
-        .inv-num-btn {
-          border: none !important;
-          border-radius: 0 !important;
-          padding: 0.5rem 0.55rem !important;
-        }
-
-        .btn-icon {
-          display: flex;
-          align-items: center;
-          gap: 0.3rem;
-          padding: 0.55rem 0.65rem;
-          border: 1px solid var(--color-border);
-          border-radius: var(--radius-sm);
-          background: var(--color-card);
-          color: var(--color-text-secondary);
-          font-size: 0.9375rem;
-          transition: all 0.15s;
-          cursor: pointer;
-          white-space: nowrap;
-        }
-
-        .btn-icon:hover {
-          background: var(--color-primary-light);
-          border-color: var(--color-primary);
-          color: var(--color-primary);
-        }
-
-        .btn-icon:disabled {
-          opacity: 0.4;
-          cursor: not-allowed;
-        }
-
-        .btn-icon-danger:hover {
-          background: var(--color-danger-bg);
-          border-color: var(--color-danger);
-          color: var(--color-danger);
-        }
-
-        .btn-icon-label {
-          font-weight: 600;
-        }
-
-        @media (min-width: 640px) {
-          .inv-card-actions {
-            gap: 0.5rem;
-          }
-          .inv-num-field {
-            min-width: 48px;
-          }
-        }
+        .inv-adjust-row { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--color-border); }
+        .inv-unit-toggle { display: flex; gap: 0.25rem; margin-bottom: 0.375rem; }
+        .inv-unit-btn { flex: 1; min-height: 28px; padding: 0.15rem; border: 1.5px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-card); color: var(--color-text-secondary); font-size: 0.6875rem; font-weight: 600; cursor: pointer; transition: all var(--transition-fast); }
+        .inv-unit-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
+        .inv-unit-btn.active { background: var(--color-primary); border-color: var(--color-primary); color: white; }
+        .inv-adjust-input-group { display: flex; align-items: center; gap: 0.25rem; }
+        .inv-adjust-input { flex: 1; min-width: 0; padding: 0.4rem 0.5rem; border: 1px solid var(--color-border); border-radius: var(--radius-sm); font-size: 0.8125rem; text-align: center; background: var(--color-card); color: var(--color-text); outline: none; }
+        .inv-adjust-input:focus { border-color: var(--color-primary); background: var(--color-primary-light); }
+        .inv-adjust-input::placeholder { color: var(--color-text-muted); font-size: 0.6875rem; }
+        .inv-adjust-btn { padding: 0.4rem 0.5rem !important; border-radius: var(--radius-sm) !important; }
+        .inv-adjust-add { color: var(--color-primary) !important; }
+        .inv-adjust-add:hover { background: var(--color-primary-light) !important; border-color: var(--color-primary) !important; }
+        .inv-adjust-remove:hover { background: var(--color-danger-bg) !important; border-color: var(--color-danger) !important; }
 
         @media (max-width: 640px) {
-          .inv-num-input {
-            min-width: 60px;
-            flex: 0 1 85px;
-          }
-          .inv-num-field {
-            padding: 0.375rem 0.2rem;
-            font-size: 0.8125rem;
-            min-width: 28px;
-          }
-          .inv-num-btn {
-            padding: 0.375rem 0.4rem !important;
-          }
-          .inv-card {
-            padding: 0.875rem;
-          }
-          .inv-qty {
-            font-size: 1.25rem;
-          }
-          .inv-name {
-            font-size: 1.0625rem;
-          }
-          .inv-action-label {
-            min-width: 48px;
-            font-size: 0.6875rem;
-          }
-          .inv-num-field::placeholder {
-            font-size: 0.625rem;
-          }
+          .inv-stats { grid-template-columns: 1fr; }
+          .inv-controls { flex-direction: column; align-items: stretch; }
+          .inv-controls .search-input-wrapper { max-width: none; }
+          .inv-grid { grid-template-columns: 1fr; }
+          .inv-qty { font-size: 1.25rem; }
         }
       `}</style>
     </div>
