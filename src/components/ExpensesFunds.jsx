@@ -680,7 +680,7 @@ export default function ExpensesFunds() {
                 className="btn btn-primary btn-sm ef-cut-btn"
                 onClick={handleRecordDailyCut}
                 disabled={recordingCut}
-                title="Record 1% of today's revenue as a fund entry"
+                title="Record 3% of today's revenue as a fund entry"
               >
                 <Percent size={15} />
                 {recordingCut ? 'Recording...' : `Daily Cut (${formatPeso(cutPreview.cutAmount)})`}

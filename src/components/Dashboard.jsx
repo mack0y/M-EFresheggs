@@ -247,7 +247,7 @@ export default function Dashboard() {
       ? todayProductCOGS
       : todayCOGS + todayProductCOGS;
 
-  const dailyRevenueCut = Math.round(viewRevenue * 0.01 * 100) / 100;
+  const dailyRevenueCut = Math.round(viewRevenue * 0.03 * 100) / 100;
   const adjustedRevenue = viewRevenue - dailyRevenueCut;
   const netProfit = adjustedRevenue - viewCOGS;
 
@@ -547,7 +547,7 @@ export default function Dashboard() {
               <span className="primary-stat-sub">Products only — Eggs {formatPeso(todayRevenue)} in this period</span>
             )}
             {!loading && (
-              <span className="primary-stat-sub">After 1% cut: {formatPeso(dailyRevenueCut)} (remaining: {formatPeso(adjustedRevenue)})</span>
+              <span className="primary-stat-sub">After 3% cut: {formatPeso(dailyRevenueCut)} (remaining: {formatPeso(adjustedRevenue)})</span>
             )}
             {!loading && (
               <span className={`primary-stat-change ${revenueChange >= 0 ? 'change-up' : 'change-down'}`}>
@@ -721,7 +721,7 @@ export default function Dashboard() {
             <span className="stat-card-value">
               {loading ? '—' : formatPeso(dailyRevenueCut)}
             </span>
-            <span className="stat-card-label">1% Daily Cut</span>
+            <span className="stat-card-label">3% Daily Cut</span>
           </div>
         </div>
 
