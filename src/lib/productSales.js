@@ -59,7 +59,7 @@ export async function recordProductSale({ productId, quantity, saleDate }) {
   return data;
 }
 
-export async function fetchProductSales({ limit = 50, offset = 0, startDate, endDate } = {}) {
+export async function fetchProductSales({ limit, offset = 0, startDate, endDate } = {}) {
   let query = supabase
     .from('product_sales')
     .select('*, products(name, unit)')
@@ -68,9 +68,27 @@ export async function fetchProductSales({ limit = 50, offset = 0, startDate, end
   if (startDate) query = query.gte('sale_date', startDate);
   if (endDate) query = query.lte('sale_date', endDate);
 
-  const { data, error } = await query.range(offset, offset + limit - 1);
-  if (error) throw error;
-  return data || [];
+  // Explicit limit (list view pagination): single range query, never page past it.
+  if (limit !== undefined) {
+    const { data, error } = await query.range(offset, offset + limit - 1);
+    if (error) throw error;
+    return data || [];
+  }
+
+  // No limit: page through ALL matching rows so aggregates never silently
+  // drop rows past the 1,000-row cap (same pattern as fetchSales).
+  const pageSize = 1000;
+  let allData = [];
+  let from = offset;
+  while (true) {
+    const { data, error } = await query.range(from, from + pageSize - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    allData = allData.concat(data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  return allData || [];
 }
 
 export async function fetchTodayProductSales() {

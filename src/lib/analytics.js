@@ -197,14 +197,27 @@ function deriveCostPerEgg(delivery) {
  * Returns a Map of egg_size_id -> { avgCostPerEgg, avgCostPerTray }
  */
 export async function fetchCostsPerEgg() {
-  const { data: deliveries, error } = await supabase
+  // Page through ALL deliveries so latest-delivery lookups never silently
+  // miss sizes past the 1,000-row cap (same pattern as fetchSales).
+  let query = supabase
     .from('deliveries')
     .select('egg_size_id, cost_per_egg, tray_size')
     .order('delivery_date', { ascending: false })
     .order('created_at', { ascending: false });
-  if (error) throw error;
 
-  const { latestPerSize } = findLatestDeliveryPerSize(deliveries);
+  const pageSize = 1000;
+  let allData = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await query.range(from, from + pageSize - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    allData = allData.concat(data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+
+  const { latestPerSize } = findLatestDeliveryPerSize(allData);
 
   const result = {};
   Object.keys(latestPerSize).forEach(id => {
@@ -221,15 +234,28 @@ export async function fetchCostsPerEgg() {
  * Returns a Map of product_id -> costPerUnit
  */
 export async function fetchCostsPerProduct() {
-  const { data: deliveries, error } = await supabase
+  // Page through ALL product deliveries so latest-delivery lookups never
+  // silently miss products past the 1,000-row cap (same pattern as fetchSales).
+  let query = supabase
     .from('product_deliveries')
     .select('product_id, cost_per_purchase_unit')
     .order('delivery_date', { ascending: false })
     .order('created_at', { ascending: false });
-  if (error) throw error;
+
+  const pageSize = 1000;
+  let allData = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await query.range(from, from + pageSize - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    allData = allData.concat(data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
 
   const latestPerProduct = {};
-  (deliveries || []).forEach(d => {
+  (allData || []).forEach(d => {
     if (!latestPerProduct[d.product_id]) {
       latestPerProduct[d.product_id] = d;
     }
@@ -262,26 +288,37 @@ export async function fetchCostsPerProduct() {
  * Uses the MOST RECENT delivery cost per egg size vs selling price.
  */
 export async function fetchProfitMargins() {
-  const [prices, deliveries] = await Promise.all([
-    fetchPriceSettings(),
-    supabase
-      .from('deliveries')
-      .select('egg_size_id, cost_per_egg, tray_size, quantity, unit')
-      .order('delivery_date', { ascending: false })
-      .order('created_at', { ascending: false }),
-  ]);
+  // Page through ALL deliveries so per-size counts/costs never silently drop
+  // rows past the 1,000-row cap (same pattern as fetchSales).
+  let query = supabase
+    .from('deliveries')
+    .select('egg_size_id, cost_per_egg, tray_size, quantity, unit')
+    .order('delivery_date', { ascending: false })
+    .order('created_at', { ascending: false });
 
-  if (deliveries.error) throw deliveries.error;
+  const pageSize = 1000;
+  let deliveries = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await query.range(from, from + pageSize - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    deliveries = deliveries.concat(data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+
+  const prices = await fetchPriceSettings();
 
   // Count deliveries per egg size for accurate deliveryCount
   const deliveryCountPerSize = {};
-  (deliveries.data || []).forEach(d => {
+  (deliveries || []).forEach(d => {
     const id = d.egg_size_id;
     if (!deliveryCountPerSize[id]) deliveryCountPerSize[id] = 0;
     deliveryCountPerSize[id]++;
   });
 
-  const { latestPerSize, totalCountPerSize } = findLatestDeliveryPerSize(deliveries.data);
+  const { latestPerSize, totalCountPerSize } = findLatestDeliveryPerSize(deliveries);
 
   // Build margins per egg size
   const margins = EGG_SIZES.map((name, index) => {

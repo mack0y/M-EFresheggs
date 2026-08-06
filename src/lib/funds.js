@@ -148,19 +148,35 @@ const EXPENSE_TRACKING_START = '2026-06-19';
 export async function getOperationalBalance(startDate) {
   const effectiveStartDate = startDate || EXPENSE_TRACKING_START;
 
+  // Page through ALL rows so the balance never silently drops rows past the
+  // 1,000-row response cap (same pattern as fetchSales).
+  async function fetchAll(query) {
+    const pageSize = 1000;
+    let allData = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await query.range(from, from + pageSize - 1);
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+      allData = allData.concat(data);
+      if (data.length < pageSize) break;
+      from += pageSize;
+    }
+    return allData;
+  }
+
   const [fundsData, expensesData] = await Promise.all([
-    supabase.from('operational_funds').select('amount'),
-    supabase
-      .from('expenses')
-      .select('amount')
-      .gte('expense_date', effectiveStartDate),
+    fetchAll(supabase.from('operational_funds').select('amount')),
+    fetchAll(
+      supabase
+        .from('expenses')
+        .select('amount')
+        .gte('expense_date', effectiveStartDate)
+    ),
   ]);
 
-  if (fundsData.error) throw fundsData.error;
-  if (expensesData.error) throw expensesData.error;
-
-  const totalFunds = (fundsData.data || []).reduce((sum, f) => sum + parseFloat(f.amount || 0), 0);
-  const totalExpenses = (expensesData.data || []).reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
+  const totalFunds = (fundsData || []).reduce((sum, f) => sum + parseFloat(f.amount || 0), 0);
+  const totalExpenses = (expensesData || []).reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
 
   return {
     totalFunds: Math.round(totalFunds * 100) / 100,

@@ -190,7 +190,7 @@ export default function Reports() {
 
     // Add spoilage section
     try {
-      const spoilageData = await fetchSpoilageWithCost({ startDate, endDate, limit: 500 });
+      const spoilageData = await fetchSpoilageWithCost({ startDate, endDate });
       if (spoilageData && spoilageData.length > 0) {
         rows.push([], ['=== SPOILAGE ==='], ['Date', 'Size', 'Quantity', 'Reason', 'Cost']);
         spoilageData.forEach(s => {

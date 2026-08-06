@@ -36,7 +36,7 @@ export async function fetchInventoryValue() {
 }
 
 /** Calculate cost of spoilage data */
-export async function fetchSpoilageWithCost({ startDate, endDate, limit = 200, offset = 0 } = {}) {
+export async function fetchSpoilageWithCost({ startDate, endDate, limit, offset = 0 } = {}) {
   let query = supabase
     .from('spoilage')
     .select('*, egg_sizes(name, sort_order)')
@@ -45,8 +45,27 @@ export async function fetchSpoilageWithCost({ startDate, endDate, limit = 200, o
   if (startDate) query = query.gte('spoilage_date', startDate);
   if (endDate) query = query.lte('spoilage_date', endDate);
 
-  const { data: spoilageData, error } = await query.range(offset, offset + limit - 1);
-  if (error) throw error;
+  let spoilageData;
+  if (limit !== undefined) {
+    const { data, error } = await query.range(offset, offset + limit - 1);
+    if (error) throw error;
+    spoilageData = data || [];
+  } else {
+    // No limit: page through ALL matching rows so cost aggregates never
+    // silently drop rows past the 1,000-row cap (same pattern as fetchSales).
+    const pageSize = 1000;
+    let allData = [];
+    let from = offset;
+    while (true) {
+      const { data, error } = await query.range(from, from + pageSize - 1);
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+      allData = allData.concat(data);
+      if (data.length < pageSize) break;
+      from += pageSize;
+    }
+    spoilageData = allData;
+  }
 
   // Fetch prices to calculate cost
   const { data: priceData } = await supabase
@@ -59,7 +78,7 @@ export async function fetchSpoilageWithCost({ startDate, endDate, limit = 200, o
   });
 
   // Add cost to each spoilage entry
-  const withCost = (spoilageData || []).map(s => ({
+  const withCost = (spoilageData).map(s => ({
     ...s,
     cost: s.quantity * (priceMap[s.egg_size_id] || 0),
   }));
@@ -86,12 +105,23 @@ export async function exportAllData() {
   ];
   const results = await Promise.allSettled(
     tableFns.map(async ({ name, fn }) => {
-      const { data, error } = await fn();
-      if (error) {
-        console.error(`Export error for ${name}:`, error);
-        return { name, data: { error: error.message } };
+      // Page through all rows (1,000 per request) so exports never silently
+      // drop rows past PostgREST's row cap (same pattern as fetchSales).
+      const pageSize = 1000;
+      let allData = [];
+      let from = 0;
+      while (true) {
+        const { data, error } = await fn().range(from, from + pageSize - 1);
+        if (error) {
+          console.error(`Export error for ${name}:`, error);
+          return { name, data: { error: error.message } };
+        }
+        if (!data || data.length === 0) break;
+        allData = allData.concat(data);
+        if (data.length < pageSize) break;
+        from += pageSize;
       }
-      return { name, data: data || [] };
+      return { name, data: allData };
     })
   );
   const merged = {};
