@@ -53,6 +53,9 @@ export { fetchSalesBySize, fetchSalesByHour, fetchSalesTrend, fetchCostsPerEgg, 
 export { fetchProducts, addProduct, updateProduct, deleteProduct, updateProductStock, calculateSellingPrice, autoFillPricing } from './products';
 export { fetchProductDeliveries, recordProductDelivery, updateProductDeliveryPayment, deleteProductDelivery } from './productDeliveries';
 
+// ===== Product Losses =====
+export { PRODUCT_LOSS_REASONS, fetchProductLosses, addProductLoss, deleteProductLoss } from './productLosses';
+
 // ===== Product Sales =====
 export { recordProductSale, restoreProductSale, fetchProductSales, fetchTodayProductSales, deleteProductSale, deleteProductSales, fetchProductSalesReport } from './productSales';
 

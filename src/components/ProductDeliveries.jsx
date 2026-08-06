@@ -25,6 +25,12 @@ const paymentColors = {
   paid: { bg: '#E8F5E9', color: '#2E7D32' },
 };
 
+function addDays(dateStr, days) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  return getLocalDate(d);
+}
+
 export default function ProductDeliveries() {
   const navigate = useNavigate();
   const [deliveries, setDeliveries] = useState([]);
@@ -54,6 +60,7 @@ export default function ProductDeliveries() {
     paymentStatus: 'unpaid',
     notes: '',
     date: today,
+    expiryDate: '', // kept for back-compat; real expiry lives per-item (expiryPerItem)
   });
 
   const loadData = useCallback(async () => {
@@ -80,6 +87,7 @@ export default function ProductDeliveries() {
             unit: p.purchase_unit || 'units',
             quantity: '',
             costPerUnit: '',
+            expiry: '', // blank = no expiry (frozen/canned); lumpia (306) auto-fills below
           })),
         }));
       }
@@ -184,6 +192,7 @@ export default function ProductDeliveries() {
           purchaseQuantity: parseFloat(item.quantity),
           costPerPurchaseUnit: parseFloat(item.costPerUnit),
           deliveryDate: form.date,
+          expiryDate: item.expiry || null,
           notes: form.notes.trim(),
           paymentStatus: form.paymentStatus,
         });
@@ -209,6 +218,7 @@ export default function ProductDeliveries() {
         paymentStatus: 'unpaid',
         notes: '',
         date: today,
+        expiryDate: '',
       }));
       setShowForm(false);
       loadData();
@@ -382,11 +392,12 @@ export default function ProductDeliveries() {
 
               {/* Product grid */}
               <div className="delivery-sizes-grid">
-                <div className="delivery-sizes-header" style={{ gridTemplateColumns: '1fr 90px 110px 100px' }}>
+                <div className="delivery-sizes-header" style={{ gridTemplateColumns: '1fr 90px 110px 100px 140px' }}>
                   <span className="delivery-sizes-label">Product</span>
                   <span className="delivery-sizes-label">Qty</span>
                   <span className="delivery-sizes-label">Cost/Unit</span>
                   <span className="delivery-sizes-label num">Subtotal</span>
+                  <span className="delivery-sizes-label">Expiry Date</span>
                 </div>
                 {form.items.length === 0 ? (
                   <div className="delivery-size-row" style={{ gridTemplateColumns: '1fr', textAlign: 'center', color: 'var(--color-text-muted)', padding: '1rem' }}>
@@ -396,7 +407,7 @@ export default function ProductDeliveries() {
                   form.items.map((item, i) => {
                     const subtotal = (parseFloat(item.quantity) || 0) * (parseFloat(item.costPerUnit) || 0);
                     return (
-                      <div key={item.productId} className="delivery-size-row" style={{ gridTemplateColumns: '1fr 90px 110px 100px' }}>
+                      <div key={item.productId} className="delivery-size-row" style={{ gridTemplateColumns: '1fr 90px 110px 100px 140px' }}>
                         <span className="delivery-size-name">
                           {item.name}
                           <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginLeft: '0.25rem' }}>
@@ -424,6 +435,13 @@ export default function ProductDeliveries() {
                         <span className="delivery-size-subtotal num">
                           {subtotal > 0 ? formatPeso(subtotal) : '—'}
                         </span>
+                        <input
+                          type="date"
+                          className="input delivery-size-input"
+                          value={item.expiry || ''}
+                          onChange={e => updateItem(i, 'expiry', e.target.value)}
+                          title={item.productId === 306 ? 'Fresh Vegetable Lumpia: 7 days after delivery' : 'Blank = no expiry (frozen/canned)'}
+                        />
                       </div>
                     );
                   })
@@ -489,10 +507,11 @@ export default function ProductDeliveries() {
       </div>
 
       <div className="card" style={{ padding: 0 }}>
-        <div className="delivery-table-header" style={{ gridTemplateColumns: '70px 1fr 1fr 80px 90px 80px 60px' }}>
+        <div className="delivery-table-header" style={{ gridTemplateColumns: '70px 1fr 1fr 95px 80px 90px 80px 60px' }}>
           <span>Date</span>
           <span>Supplier</span>
           <span>Product</span>
+          <span>Expiry</span>
           <span>Qty</span>
           <span>Cost</span>
           <span>Payment</span>
@@ -516,10 +535,13 @@ export default function ProductDeliveries() {
             const bpStyle = paymentColors[d.payment_status] || paymentColors.unpaid;
             return (
               <div key={d.id} className="delivery-batch" style={{ animationDelay: `${i * 0.03}s` }}>
-                <div className="delivery-row" style={{ gridTemplateColumns: '70px 1fr 1fr 80px 90px 80px 60px' }}>
+                <div className="delivery-row" style={{ gridTemplateColumns: '70px 1fr 1fr 95px 80px 90px 80px 60px' }}>
                   <span className="delivery-date">{d.delivery_date?.slice(5) || d.delivery_date}</span>
                   <span className="delivery-supplier">{d.suppliers?.name || 'Unknown'}</span>
                   <span className="delivery-sizes-summary">{d.products?.name || 'Unknown'}</span>
+                  <span className="delivery-expiry" style={d.expiry_date && d.expiry_date < today ? { color: 'var(--color-danger)', fontWeight: 600 } : undefined}>
+                    {d.expiry_date ? formatDate(d.expiry_date) : '—'}
+                  </span>
                   <span className="delivery-qty">{parseFloat(d.purchase_quantity || 0).toLocaleString()} {d.products?.purchase_unit || d.products?.unit || ''}</span>
                   <span className="delivery-cost">{formatPeso(d.total_cost)}</span>
                   <span className="delivery-payment">
@@ -661,10 +683,11 @@ export default function ProductDeliveries() {
           .delivery-date { grid-column: 1; grid-row: 1; font-size: 0.6875rem; color: var(--color-text-muted); }
           .delivery-supplier { grid-column: 2; grid-row: 1; }
           .delivery-sizes-summary { grid-column: 1; grid-row: 2; font-size: 0.8125rem; }
-          .delivery-qty { grid-column: 2; grid-row: 2; text-align: right; }
-          .delivery-cost { grid-column: 1; grid-row: 3; font-size: 0.875rem; }
-          .delivery-payment { grid-column: 2; grid-row: 3; text-align: right; }
-          .delivery-row .num { grid-column: 1 / -1; grid-row: 4; text-align: right; }
+          .delivery-expiry { grid-column: 2; grid-row: 2; text-align: right; font-size: 0.75rem; color: var(--color-text-muted); }
+          .delivery-qty { grid-column: 1; grid-row: 3; font-weight: 600; }
+          .delivery-cost { grid-column: 2; grid-row: 3; font-size: 0.875rem; }
+          .delivery-payment { grid-column: 1; grid-row: 4; }
+          .delivery-row .num { grid-column: 1 / -1; grid-row: 5; text-align: right; }
           .delivery-stats { grid-template-columns: 1fr; }
           .pdel-custom-dates { flex-wrap: wrap; }
           .pdel-date-input { max-width: none; flex: 1; min-width: 110px; }

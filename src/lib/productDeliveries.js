@@ -17,7 +17,7 @@ export async function fetchProductDeliveries({ limit = 50, offset = 0, startDate
   return data || [];
 }
 
-export async function recordProductDelivery({ supplierId, productId, purchaseQuantity, costPerPurchaseUnit, deliveryDate, notes, paymentStatus }) {
+export async function recordProductDelivery({ supplierId, productId, purchaseQuantity, costPerPurchaseUnit, deliveryDate, expiryDate, notes, paymentStatus }) {
   const today = getLocalDate();
   const totalCost = parseFloat(purchaseQuantity) * parseFloat(costPerPurchaseUnit);
   const amountPaid = paymentStatus === 'paid' ? totalCost : 0;
@@ -33,6 +33,7 @@ export async function recordProductDelivery({ supplierId, productId, purchaseQua
       payment_status: paymentStatus || 'unpaid',
       amount_paid: amountPaid,
       delivery_date: deliveryDate || today,
+      expiry_date: expiryDate || null,
       notes,
     })
     .select('*, suppliers(name), products(name, unit, purchase_unit)')

@@ -6,12 +6,14 @@ import {
   Edit3,
   Trash2,
   PackagePlus,
+  PackageMinus,
   AlertTriangle,
   RefreshCw,
   Tag,
   Search,
 } from 'lucide-react';
-import { fetchProducts, addProduct, updateProduct, deleteProduct, updateProductStock, calculateSellingPrice, autoFillPricing, formatPeso } from '../lib/api';
+import { fetchProducts, addProduct, updateProduct, deleteProduct, updateProductStock, fetchProductDeliveries, addProductLoss, calculateSellingPrice, autoFillPricing, formatPeso, getLocalDate, PRODUCT_LOSS_REASONS } from '../lib/api';
+import { formatDate } from '../lib/formatters';
 import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
@@ -52,13 +54,22 @@ export default function Products() {
   const [adjusting, setAdjusting] = useState(null);
   const [adjustInputs, setAdjustInputs] = useState({});
   const [confirmAdj, setConfirmAdj] = useState(null);
+  const [deliveries, setDeliveries] = useState([]);
+  const [lossTarget, setLossTarget] = useState(null);
+  const [lossForm, setLossForm] = useState({ quantity: '1', reason: 'expired', date: getLocalDate(), notes: '' });
+  const [savingLoss, setSavingLoss] = useState(false);
+  const today = getLocalDate();
 
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await fetchProducts();
-      setProducts(data || []);
+      const [prodData, delData] = await Promise.all([
+        fetchProducts(),
+        fetchProductDeliveries({ limit: 500 }),
+      ]);
+      setProducts(prodData || []);
+      setDeliveries(delData || []);
     } catch (err) {
       console.error('Products load error:', err);
       setError(err);
@@ -257,6 +268,55 @@ export default function Products() {
     }
   }
 
+  // Latest delivery per product with a known expiry
+  const latestExpiryByProduct = {};
+  deliveries.forEach(d => {
+    if (!d.expiry_date) return;
+    const prev = latestExpiryByProduct[d.product_id];
+    if (!prev || d.delivery_date > prev.delivery_date) latestExpiryByProduct[d.product_id] = d;
+  });
+
+  const expired = [];
+  const expiringSoon = [];
+  products.forEach(p => {
+    if (parseFloat(p.quantity_on_hand || 0) <= 0) return;
+    const d = latestExpiryByProduct[p.id];
+    if (!d) return;
+    if (d.expiry_date < today) expired.push({ ...p, expiryDate: d.expiry_date });
+    else if (d.expiry_date <= addDays(today, 2)) expiringSoon.push({ ...p, expiryDate: d.expiry_date });
+  });
+
+  function addDays(dateStr, days) {
+    const dt = new Date(dateStr + 'T00:00:00');
+    dt.setDate(dt.getDate() + days);
+    return getLocalDate(dt);
+  }
+
+  function openLoss(p) {
+    setLossTarget(p);
+    setLossForm({ quantity: '1', reason: 'expired', date: today, notes: '' });
+  }
+
+  async function handleSaveLoss(e) {
+    e.preventDefault();
+    const qty = parseFloat(lossForm.quantity);
+    if (isNaN(qty) || qty <= 0) { toast('Enter a valid quantity', 'error'); return; }
+    setSavingLoss(true);
+    try {
+      await addProductLoss({ productId: lossTarget.id, quantity: qty, reason: lossForm.reason, lossDate: lossForm.date, notes: lossForm.notes.trim() });
+      const currentQty = parseFloat(lossTarget.quantity_on_hand || 0);
+      await updateProductStock(lossTarget.id, Math.max(0, currentQty - qty));
+      toast(`Loss recorded: ${qty} ${lossTarget.unit || 'unit(s)'} of ${lossTarget.name}`);
+      setLossTarget(null);
+      loadData();
+    } catch (err) {
+      console.error('Record loss error:', err);
+      toast(getUserFriendlyError(err), 'error');
+    } finally {
+      setSavingLoss(false);
+    }
+  }
+
   function handleAdd(product) {
     const val = parseInt(adjustInputs[product.id], 10);
     if (isNaN(val) || val <= 0) {
@@ -435,6 +495,32 @@ export default function Products() {
         <span className="prod-count">Showing {filtered.length}</span>
       </div>
 
+      {/* Expiry alerts */}
+      {expired.length > 0 && (
+        <div className="prod-expiry-banner prod-expiry-danger">
+          <AlertTriangle size={16} />
+          <div>
+            {expired.map(p => (
+              <span key={p.id}>
+                ⚠ {Math.round(parseFloat(p.quantity_on_hand || 0))} pack{parseFloat(p.quantity_on_hand) !== 1 ? 's' : ''} of {p.name} expired
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      {expiringSoon.length > 0 && (
+        <div className="prod-expiry-banner prod-expiry-warning">
+          <AlertTriangle size={16} />
+          <div>
+            {expiringSoon.map(p => (
+              <span key={p.id}>
+                ⏳ {p.name} expiring soon ({formatDate(p.expiryDate)})
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Product List */}
       {loading ? (
         <div className="prod-grid">
@@ -465,10 +551,18 @@ export default function Products() {
                   <span className="prod-card-badge" style={{ background: catStyle.bg, color: catStyle.color }}>{p.category}</span>
                   <div className="prod-card-actions">
                     <button className="btn-icon" onClick={() => openEdit(p)} title="Edit"><Edit3 size={14} /></button>
+                    <button className="btn-icon prod-loss-btn" onClick={() => openLoss(p)} title="Record loss"><PackageMinus size={14} /></button>
                     <button className="btn-icon btn-icon-danger" onClick={() => setDeleteTarget(p)} title="Delete"><Trash2 size={14} /></button>
                   </div>
                 </div>
                 <h3 className="prod-card-name">{p.name}</h3>
+                {latestExpiryByProduct[p.id]?.expiry_date && (
+                  <span
+                    className={`prod-card-expiry ${latestExpiryByProduct[p.id].expiry_date < today ? 'expired' : latestExpiryByProduct[p.id].expiry_date <= addDays(today, 2) ? 'soon' : ''}`}
+                  >
+                    Expiry: {formatDate(latestExpiryByProduct[p.id].expiry_date)}
+                  </span>
+                )}
                 <div className="prod-card-pricing">
                   {price > 0 && <span className="prod-card-price">{formatPeso(price)}/{p.unit}</span>}
                   {cost > 0 && <span className="prod-card-cost">Cost: {formatPeso(cost)}</span>}
@@ -554,6 +648,42 @@ export default function Products() {
         onCancel={() => setConfirmAdj(null)}
       />
 
+      {lossTarget && (
+        <div className="pl-modal-overlay" onClick={() => !savingLoss && setLossTarget(null)}>
+          <div className="pl-modal" onClick={e => e.stopPropagation()}>
+            <div className="pl-modal-header">
+              <h3><PackageMinus size={18} style={{ verticalAlign: 'middle', marginRight: '0.5rem' }} />Record loss — {lossTarget.name}</h3>
+              <button className="btn-icon" onClick={() => setLossTarget(null)} aria-label="Close">&times;</button>
+            </div>
+            <form onSubmit={handleSaveLoss}>
+              <div className="form-grid">
+                <div className="input-group">
+                  <label>Quantity</label>
+                  <input type="number" min="1" step="any" className="input" value={lossForm.quantity} onChange={e => setLossForm({ ...lossForm, quantity: e.target.value })} />
+                </div>
+                <div className="input-group">
+                  <label>Reason</label>
+                  <select className="select" value={lossForm.reason} onChange={e => setLossForm({ ...lossForm, reason: e.target.value })}>
+                    {PRODUCT_LOSS_REASONS.map(r => <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>)}
+                  </select>
+                </div>
+                <div className="input-group">
+                  <label>Date</label>
+                  <input type="date" className="input" value={lossForm.date} onChange={e => setLossForm({ ...lossForm, date: e.target.value })} />
+                </div>
+                <div className="input-group">
+                  <label>Notes</label>
+                  <input type="text" className="input" placeholder="Optional" value={lossForm.notes} onChange={e => setLossForm({ ...lossForm, notes: e.target.value })} />
+                </div>
+              </div>
+              <button type="submit" className="btn btn-primary btn-block" style={{ marginTop: '1rem' }} disabled={savingLoss}>
+                {savingLoss ? 'Saving...' : 'Record Loss'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       <style>{`
         .prod-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1.25rem; }
         .prod-stat-card { display: flex; align-items: center; gap: 0.75rem; padding: 0.875rem 1rem; background: var(--color-card); border: 1px solid var(--color-border); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); }
@@ -609,6 +739,25 @@ export default function Products() {
         .prod-adjust-add { color: var(--color-primary) !important; }
         .prod-adjust-add:hover { background: var(--color-primary-light) !important; border-color: var(--color-primary) !important; }
         .prod-adjust-remove:hover { background: var(--color-danger-bg) !important; border-color: var(--color-danger) !important; }
+
+        /* Expiry alerts */
+        .prod-expiry-banner { display: flex; align-items: center; gap: 0.5rem; padding: 0.625rem 0.875rem; margin-bottom: 0.75rem; border-radius: var(--radius-md); font-size: 0.8125rem; }
+        .prod-expiry-banner > div { display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; }
+        .prod-expiry-danger { background: var(--color-danger-bg); color: var(--color-danger); border: 1px solid var(--color-danger); }
+        .prod-expiry-warning { background: var(--color-warning-bg); color: var(--color-warning); border: 1px solid var(--color-warning); }
+
+        /* Record loss modal */
+        .pl-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); backdrop-filter: blur(4px); z-index: 5000; display: flex; align-items: center; justify-content: center; animation: fadeIn 0.15s ease-out; }
+        .pl-modal { width: 100%; max-width: 420px; margin: 1rem; background: var(--color-card); border-radius: var(--radius-xl); box-shadow: var(--shadow-xl); animation: scaleIn 0.2s ease-out; max-height: 90vh; overflow-y: auto; }
+        .pl-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 1.25rem 1.25rem 0; }
+        .pl-modal-header h3 { font-size: 1.0625rem; }
+        .pl-modal form { padding: 1.25rem; }
+
+        .prod-card-expiry { display: block; font-size: 0.6875rem; font-weight: 600; color: var(--color-text-muted); margin-bottom: 0.375rem; }
+        .prod-card-expiry.expired { color: var(--color-danger); }
+        .prod-card-expiry.soon { color: var(--color-warning); }
+        .prod-loss-btn { color: var(--color-text-muted) !important; }
+        .prod-loss-btn:hover { background: var(--color-warning-bg) !important; color: var(--color-warning) !important; border-color: var(--color-warning) !important; }
 
         @media (max-width: 640px) {
           .prod-stats { grid-template-columns: 1fr; }
