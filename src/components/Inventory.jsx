@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Minus, AlertTriangle, RefreshCw, Trash2, PackagePlus, Package, Egg, Coins, Search } from 'lucide-react';
-import { fetchInventory, updateInventory, formatInventory, formatPeso, EGG_SIZES, TRAY_SIZE } from '../lib/api';
+import { fetchInventory, updateInventory, formatInventory, formatPeso, EGG_SIZES, TRAY_SIZE, fetchCostsPerEgg } from '../lib/api';
 import { fetchPriceSettings } from '../lib/pricing';
 import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
@@ -16,6 +16,7 @@ const FILTERS = [
 export default function Inventory() {
   const [inventory, setInventory] = useState([]);
   const [prices, setPrices] = useState({});
+  const [costs, setCosts] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [adjusting, setAdjusting] = useState(null);
@@ -64,6 +65,12 @@ export default function Inventory() {
         setPrices(map);
       } catch (err) {
         console.error('Price settings load error:', err);
+      }
+      try {
+        const costData = await fetchCostsPerEgg();
+        setCosts(costData || {});
+      } catch (err) {
+        console.error('Cost per egg load error:', err);
       }
     }, 0);
     return () => clearTimeout(id);
@@ -147,8 +154,8 @@ export default function Inventory() {
 
   const totalQty = sortedInventory.reduce((sum, i) => sum + (i.quantity_on_hand || 0), 0);
   const totalValue = sortedInventory.reduce((sum, i) => {
-    const pp = prices[i.egg_size_id]?.price_per_piece || 0;
-    return sum + (i.quantity_on_hand || 0) * pp;
+    const cost = costs[i.egg_size_id]?.avgCostPerEgg || 0;
+    return sum + (i.quantity_on_hand || 0) * cost;
   }, 0);
 
   return (
