@@ -12,7 +12,7 @@ import {
   Tag,
   Search,
 } from 'lucide-react';
-import { fetchProducts, addProduct, updateProduct, deleteProduct, updateProductStock, fetchProductDeliveries, addProductLoss, fetchProductLosses, deleteProductLoss, calculateSellingPrice, autoFillPricing, formatPeso, getLocalDate, PRODUCT_LOSS_REASONS } from '../lib/api';
+import { fetchProducts, addProduct, updateProduct, deleteProduct, updateProductStock, fetchProductDeliveries, addProductLoss, fetchProductLosses, deleteProductLoss, calculateSellingPrice, autoFillPricing, formatPeso, getLocalDate, PRODUCT_LOSS_REASONS, fetchCostsPerProduct } from '../lib/api';
 import { formatDate } from '../lib/formatters';
 import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
@@ -55,6 +55,7 @@ export default function Products() {
   const [adjustInputs, setAdjustInputs] = useState({});
   const [confirmAdj, setConfirmAdj] = useState(null);
   const [deliveries, setDeliveries] = useState([]);
+  const [costsPerProduct, setCostsPerProduct] = useState({});
   const [lossTarget, setLossTarget] = useState(null);
   const [lossForm, setLossForm] = useState({ quantity: '1', reason: 'expired', date: getLocalDate(), notes: '' });
   const [savingLoss, setSavingLoss] = useState(false);
@@ -76,8 +77,9 @@ export default function Products() {
     try {
       setLoading(true);
       setError(null);
-      const [prodData, delData] = await Promise.all([
+      const [prodData, delData, costData] = await Promise.all([
         fetchProducts(),
+        fetchCostsPerProduct(),
         // Page through all deliveries — oldest batches are the ones most likely to expire
         (async () => {
           const pageSize = 1000;
@@ -95,6 +97,7 @@ export default function Products() {
       ]);
       setProducts(prodData || []);
       setDeliveries(delData || []);
+      setCostsPerProduct(costData || {});
     } catch (err) {
       console.error('Products load error:', err);
       setError(err);
@@ -373,7 +376,7 @@ export default function Products() {
     return true;
   });
 
-  const totalStockValue = products.reduce((sum, p) => sum + (parseFloat(p.price || 0) * parseFloat(p.quantity_on_hand || 0)), 0);
+  const totalStockValue = products.reduce((sum, p) => sum + ((costsPerProduct[p.id] || 0) * parseFloat(p.quantity_on_hand || 0)), 0);
   const totalStockQty = products.reduce((sum, p) => sum + parseFloat(p.quantity_on_hand || 0), 0);
   const categoryCounts = {};
   products.forEach(p => {
