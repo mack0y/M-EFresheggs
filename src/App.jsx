@@ -20,6 +20,7 @@ const Products = lazy(() => import('./components/Products'));
 const ProductSales = lazy(() => import('./components/ProductSales'));
 const ProductDeliveries = lazy(() => import('./components/ProductDeliveries'));
 const NewProductSale = lazy(() => import('./components/NewProductSale'));
+const SupplierPortal = lazy(() => import('./components/SupplierPortal'));
 
 function PageLoading() {
   return (
@@ -86,6 +87,7 @@ export default function App() {
               <Route path="/product-sales" element={<ProductSales />} />
               <Route path="/product-sales/new" element={<NewProductSale />} />
               <Route path="/product-deliveries" element={<ProductDeliveries />} />
+              <Route path="/portal/:supplierId" element={<SupplierPortal />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/profits" element={<Profits />} />
               <Route path="*" element={<Navigate to="/" replace />} />
