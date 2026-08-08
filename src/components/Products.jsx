@@ -77,7 +77,10 @@ export default function Products() {
     try {
       setLoading(true);
       setError(null);
-      const [prodData, delData, costData] = await Promise.all([
+      // NOTE: tuple order matters — fetchCostsPerProduct() returns a plain
+      // OBJECT { product_id: costPerUnit }, the deliveries closure returns an ARRAY.
+      // delData must receive the deliveries array; costData the costs object.
+      const [prodData, costData, delData] = await Promise.all([
         fetchProducts(),
         fetchCostsPerProduct(),
         // Page through all deliveries — oldest batches are the ones most likely to expire
@@ -87,7 +90,7 @@ export default function Products() {
           let from = 0;
           while (true) {
             const page = await fetchProductDeliveries({ limit: pageSize, offset: from });
-            if (!page || page.length === 0) break;
+            if (!Array.isArray(page) || page.length === 0) break;
             all = all.concat(page);
             if (page.length < pageSize) break;
             from += pageSize;
