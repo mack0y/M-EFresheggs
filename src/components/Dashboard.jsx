@@ -564,6 +564,9 @@ export default function Dashboard() {
           <div className="primary-stat-info">
             <span className="primary-stat-label">Net Profit</span>
             <span className="primary-stat-value stat-value-anim" data-animated="true">{loading ? <span className="skeleton" style={{ display: 'inline-block', width: 80, height: 28 }}>&nbsp;</span> : formatPeso(netProfit)}</span>
+            {!loading && dailyRevenueCut > 0 && (
+              <span className="primary-stat-sub">After 10% net income cut: {formatPeso(dailyRevenueCut)}</span>
+            )}
           </div>
         </div>
       </div>
