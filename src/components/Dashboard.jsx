@@ -546,9 +546,6 @@ export default function Dashboard() {
             {!loading && viewFilter === 'products' && (
               <span className="primary-stat-sub">Products only — Eggs {formatPeso(todayRevenue)} in this period</span>
             )}
-            {!loading && dailyRevenueCut > 0 && (
-              <span className="primary-stat-sub">After 10% net income cut: {formatPeso(dailyRevenueCut)} (remaining: {formatPeso(netProfit)})</span>
-            )}
             {!loading && (
               <span className={`primary-stat-change ${revenueChange >= 0 ? 'change-up' : 'change-down'}`}>
                 {revenueChange >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
