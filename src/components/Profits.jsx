@@ -190,14 +190,16 @@ export default function Profits() {
     const totalCOGS = rows.reduce((s, r) => s + r.cogs, 0) + productCOGS;
     const totalExpensesAmount = expenses.reduce((s, e) => s + parseFloat(e.amount || 0), 0);
     const grossProfit = Math.round((totalRevenue - totalCOGS) * 100) / 100;
-    const revenueCut = Math.round(totalRevenue * 0.01 * 100) / 100; // 1% daily revenue cut (business rule)
+    // 10% cut on NET INCOME (profit): revenue − COGS − expenses.
+    // The cut is money set aside out of profit into operational funds,
+    // so the profit left for the owner is 90% of net income.
+    const netIncome = Math.round((totalRevenue - totalCOGS - totalExpensesAmount) * 100) / 100;
+    const revenueCut = Math.round(Math.max(0, netIncome) * 0.10 * 100) / 100; // 10% net income cut (business rule)
     const adjustedRevenue = Math.round((totalRevenue - revenueCut) * 100) / 100;
-    // Net profit = adjusted revenue minus COGS
-    // (expenses are paid from operational funds, funded by the 1% cut)
-    const netProfit = Math.round((adjustedRevenue - totalCOGS) * 100) / 100;
+    const netProfit = Math.round((netIncome - revenueCut) * 100) / 100;
     const totalEggs = rows.reduce((s, r) => s + r.totalEggs, 0);
 
-    return { rows, productRows, totalRevenue, totalCOGS, totalExpenses: totalExpensesAmount, grossProfit, revenueCut, adjustedRevenue, netProfit, salesCount: sales.length, totalEggs, productRevenue, productCOGS };
+    return { rows, productRows, totalRevenue, totalCOGS, totalExpenses: totalExpensesAmount, grossProfit, netIncome, revenueCut, adjustedRevenue, netProfit, salesCount: sales.length, totalEggs, productRevenue, productCOGS };
   })();
 
   // Filter-aware totals: adjust summary cards to match active view filter
@@ -212,15 +214,18 @@ export default function Profits() {
 
     const totalRev = eggRev + prodRev;
     const totalCogs = eggCogs + prodCogs;
-    const cut = Math.round(totalRev * 0.01 * 100) / 100;
+    // Filter-aware: cut on the visible subset's net income (same rule as the full view)
+    const netIncome = Math.round((totalRev - totalCogs - profitData.totalExpenses) * 100) / 100;
+    const cut = Math.round(Math.max(0, netIncome) * 0.10 * 100) / 100;
     const adjRev = Math.round((totalRev - cut) * 100) / 100;
 
     return {
       totalRevenue: totalRev,
       totalCOGS: totalCogs,
+      netIncome,
       revenueCut: cut,
       adjustedRevenue: adjRev,
-      netProfit: Math.round((adjRev - totalCogs) * 100) / 100,
+      netProfit: Math.round((netIncome - cut) * 100) / 100,
       totalEggs: isEggs ? profitData.rows.reduce((s, r) => s + r.totalEggs, 0) : 0,
       totalExpenses: profitData.totalExpenses,
       productRevenue: prodRev,
@@ -298,7 +303,7 @@ export default function Profits() {
             <span className="profit-card-label">Adjusted Revenue</span>
             <span className="profit-card-value">{loading ? '—' : formatPeso(ft.adjustedRevenue)}</span>
             {ft.revenueCut > 0 && !loading && viewFilter === 'all' && (
-              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', fontWeight: 500 }}>After 1% cut ({formatPeso(ft.revenueCut)})</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', fontWeight: 500 }}>After 10% net income cut ({formatPeso(ft.revenueCut)})</span>
             )}
           </div>
         </div>
@@ -608,7 +613,7 @@ export default function Profits() {
               </div>
               <div className="profit-net-op"><TrendingDown size={14} /></div>
                 <div className="profit-net-item">
-                  <span>1% Cut</span>
+                  <span>10% Net Income Cut</span>
                   <span className="profit-net-amount" style={{ color: '#F57F17' }}>{formatPeso(ft.revenueCut)}</span>
                 </div>
               <div className="profit-net-op"><TrendingDown size={14} /></div>

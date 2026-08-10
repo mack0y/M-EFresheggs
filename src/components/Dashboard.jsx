@@ -247,9 +247,13 @@ export default function Dashboard() {
       ? todayProductCOGS
       : todayCOGS + todayProductCOGS;
 
-  const dailyRevenueCut = Math.round(viewRevenue * 0.01 * 100) / 100;
+  // Cut = 10% of NET INCOME (viewRevenue − viewCOGS − today's expenses).
+  // Same rule as Profits and the daily operational-fund cut; nothing is cut
+  // on a loss day. Money set aside out of profit, so netProfit = netIncome − cut.
+  const netIncome = viewRevenue - viewCOGS - todayExpenseTotal;
+  const dailyRevenueCut = Math.round(Math.max(0, netIncome) * 0.10 * 100) / 100;
   const adjustedRevenue = viewRevenue - dailyRevenueCut;
-  const netProfit = adjustedRevenue - viewCOGS;
+  const netProfit = netIncome - dailyRevenueCut;
 
   const totalStock = useMemo(() =>
     inventory.reduce((sum, item) => sum + (item.quantity_on_hand || 0), 0),
@@ -543,7 +547,7 @@ export default function Dashboard() {
               <span className="primary-stat-sub">Products only — Eggs {formatPeso(todayRevenue)} in this period</span>
             )}
             {!loading && (
-              <span className="primary-stat-sub">After 1% cut: {formatPeso(dailyRevenueCut)} (remaining: {formatPeso(adjustedRevenue)})</span>
+              <span className="primary-stat-sub">After 10% net income cut: {formatPeso(dailyRevenueCut)} (remaining: {formatPeso(netProfit)})</span>
             )}
             {!loading && (
               <span className={`primary-stat-change ${revenueChange >= 0 ? 'change-up' : 'change-down'}`}>
@@ -717,7 +721,7 @@ export default function Dashboard() {
             <span className="stat-card-value">
               {loading ? '—' : formatPeso(dailyRevenueCut)}
             </span>
-            <span className="stat-card-label">1% Daily Cut</span>
+            <span className="stat-card-label">10% Daily Cut</span>
           </div>
         </div>
 

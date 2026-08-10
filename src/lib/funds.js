@@ -1,5 +1,7 @@
 import { supabase } from './supabaseClient';
-import { getLocalDate } from './utils';
+import { getLocalDate, getEggCount } from './utils';
+import { fetchCostsPerEgg, fetchCostsPerProduct } from './analytics';
+import { fetchExpenses } from './expenses';
 
 // ===== Operational Funds =====
 
@@ -37,27 +39,30 @@ export async function deleteOperationalFund(id) {
   if (error) throw error;
 }
 
-// ===== 1% Daily Revenue Cut =====
+// ===== 10% Daily Net Income Cut =====
 
-const DAILY_CUT_PERCENT = 0.01; // 1%
+// Cut = 10% of NET INCOME (revenue − COGS − expenses), not 10% of revenue.
+// Nothing is cut on a loss day (net income <= 0).
+const NET_INCOME_CUT_PERCENT = 0.10; // 10% of net income
+const CUT_DESCRIPTION = '10% Net Income Cut';
 
 /**
- * Calculate 1% of today's total sales revenue.
- * Returns { revenue, cutAmount, alreadyRecorded, fundId }.
+ * Calculate 10% of today's net income (revenue − COGS − expenses).
+ * Returns { revenue, cogs, expenses, netIncome, cutAmount, alreadyRecorded, fundId }.
  */
 export async function getDailyRevenueCutPreview() {
   const today = getLocalDate();
 
-  // Fetch today's total revenue (chunked to avoid the 1,000-row cap
+  // Fetch today's full rows (chunked to avoid the 1,000-row cap
   // silently understating the cut when a day has many sales)
-  async function fetchDayTotal(table) {
+  async function fetchDayRows(table, columns) {
     const pageSize = 1000;
     let allData = [];
     let from = 0;
     while (true) {
       const { data, error } = await supabase
         .from(table)
-        .select('total_amount')
+        .select(columns)
         .eq('sale_date', today)
         .range(from, from + pageSize - 1);
       if (error) throw error;
@@ -69,9 +74,12 @@ export async function getDailyRevenueCutPreview() {
     return allData;
   }
 
-  const [salesData, productSalesData] = await Promise.all([
-    fetchDayTotal('sales'),
-    fetchDayTotal('product_sales'),
+  const [salesData, productSalesData, expensesData, costsPerEgg, costsPerProduct] = await Promise.all([
+    fetchDayRows('sales', 'total_amount, egg_size_id, quantity, unit, tray_size'),
+    fetchDayRows('product_sales', 'total_amount, product_id, quantity'),
+    fetchExpenses({ startDate: today, endDate: today }),
+    fetchCostsPerEgg(),
+    fetchCostsPerProduct(),
   ]);
 
   const revenue = (salesData || []).reduce(
@@ -79,19 +87,31 @@ export async function getDailyRevenueCutPreview() {
   ) + (productSalesData || []).reduce(
     (sum, s) => sum + parseFloat(s.total_amount || 0), 0
   );
-  const cutAmount = Math.round(revenue * DAILY_CUT_PERCENT * 100) / 100;
+  // COGS at latest delivery cost (same source as Profits/Dashboard)
+  const cogs = (salesData || []).reduce(
+    (sum, s) => sum + (costsPerEgg[s.egg_size_id]?.avgCostPerEgg || 0) * getEggCount(s), 0
+  ) + (productSalesData || []).reduce(
+    (sum, s) => sum + (costsPerProduct[s.product_id] || 0) * parseFloat(s.quantity || 0), 0
+  );
+  const expenses = (expensesData || []).reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
+  // Net income = revenue − COGS − expenses; the cut comes off the profit, not the top line
+  const netIncome = Math.round((revenue - cogs - expenses) * 100) / 100;
+  const cutAmount = Math.round(Math.max(0, netIncome) * NET_INCOME_CUT_PERCENT * 100) / 100;
 
   // Check if already recorded today
   const { data: existingFund, error: fundErr } = await supabase
     .from('operational_funds')
     .select('id')
     .eq('fund_date', today)
-    .eq('description', '1% Daily Revenue Cut')
+    .eq('description', CUT_DESCRIPTION)
     .maybeSingle();
   if (fundErr) throw fundErr;
 
   return {
     revenue,
+    cogs: Math.round(cogs * 100) / 100,
+    expenses: Math.round(expenses * 100) / 100,
+    netIncome,
     cutAmount,
     alreadyRecorded: !!existingFund,
     fundId: existingFund?.id || null,
@@ -99,34 +119,34 @@ export async function getDailyRevenueCutPreview() {
 }
 
 /**
- * Record today's 1% revenue cut as an operational fund entry.
+ * Record today's 10% net income cut as an operational fund entry.
  */
 export async function recordDailyRevenueCut() {
   const today = getLocalDate();
 
   const preview = await getDailyRevenueCutPreview();
   if (preview.alreadyRecorded) {
-    throw new Error('Daily revenue cut already recorded today');
+    throw new Error('Daily net income cut already recorded today');
   }
   if (preview.cutAmount <= 0) {
-    throw new Error('No sales recorded today — nothing to cut');
+    throw new Error('No profit today — nothing to cut');
   }
 
   const { data, error } = await supabase
     .from('operational_funds')
     .insert({
       amount: preview.cutAmount,
-      description: '1% Daily Revenue Cut',
+      description: CUT_DESCRIPTION,
       fund_date: today,
     })
     .select()
     .single();
   if (error) throw error;
-  return { ...data, revenue: preview.revenue, cutAmount: preview.cutAmount };
+  return { ...data, revenue: preview.revenue, netIncome: preview.netIncome, cutAmount: preview.cutAmount };
 }
 
 /**
- * Remove the daily revenue cut entry for a given date.
+ * Remove the daily net income cut entry for a given date.
  * Returns the deleted fund record.
  */
 export async function deleteDailyRevenueCut(date) {
@@ -134,7 +154,7 @@ export async function deleteDailyRevenueCut(date) {
     .from('operational_funds')
     .delete()
     .eq('fund_date', date)
-    .eq('description', '1% Daily Revenue Cut')
+    .eq('description', CUT_DESCRIPTION)
     .select()
     .single();
   if (error) throw error;
