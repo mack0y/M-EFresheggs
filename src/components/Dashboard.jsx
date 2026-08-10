@@ -546,7 +546,7 @@ export default function Dashboard() {
             {!loading && viewFilter === 'products' && (
               <span className="primary-stat-sub">Products only — Eggs {formatPeso(todayRevenue)} in this period</span>
             )}
-            {!loading && (
+            {!loading && dailyRevenueCut > 0 && (
               <span className="primary-stat-sub">After 10% net income cut: {formatPeso(dailyRevenueCut)} (remaining: {formatPeso(netProfit)})</span>
             )}
             {!loading && (
@@ -713,17 +713,19 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {!loading && dailyRevenueCut > 0 && (
         <div className="stat-card-item">
           <div className="stat-card-icon" style={{ background: '#E8F5E9', color: '#2E7D32' }}>
             <Wallet size={18} />
           </div>
           <div className="stat-card-content">
             <span className="stat-card-value">
-              {loading ? '—' : formatPeso(dailyRevenueCut)}
+              {formatPeso(dailyRevenueCut)}
             </span>
             <span className="stat-card-label">10% Daily Cut</span>
           </div>
         </div>
+        )}
 
         <div className="stat-card-item">
           <div className="stat-card-icon" style={{ background: '#FFF3E0', color: '#E65100' }}>
