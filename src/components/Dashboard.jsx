@@ -258,15 +258,11 @@ export default function Dashboard() {
 
   // Compute inventory value from already-fetched data (avoids redundant fetchInventoryValue call)
   const inventoryValue = useMemo(() => {
-    const priceMap = {};
-    priceSettings.forEach(p => {
-      priceMap[p.egg_size_id] = parseFloat(p.price_per_piece || 0);
-    });
     let eggValue = 0;
     inventory.forEach(item => {
       const qty = item.quantity_on_hand || 0;
-      const pp = priceMap[item.egg_size_id] || 0;
-      eggValue += qty * pp;
+      const costPerEgg = costsPerEgg[item.egg_size_id]?.avgCostPerEgg || 0;
+      eggValue += qty * costPerEgg;
     });
     let productValue = 0;
     products.forEach(p => {
@@ -275,7 +271,7 @@ export default function Dashboard() {
       productValue += qty * price;
     });
     return { eggValue, productValue, totalValue: eggValue + productValue };
-  }, [inventory, priceSettings, products]);
+  }, [inventory, products]);
 
   // Yesterday comparison (combined)
   const yesterdayCombinedRevenue = useMemo(() => {
