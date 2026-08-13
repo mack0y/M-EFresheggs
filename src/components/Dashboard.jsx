@@ -560,10 +560,13 @@ export default function Dashboard() {
             {netProfit >= 0 ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
           </div>
           <div className="primary-stat-info">
-            <span className="primary-stat-label">Net Profit</span>
+            <span className="primary-stat-label">Net Profit (after 10% cut)</span>
             <span className="primary-stat-value stat-value-anim" data-animated="true">{loading ? <span className="skeleton" style={{ display: 'inline-block', width: 80, height: 28 }}>&nbsp;</span> : formatPeso(netProfit)}</span>
             {!loading && dailyRevenueCut > 0 && (
-              <span className="primary-stat-sub">After 10% net income cut: {formatPeso(dailyRevenueCut)}</span>
+              <span className="primary-stat-sub">Net income ₱{formatPeso(netIncome).replace('₱','')} − 10% cut ₱{formatPeso(dailyRevenueCut).replace('₱','')} = ₱{formatPeso(netProfit).replace('₱','')}</span>
+            )}
+            {!loading && dailyRevenueCut === 0 && netIncome > 0 && (
+              <span className="primary-stat-sub">Net income ₱{formatPeso(netIncome).replace('₱','')} (no cut taken)</span>
             )}
           </div>
         </div>
