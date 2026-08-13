@@ -155,6 +155,7 @@ export default function Inventory() {
   const totalQty = sortedInventory.reduce((sum, i) => sum + (i.quantity_on_hand || 0), 0);
   const totalValue = sortedInventory.reduce((sum, i) => {
     const cost = costs[i.egg_size_id]?.avgCostPerEgg || 0;
+    // costs.avgCostPerEgg is now full precision (no 2-decimal rounding)
     return sum + (i.quantity_on_hand || 0) * cost;
   }, 0);
 

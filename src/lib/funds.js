@@ -88,6 +88,7 @@ export async function getDailyRevenueCutPreview() {
     (sum, s) => sum + parseFloat(s.total_amount || 0), 0
   );
   // COGS at latest delivery cost (same source as Profits/Dashboard)
+  // costsPerEgg avgCostPerEgg is now full precision (no 2-decimal rounding)
   const cogs = (salesData || []).reduce(
     (sum, s) => sum + (costsPerEgg[s.egg_size_id]?.avgCostPerEgg || 0) * getEggCount(s), 0
   ) + (productSalesData || []).reduce(

@@ -292,6 +292,8 @@ export default function Reports() {
       const profitPerEgg = Math.round((sellPerPiece - costPerEgg) * 100) / 100;
       const profitPerTray = Math.round((sellPerTray - costPerTray) * 100) / 100;
       const marginPercent = sellPerPiece > 0 ? Math.round((profitPerEgg / sellPerPiece) * 1000) / 10 : 0;
+      // Use exact per-egg cost (cost_per_egg / tray_size) for COGS to avoid rounding drift.
+      // The costsPerEgg map now has full-precision avgCostPerEgg; only round final display.
       const cogs = Math.round(costPerEgg * row.totalEggs * 100) / 100;
       return { ...row, costPerEgg, costPerTray, sellPerPiece, sellPerTray, profitPerEgg, profitPerTray, marginPercent, cogs };
     });

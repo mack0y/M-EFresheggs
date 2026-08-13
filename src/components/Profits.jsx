@@ -109,7 +109,7 @@ export default function Profits() {
         const price = (priceSettings || []).find(p => p.egg_sizes?.name === name);
         const sizeId = price?.egg_size_id;
         const cost = sizeId ? (costsPerEgg || {})[sizeId] : null;
-        const costPerEgg = cost?.avgCostPerEgg || 0;
+        const costPerEgg = cost?.avgCostPerEgg || 0; // full precision (no 2-decimal rounding)
         const costPerTray = cost?.avgCostPerTray || 0;
         const sellPerPiece = parseFloat(price?.price_per_piece || 0);
         const sellPerTray = parseFloat(price?.price_per_tray || 0);

@@ -178,6 +178,7 @@ function findLatestDeliveryPerSize(deliveries) {
 /**
  * Derive cost per egg and cost per tray from a delivery record.
  * The cost_per_egg column stores cost per tray.
+ * Returns full-precision per-egg cost (no rounding) for accurate COGS.
  */
 function deriveCostPerEgg(delivery) {
   if (!delivery) return { avgCostPerEgg: 0, avgCostPerTray: 0 };
@@ -185,7 +186,7 @@ function deriveCostPerEgg(delivery) {
   const traySize = delivery.tray_size || TRAY_SIZE;
   const costPerEgg = traySize > 0 ? costPerTray / traySize : 0;
   return {
-    avgCostPerEgg: Math.round(costPerEgg * 100) / 100,
+    avgCostPerEgg: costPerEgg,
     avgCostPerTray: Math.round(costPerTray * 100) / 100,
   };
 }
@@ -292,7 +293,7 @@ export async function fetchProfitMargins() {
   // rows past the 1,000-row cap (same pattern as fetchSales).
   let query = supabase
     .from('deliveries')
-    .select('egg_size_id, cost_per_egg, tray_size, quantity, unit')
+    .select('egg_size_id, cost_per_egg, tray_size, quantity, unit, total_cost')
     .order('delivery_date', { ascending: false })
     .order('created_at', { ascending: false });
 
@@ -312,10 +313,14 @@ export async function fetchProfitMargins() {
 
   // Count deliveries per egg size for accurate deliveryCount
   const deliveryCountPerSize = {};
+  // Sum total_cost per size from all deliveries (exact, matches DB)
+  const totalCostPerSize = {};
   (deliveries || []).forEach(d => {
     const id = d.egg_size_id;
     if (!deliveryCountPerSize[id]) deliveryCountPerSize[id] = 0;
     deliveryCountPerSize[id]++;
+    if (!totalCostPerSize[id]) totalCostPerSize[id] = 0;
+    totalCostPerSize[id] += parseFloat(d.total_cost || 0);
   });
 
   const { latestPerSize, totalCountPerSize } = findLatestDeliveryPerSize(deliveries);
@@ -340,7 +345,7 @@ export async function fetchProfitMargins() {
       profitPerEgg: Math.round(profitPerEgg * 100) / 100,
       marginPercent: Math.round(marginPercent * 10) / 10,
       totalDelivered: totalEggs,
-      totalDeliveryCost: totalEggs * avgCostPerEgg,
+      totalDeliveryCost: totalCostPerSize[price?.egg_size_id] || 0,
       deliveryCount: price?.egg_size_id ? (deliveryCountPerSize[price.egg_size_id] || 0) : 0,
     };
   });

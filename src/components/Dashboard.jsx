@@ -228,6 +228,7 @@ export default function Dashboard() {
     todaySales.reduce((sum, s) => {
       const cost = costsPerEgg[s.egg_size_id];
       const eggCount = getEggCount(s);
+      // cost.avgCostPerEgg is now full precision (no 2-decimal rounding)
       return sum + (cost?.avgCostPerEgg || 0) * eggCount;
     }, 0),
     [todaySales, costsPerEgg]
