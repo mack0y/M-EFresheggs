@@ -248,11 +248,9 @@ export default function Dashboard() {
       ? todayProductCOGS
       : todayCOGS + todayProductCOGS;
 
-  // Cut = 10% of NET INCOME (viewRevenue − viewCOGS − today's expenses).
-  // Same rule as Profits and the daily operational-fund cut; nothing is cut
-  // on a loss day. Money set aside out of profit, so netProfit = netIncome − cut.
-  const viewExpense = (viewRevenue > 0 || viewFilter === 'all') ? todayExpenseTotal : 0;
-  const netIncome = viewRevenue - viewCOGS - viewExpense;
+  // Cut = 10% of NET INCOME (viewRevenue − viewCOGS). No expense deduction.
+  // Money set aside out of profit, so netProfit = netIncome − cut.
+  const netIncome = viewRevenue - viewCOGS;
   const dailyRevenueCut = Math.round(Math.max(0, netIncome) * 0.10 * 100) / 100;
   const adjustedRevenue = viewRevenue - dailyRevenueCut;
   const netProfit = netIncome - dailyRevenueCut;
