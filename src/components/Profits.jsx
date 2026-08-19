@@ -193,7 +193,7 @@ export default function Profits() {
     // 10% cut on NET INCOME (profit): revenue − COGS − expenses.
     // The cut is money set aside out of profit into operational funds,
     // so the profit left for the owner is 90% of net income.
-    const netIncome = Math.round((totalRevenue - totalCOGS - totalExpensesAmount) * 100) / 100;
+    const netIncome = Math.round((totalRevenue - totalCOGS) * 100) / 100;  // no expense term
     const revenueCut = Math.round(Math.max(0, netIncome) * 0.10 * 100) / 100; // 10% net income cut (business rule)
     const adjustedRevenue = Math.round((totalRevenue - revenueCut) * 100) / 100;
     const netProfit = Math.round((netIncome - revenueCut) * 100) / 100;
@@ -215,7 +215,7 @@ export default function Profits() {
     const totalRev = eggRev + prodRev;
     const totalCogs = eggCogs + prodCogs;
     // Filter-aware: cut on the visible subset's net income (same rule as the full view)
-    const netIncome = Math.round((totalRev - totalCogs - profitData.totalExpenses) * 100) / 100;
+    const netIncome = Math.round((totalRev - totalCogs) * 100) / 100;  // no expense term
     const cut = Math.round(Math.max(0, netIncome) * 0.10 * 100) / 100;
     const adjRev = Math.round((totalRev - cut) * 100) / 100;
 
