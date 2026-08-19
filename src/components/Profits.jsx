@@ -609,22 +609,22 @@ export default function Profits() {
             <div className="profit-net-strip">
               <div className="profit-net-item">
                 <span>Gross Revenue</span>
-                <span className="profit-net-amount" style={{ color: 'var(--color-primary)' }}>{formatPeso(profitData.totalRevenue)}</span>
-              </div>
-              <div className="profit-net-op"><TrendingDown size={14} /></div>
-                <div className="profit-net-item">
-                  <span>10% Net Income Cut</span>
-                  <span className="profit-net-amount" style={{ color: '#F57F17' }}>{formatPeso(ft.revenueCut)}</span>
-                </div>
-              <div className="profit-net-op"><TrendingDown size={14} /></div>
-              <div className="profit-net-item">
-                <span>Adjusted Revenue</span>
-                <span className="profit-net-amount" style={{ color: 'var(--color-success)', fontWeight: 700 }}>{formatPeso(ft.adjustedRevenue)}</span>
+                <span className="profit-net-amount" style={{ color: 'var(--color-primary)' }}>{formatPeso(ft.totalRevenue)}</span>
               </div>
               <div className="profit-net-op"><TrendingDown size={14} /></div>
               <div className="profit-net-item">
                 <span>COGS</span>
                 <span className="profit-net-amount" style={{ color: '#E65100' }}>{formatPeso(ft.totalCOGS)}</span>
+              </div>
+              <div className="profit-net-op profit-net-op-eq"><span>=</span></div>
+              <div className="profit-net-item">
+                <span>Net Income</span>
+                <span className="profit-net-amount" style={{ color: 'var(--color-success)', fontWeight: 700 }}>{formatPeso(ft.netIncome)}</span>
+              </div>
+              <div className="profit-net-op"><TrendingDown size={14} /></div>
+              <div className="profit-net-item">
+                <span>10% Net Income Cut</span>
+                <span className="profit-net-amount" style={{ color: '#F57F17' }}>{formatPeso(ft.revenueCut)}</span>
               </div>
               <div className="profit-net-op profit-net-op-eq"><span>=</span></div>
               <div className={`profit-net-item profit-net-final ${ft.netProfit >= 0 ? 'profit-positive' : 'profit-negative'}`}>
