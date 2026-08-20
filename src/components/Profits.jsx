@@ -300,11 +300,8 @@ export default function Profits() {
             <DollarSign size={20} />
           </div>
           <div className="profit-card-info">
-            <span className="profit-card-label">Adjusted Revenue</span>
-            <span className="profit-card-value">{loading ? '—' : formatPeso(ft.adjustedRevenue)}</span>
-            {ft.revenueCut > 0 && !loading && viewFilter === 'all' && (
-              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', fontWeight: 500 }}>After 10% net income cut ({formatPeso(ft.revenueCut)})</span>
-            )}
+            <span className="profit-card-label">Gross Revenue</span>
+            <span className="profit-card-value">{loading ? '—' : formatPeso(ft.totalRevenue)}</span>
           </div>
         </div>
         <div className="profit-summary-card profit-card-cogs">
