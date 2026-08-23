@@ -41,7 +41,8 @@ export async function deleteOperationalFund(id) {
 
 // ===== 10% Daily Net Income Cut =====
 
-// Cut = 10% of NET INCOME (revenue − COGS − expenses), not 10% of revenue.
+// Cut = 10% of NET INCOME (revenue − COGS). Expenses are NOT part of net
+// income — they are accounted for separately in operational funds only.
 // Nothing is cut on a loss day (net income <= 0).
 const NET_INCOME_CUT_PERCENT = 0.10; // 10% of net income
 const CUT_DESCRIPTION = '10% Net Income Cut';
@@ -95,8 +96,9 @@ export async function getDailyRevenueCutPreview() {
     (sum, s) => sum + (costsPerProduct[s.product_id] || 0) * parseFloat(s.quantity || 0), 0
   );
   const expenses = (expensesData || []).reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
-  // Net income = revenue − COGS − expenses; the cut comes off the profit, not the top line
-  const netIncome = Math.round((revenue - cogs - expenses) * 100) / 100;
+  // Net income = revenue − COGS; the cut comes off the profit, not the top line.
+  // Expenses are NOT part of net income — accounted for separately in operational funds only.
+  const netIncome = Math.round((revenue - cogs) * 100) / 100;
   const cutAmount = Math.round(Math.max(0, netIncome) * NET_INCOME_CUT_PERCENT * 100) / 100;
 
   // Check if already recorded today

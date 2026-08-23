@@ -271,7 +271,7 @@ export default function Dashboard() {
     let productValue = 0;
     products.forEach(p => {
       const qty = parseFloat(p.quantity_on_hand || 0);
-      const price = parseFloat(p.price || 0);
+      const price = parseFloat(p.cost || 0);
       productValue += qty * price;
     });
     return { eggValue, productValue, totalValue: eggValue + productValue };
