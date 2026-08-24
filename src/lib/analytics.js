@@ -165,7 +165,11 @@ function findLatestDeliveryPerSize(deliveries) {
   const latestPerSize = {};
   const totalCountPerSize = {};
   (deliveries || []).forEach(d => {
-    if (!latestPerSize[d.egg_size_id]) {
+    // Explicitly pick the delivery with the LATEST delivery_date per size,
+    // instead of relying on array order. Guards against a future change in
+    // query sort silently picking a stale (older) cost as "latest".
+    const cur = latestPerSize[d.egg_size_id];
+    if (!cur || (d.delivery_date || '') > (cur.delivery_date || '')) {
       latestPerSize[d.egg_size_id] = d;
     }
     if (!totalCountPerSize[d.egg_size_id]) totalCountPerSize[d.egg_size_id] = 0;

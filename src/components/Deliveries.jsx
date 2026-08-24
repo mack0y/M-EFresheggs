@@ -94,6 +94,7 @@ export default function Deliveries() {
               name: item.egg_sizes?.name || 'Unknown',
               quantity: '',
               costPerTray: '',
+              traySize: TRAY_SIZE,
             })),
         }));
       }
@@ -172,6 +173,7 @@ export default function Deliveries() {
           eggSizeId: parseInt(s.eggSizeId, 10),
           quantity: parseInt(s.quantity, 10),
           costPerTray: parseFloat(s.costPerTray),
+          traySize: parseInt(s.traySize, 10) || TRAY_SIZE,
         })),
         unit: 'tray',
         traySize: TRAY_SIZE,
@@ -548,6 +550,7 @@ export default function Deliveries() {
                   <span className="delivery-sizes-label">Egg Size</span>
                   <span className="delivery-sizes-label">Qty (trays)</span>
                   <span className="delivery-sizes-label">Cost/Tray</span>
+                  <span className="delivery-sizes-label">Tray Size</span>
                   <span className="delivery-sizes-label num">Subtotal</span>
                 </div>
                 {form.sizes.map((size, i) => (
@@ -569,6 +572,15 @@ export default function Deliveries() {
                       placeholder="0.00"
                       value={size.costPerTray}
                       onChange={e => updateSize(i, 'costPerTray', e.target.value)}
+                    />
+                    <input
+                      type="number"
+                      className="input delivery-size-input"
+                      min="1"
+                      step="1"
+                      placeholder="30"
+                      value={size.traySize}
+                      onChange={e => updateSize(i, 'traySize', e.target.value)}
                     />
                     <span className="delivery-size-subtotal num">
                       {(parseInt(size.quantity, 10) || 0) * (parseFloat(size.costPerTray) || 0) > 0

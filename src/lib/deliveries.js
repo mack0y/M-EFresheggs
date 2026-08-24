@@ -69,6 +69,7 @@ export async function recordDeliveryBatch({ supplierId, items, unit, traySize, p
   const batchId = crypto.randomUUID();
   const rows = items.map(item => {
     const totalCost = item.quantity * parseFloat(item.costPerTray || 0);
+    const traySize = parseInt(item.traySize, 10) || 30;
     // Set amount_paid based on initial payment status
     const amountPaid = paymentStatus === 'paid' ? totalCost : 0;
     return {
@@ -76,7 +77,7 @@ export async function recordDeliveryBatch({ supplierId, items, unit, traySize, p
       egg_size_id: item.eggSizeId,
       quantity: item.quantity,
       unit,
-      tray_size: traySize || 30,
+      tray_size: traySize,
       cost_per_egg: item.costPerTray,
       total_cost: totalCost,
       amount_paid: amountPaid,

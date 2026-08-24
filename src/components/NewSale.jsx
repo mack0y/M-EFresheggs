@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShoppingCart, ArrowLeft, Egg, Check, Search, Trash2, Plus, User, Zap, ChevronDown } from 'lucide-react';
 import { useCart } from './CartContext';
-import { fetchInventory, fetchPriceSettings, fetchProducts, fetchCustomers, recordTransaction, formatPeso, formatInventory, TRAY_SIZE } from '../lib/api';
+import { fetchInventory, fetchPriceSettings, fetchProducts, fetchCustomers, fetchCostsPerEgg, recordTransaction, formatPeso, formatInventory, TRAY_SIZE } from '../lib/api';
 import { toast } from '../lib/toastFn';
 import { getUserFriendlyError } from '../lib/errors';
 import ConfirmDialog from './ConfirmDialog';
@@ -18,6 +18,7 @@ export default function NewSale() {
   const [inventory, setInventory] = useState([]);
   const [priceSettings, setPriceSettings] = useState([]);
   const [products, setProducts] = useState([]);
+  const [costsPerEgg, setCostsPerEgg] = useState({});
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -86,6 +87,13 @@ export default function NewSale() {
       setPriceSettings(priceData || []);
       setProducts(prodData || []);
       setCustomers(custData || []);
+      // Load latest delivery cost per egg size so we can warn when selling a
+      // size that has no cost baseline (COGS would be 0 → profit overstated).
+      try {
+        setCostsPerEgg(await fetchCostsPerEgg() || {});
+      } catch {
+        setCostsPerEgg({});
+      }
     } catch (err) {
       console.error('Load error:', err);
       toast(getUserFriendlyError(err), 'error');
@@ -154,6 +162,13 @@ export default function NewSale() {
       : parseFloat(price?.price_per_piece || 0);
     if (pricePerUnit <= 0) {
       toast(`Cannot add ${name} — no price is set for it yet`, 'error');
+      return;
+    }
+    // M3 guard: warn if this egg size has no delivery cost baseline.
+    // Without it, COGS computes as 0 and profit is overstated.
+    const hasCost = costsPerEgg[eggSizeId] && (costsPerEgg[eggSizeId].avgCostPerEgg || 0) > 0;
+    if (!hasCost) {
+      toast(`Warning: no delivery cost recorded for ${name} — COGS will be ₱0 (profit overstated). Record a delivery first.`, 'error');
       return;
     }
     const total = qty * pricePerUnit;
